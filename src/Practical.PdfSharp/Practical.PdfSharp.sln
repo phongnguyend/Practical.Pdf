@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36705.20
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Practical.PdfSharp", "Practical.PdfSharp\Practical.PdfSharp.csproj", "{B3037DC6-9DE8-4D0E-B69F-486FD0363903}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B3037DC6-9DE8-4D0E-B69F-486FD0363903}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3037DC6-9DE8-4D0E-B69F-486FD0363903}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3037DC6-9DE8-4D0E-B69F-486FD0363903}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3037DC6-9DE8-4D0E-B69F-486FD0363903}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FABE9E04-D2DA-4CA4-A9E2-5D4047861957}
+	EndGlobalSection
+EndGlobal
