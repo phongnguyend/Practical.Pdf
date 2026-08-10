@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36705.20
+# Visual Studio Version 18
+VisualStudioVersion = 18.8.12009.203 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Practical.PdfSharp", "Practical.PdfSharp\Practical.PdfSharp.csproj", "{B3037DC6-9DE8-4D0E-B69F-486FD0363903}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InsertQrCode", "InsertQrCode\InsertQrCode.csproj", "{A9D64E5A-B4E0-4DEF-BA98-1EE5AB1026E6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{B3037DC6-9DE8-4D0E-B69F-486FD0363903}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B3037DC6-9DE8-4D0E-B69F-486FD0363903}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B3037DC6-9DE8-4D0E-B69F-486FD0363903}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9D64E5A-B4E0-4DEF-BA98-1EE5AB1026E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9D64E5A-B4E0-4DEF-BA98-1EE5AB1026E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9D64E5A-B4E0-4DEF-BA98-1EE5AB1026E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9D64E5A-B4E0-4DEF-BA98-1EE5AB1026E6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
