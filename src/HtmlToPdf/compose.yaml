@@ -1,0 +1,43 @@
+name: html-to-pdf
+
+services:
+  proxy:
+    image: html-to-pdf/proxy:local
+    build:
+      context: ./HtmlToPdf.Proxy
+    init: true
+    depends_on:
+      - chrome-cli-api
+      - playwright-api
+      - puppeteer-sharp-api
+    environment:
+      ReverseProxy__Clusters__chrome-cluster__Destinations__destination1__Address: http://chrome-cli-api:8080/
+      ReverseProxy__Clusters__playwright-cluster__Destinations__destination1__Address: http://playwright-api:8080/
+      ReverseProxy__Clusters__puppeteer-cluster__Destinations__destination1__Address: http://puppeteer-sharp-api:8080/
+    ports:
+      - "8080:8080"
+
+  chrome-cli-api:
+    image: html-to-pdf/chrome-cli-api:local
+    build:
+      context: ./ChromeCliConverter.Api
+    init: true
+    ports:
+      - "8081:8080"
+
+  playwright-api:
+    image: html-to-pdf/playwright-api:local
+    build:
+      context: ./PlaywrightConverter.Api
+    init: true
+    ipc: host
+    ports:
+      - "8082:8080"
+
+  puppeteer-sharp-api:
+    image: html-to-pdf/puppeteer-sharp-api:local
+    build:
+      context: ./PuppeteerSharpConverter.Api
+    init: true
+    ports:
+      - "8083:8080"

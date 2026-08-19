@@ -8,6 +8,9 @@ This solution demonstrates three ways to convert HTML into PDF with .NET 10:
 | Playwright | `PlaywrightConverter` | `PlaywrightConverter.Api` | Playwright Chromium 1.61.0 |
 | PuppeteerSharp | `PuppeteerSharpConverter` | `PuppeteerSharpConverter.Api` | Google Chrome Stable |
 
+`HtmlToPdf.Proxy` provides a single YARP reverse-proxy endpoint for all three
+HTTP APIs.
+
 ## Prerequisites
 
 - .NET 10 SDK for local builds
@@ -34,11 +37,58 @@ All three API projects expose the same contract:
 - A successful request returns an `application/pdf` download.
 - `GET /health` returns the service health status.
 
+### Run all APIs with Docker Compose
+
+Build and start all three APIs from `src/HtmlToPdf`:
+
+```powershell
+docker compose up --build -d
+```
+
+The APIs are available at:
+
+| Implementation | URL |
+| --- | --- |
+| YARP proxy | `http://localhost:8080` |
+| Chrome CLI | `http://localhost:8081` |
+| Playwright | `http://localhost:8082` |
+| PuppeteerSharp | `http://localhost:8083` |
+
+Use the proxy prefixes to select a converter. The prefix is removed before the
+request is forwarded:
+
+| Proxy request | Converter request |
+| --- | --- |
+| `POST /chrome/convert` | Chrome CLI `POST /convert` |
+| `POST /playwright/convert` | Playwright `POST /convert` |
+| `POST /puppeteer/convert` | PuppeteerSharp `POST /convert` |
+
+For example:
+
+```powershell
+curl.exe -X POST `
+  -F "file=@sample.html;type=text/html" `
+  -o result.pdf `
+  http://localhost:8080/playwright/convert
+```
+
+The corresponding backend health endpoints are available at `/chrome/health`,
+`/playwright/health`, and `/puppeteer/health`. The proxy's own health endpoint
+is `/health`.
+
+View their logs or stop and remove the containers with:
+
+```powershell
+docker compose logs -f
+docker compose down
+```
+
 ### Build the API images
 
 Run these commands from `src/HtmlToPdf`:
 
 ```powershell
+docker build -t html-to-pdf-proxy .\HtmlToPdf.Proxy
 docker build -t chrome-cli-api .\ChromeCliConverter.Api
 docker build -t playwright-api .\PlaywrightConverter.Api
 docker build -t puppeteer-sharp-api .\PuppeteerSharpConverter.Api
@@ -47,6 +97,7 @@ docker build -t puppeteer-sharp-api .\PuppeteerSharpConverter.Api
 On Linux or macOS, replace `\` with `/`:
 
 ```bash
+docker build -t html-to-pdf-proxy ./HtmlToPdf.Proxy
 docker build -t chrome-cli-api ./ChromeCliConverter.Api
 docker build -t playwright-api ./PlaywrightConverter.Api
 docker build -t puppeteer-sharp-api ./PuppeteerSharpConverter.Api
@@ -136,6 +187,15 @@ dotnet run --project .\PlaywrightConverter.Api
 
 The local development port is printed by ASP.NET Core when the project starts.
 Use that URL in place of `http://localhost:8080` in the examples above.
+
+After starting all three converter APIs locally, run the proxy with:
+
+```powershell
+dotnet run --project .\HtmlToPdf.Proxy
+```
+
+Its default development configuration targets the HTTP ports in the converter
+projects' launch profiles.
 
 ## Console applications
 

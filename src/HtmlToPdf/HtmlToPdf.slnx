@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="ChromeCliConverter.Api/ChromeCliConverter.Api.csproj" />
   <Project Path="ChromeCliConverter/ChromeCliConverter.csproj" />
+  <Project Path="HtmlToPdf.Proxy/HtmlToPdf.Proxy.csproj" />
   <Project Path="PlaywrightConverter.Api/PlaywrightConverter.Api.csproj" />
   <Project Path="PlaywrightConverter/PlaywrightConverter.csproj" />
   <Project Path="PuppeteerSharpConverter.Api/PuppeteerSharpConverter.Api.csproj" />
