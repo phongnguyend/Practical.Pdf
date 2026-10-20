@@ -8,15 +8,29 @@ internal static class ObjectGraphTests
         var checks = 0;
         void Check(bool condition, string label)
         {
-            if (!condition) throw new Exception("FAILED object graph: " + label);
+            if (!condition)
+            {
+                throw new Exception("FAILED object graph: " + label);
+            }
+
             checks++;
         }
+
         void Reject(Action action, string label)
         {
-            try { action(); }
-            catch (InvalidDataException) { checks++; return; }
+            try
+            {
+                action();
+            }
+            catch (InvalidDataException)
+            {
+                checks++;
+                return;
+            }
+
             throw new Exception("FAILED object graph rejection: " + label);
         }
+
         var simple = PdfObjectConverter.ReadPdf(simplePdf);
         Check(simple.TextIndex.Count == 3, "text index includes blank pages");
         Check(simple.TextIndex[0].Text.Contains("Hello world"), "readable page text");
@@ -70,6 +84,7 @@ internal static class ObjectGraphTests
             Check(wider.GetPage(1).Text == indexed.TextIndex[0].Text, "wider replacement allowed by default");
             Check(wider.GetPage(1).Letters.All(l => Math.Abs(l.FontSize - 18) < 0.001), "wider replacement retains font size");
         }
+
         indexed.TextIndex[0].Text = "\u4e2d";
         Reject(() => PdfObjectConverter.WritePdf(indexed), "unavailable glyph");
         var positionedEdit = PdfObjectConverter.ReadPdf(CreateFixture(positioned: true));
@@ -81,7 +96,10 @@ internal static class ObjectGraphTests
         runs.Single(r => r.Text == " tail").Text = " a";
         var editedRuns = PdfObjectConverter.WritePdf(runDocument);
         using (var runPdf = NativeTestDocument.Open(editedRuns))
+        {
             Check(runPdf.GetPage(1).Text == "Item map a", "multiple edits within and across operators");
+        }
+
         Check(PdfObjectConverter.ReadPdf(editedRuns).TextIndex[0].Runs!.Any(r => r.Text == "map"), "re-export refreshes run mappings");
         Check(PdfObjectConverter.WritePdf(runDocument).SequenceEqual(editedRuns), "run writes are repeatable");
         runs[0].StreamSha256 = "stale";
@@ -101,21 +119,30 @@ internal static class ObjectGraphTests
         Check(repeatedRuns.Count(r => r.Text == "Repeat") == 2, "identical text has separate run identities");
         repeatedRuns[1].Text = "Again";
         using (var repeatedPdf = NativeTestDocument.Open(PdfObjectConverter.WritePdf(duplicateWords)))
+        {
             Check(repeatedPdf.GetPage(1).Text == "RepeatAgain", "only selected identical occurrence changes");
+        }
+
         runDocument = PdfObjectConverter.FromJson(PdfObjectConverter.ToJson(positionedEdit));
         runDocument.TextIndex[0].Runs![0].Text = "A much longer first string ";
         runDocument.TextIndex[0].Runs![1].Text = "a much longer second string";
         using (var overflowRuns = NativeTestDocument.Open(PdfObjectConverter.WritePdf(runDocument)))
-        using (var originalRuns = NativeTestDocument.Open(CreateFixture(positioned: true)))
         {
-            Check(overflowRuns.GetPage(1).Text == "A much longer first string a much longer second string tail", "overlapping run edits allowed");
-            Check(overflowRuns.GetPage(1).Letters.All(l => Math.Abs(l.FontSize - 18) < 0.001), "overlapping runs retain font size");
-            Check(Math.Abs(overflowRuns.GetPage(1).Letters.Last().StartBaseLine.X - originalRuns.GetPage(1).Letters.Last().StartBaseLine.X) < 0.001, "overflow leaves following text in place");
+            using (var originalRuns = NativeTestDocument.Open(CreateFixture(positioned: true)))
+            {
+                Check(overflowRuns.GetPage(1).Text == "A much longer first string a much longer second string tail", "overlapping run edits allowed");
+                Check(overflowRuns.GetPage(1).Letters.All(l => Math.Abs(l.FontSize - 18) < 0.001), "overlapping runs retain font size");
+                Check(Math.Abs(overflowRuns.GetPage(1).Letters.Last().StartBaseLine.X - originalRuns.GetPage(1).Letters.Last().StartBaseLine.X) < 0.001, "overflow leaves following text in place");
+            }
         }
+
         runDocument = PdfObjectConverter.FromJson(PdfObjectConverter.ToJson(positionedEdit));
         runDocument.TextIndex[0].Runs![1].Text = "";
         using (var deletedRun = NativeTestDocument.Open(PdfObjectConverter.WritePdf(runDocument)))
+        {
             Check(deletedRun.GetPage(1).Text == "Object  tail", "empty run text removes operand text");
+        }
+
         using var beforePositioned = NativeTestDocument.Open(CreateFixture(positioned: true));
         var oldTail = beforePositioned.GetPage(1).Letters.Last().StartBaseLine;
         positionedEdit.TextIndex[0].Text = positionedEdit.TextIndex[0].Text.Replace("graph", "gap");
@@ -124,8 +151,13 @@ internal static class ObjectGraphTests
             Check(afterPositioned.GetPage(1).Text.Contains("gap"), "TJ text replacement");
             Check(Math.Abs(afterPositioned.GetPage(1).Letters.Last().StartBaseLine.X - oldTail.X) < 0.001, "following text position preserved");
         }
+
         var shared = PdfObjectConverter.FromJson(json);
-        shared.Objects.Single(o => o.Id.ObjectNumber == 1).Value.Entries!["Shared"] = new() { Type = "reference", Reference = new(10) };
+        shared.Objects.Single(o => o.Id.ObjectNumber == 1).Value.Entries!["Shared"] = new()
+        {
+            Type = "reference",
+            Reference = new(10)
+        };
         shared.TextIndex[0].Text = shared.TextIndex[0].Text.Replace("graph", "gap");
         Reject(() => PdfObjectConverter.WritePdf(shared), "shared stream edit");
         var forms = PdfObjectConverter.ReadPdf(CreateFixture(withForms: true));
@@ -145,15 +177,15 @@ internal static class ObjectGraphTests
             Check(independent.PageCount == 1, "independent PDFsharp reader");
             Check(independent.AcroForm.Fields.Count == 1, "independent form field tree");
         }
+
         Check(graph.Objects.Count == again.Objects.Count, "object count");
         foreach (var obj in graph.Objects)
         {
             var other = again.Objects.Single(o => o.Id == obj.Id);
             // Re-exporting should yield the same canonical graph, including binary bytes.
-            Check(System.Text.Json.Nodes.JsonNode.DeepEquals(
-                System.Text.Json.JsonSerializer.SerializeToNode(obj.Value),
-                System.Text.Json.JsonSerializer.SerializeToNode(other.Value)), $"object {obj.Id}");
+            Check(System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.JsonSerializer.SerializeToNode(obj.Value), System.Text.Json.JsonSerializer.SerializeToNode(other.Value)), $"object {obj.Id}");
         }
+
         Check(json.Contains("AQIDAP8="), "embedded binary encoded as Base64");
         Check(!json.Contains("originalPdfBase64"), "no whole-file payload");
         using (var parsed = NativeTestDocument.Open(rebuilt))
@@ -161,10 +193,18 @@ internal static class ObjectGraphTests
             Check(parsed.GetPage(1).NumberOfImages == 1, "image XObject");
             Check(parsed.GetPage(1).Text.Contains("Object graph"), "text and font resources");
         }
+
         var info = graph.Objects.Single(o => o.Id.ObjectNumber == 9);
-        info.Value.Entries!["Title"] = new() { Type = "string", Base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes("Edited metadata")) };
+        info.Value.Entries!["Title"] = new()
+        {
+            Type = "string",
+            Base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes("Edited metadata"))
+        };
         using (var edited = NativeTestDocument.Open(PdfObjectConverter.WritePdf(graph)))
+        {
             Check(edited.Information.Title == "Edited metadata", "metadata JSON edits");
+        }
+
         graph.Objects.Add(graph.Objects[0]);
         Reject(() => PdfObjectConverter.WritePdf(graph), "duplicate object");
         graph.Objects.RemoveAt(graph.Objects.Count - 1);
@@ -174,15 +214,24 @@ internal static class ObjectGraphTests
         var compressed = PdfObjectConverter.ReadPdf(CreateCompressedFixture());
         Check(compressed.Objects.Count == 3, "object streams expanded, storage objects removed");
         using (var expanded = NativeTestDocument.Open(PdfObjectConverter.WritePdf(compressed)))
+        {
             Check(expanded.NumberOfPages == 1, "xref stream and compressed objects round trip");
+        }
+
         var incremental = PdfObjectConverter.ReadPdf(AddIncrementalUpdate(CreateFixture()));
         using (var updated = NativeTestDocument.Open(PdfObjectConverter.WritePdf(incremental)))
+        {
             Check(updated.Information.Title == "Latest revision", "latest incremental revision wins");
+        }
+
         Check(incremental.Trailer.Entries!.ContainsKey("Custom"), "trailer extension inherited");
         var streamObject = incremental.Objects.Single(o => o.Id.ObjectNumber == 10);
         Check(streamObject.Value.Entries!.ContainsKey("Filter"), "compressed content filter preserved");
         using (var independent = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(PdfObjectConverter.WritePdf(compressed)), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+        {
             Check(independent.PageCount == 1, "independent reader after object stream expansion");
+        }
+
         Console.WriteLine($"Passed {checks} object graph checks.");
     }
 
@@ -195,8 +244,10 @@ internal static class ObjectGraphTests
         var offsets = new List<(int Number, int Generation, long Offset)>();
         void Obj(int n, string body, int gen = 0)
         {
-            offsets.Add((n, gen, file.Position)); Write($"{n} {gen} obj\n{body}\nendobj\n");
+            offsets.Add((n, gen, file.Position));
+            Write($"{n} {gen} obj\n{body}\nendobj\n");
         }
+
         string Stream(string dictionary, byte[] bytes) => $"<< {dictionary} /Length {bytes.Length} >>\nstream\n" + Encoding.Latin1.GetString(bytes) + "\nendstream";
         Write("%PDF-1.7\n%âãÏÓ\n");
         Obj(1, "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R] >> /Names << /EmbeddedFiles << /Names [(payload.bin) 7 0 R] >> >> >>");
@@ -220,8 +271,13 @@ internal static class ObjectGraphTests
             Obj(13, Stream("/Type /XObject /Subtype /Form /BBox [0 0 400 400] /Resources << /Font << /F1 4 0 R >> /XObject << /Im1 5 0 R >> >>", Encoding.ASCII.GetBytes("BT /F1 12 Tf 20 150 Td (Nested form) Tj ET q 0 20 -30 0 100 100 cm /Im1 Do Q")));
             xref = file.Position;
         }
+
         Write("xref\n0 1\n0000000000 65535 f \n");
-        foreach (var (n, gen, offset) in offsets) Write($"{n} 1\n{offset:D10} {gen:D5} n \n");
+        foreach (var(n, gen, offset)in offsets)
+        {
+            Write($"{n} 1\n{offset:D10} {gen:D5} n \n");
+        }
+
         Write($"trailer\n<< /Size {(withForms ? 14 : 11)} /Root 1 0 R /Info 9 0 R /ID [<010203> <040506>] /Custom (trailer extension) >>\nstartxref\n{xref}\n%%EOF\n");
         return file.ToArray();
     }
@@ -229,7 +285,11 @@ internal static class ObjectGraphTests
     private static byte[] Compress(byte[] data)
     {
         using var output = new MemoryStream();
-        using (var zip = new System.IO.Compression.ZLibStream(output, System.IO.Compression.CompressionLevel.Optimal, true)) zip.Write(data);
+        using (var zip = new System.IO.Compression.ZLibStream(output, System.IO.Compression.CompressionLevel.Optimal, true))
+        {
+            zip.Write(data);
+        }
+
         return output.ToArray();
     }
 
@@ -249,7 +309,12 @@ internal static class ObjectGraphTests
 
     private static byte[] CreateCompressedFixture()
     {
-        var bodies = new[] { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 300] /Resources << >> >>" };
+        var bodies = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 300] /Resources << >> >>"
+        };
         var header = $"1 0 2 {bodies[0].Length + 1} 3 {bodies[0].Length + bodies[1].Length + 2} ";
         var payload = Compress(Encoding.ASCII.GetBytes(header + string.Join(" ", bodies)));
         using var output = new MemoryStream();
@@ -257,21 +322,34 @@ internal static class ObjectGraphTests
         Write("%PDF-1.7\n");
         var objOffset = output.Position;
         Write($"4 0 obj\n<< /Type /ObjStm /N 3 /First {header.Length} /Filter /FlateDecode /Length {payload.Length} >>\nstream\n");
-        output.Write(payload); Write("\nendstream\nendobj\n");
+        output.Write(payload);
+        Write("\nendstream\nendobj\n");
         var xrefOffset = output.Position;
         using var entries = new MemoryStream();
         void Entry(byte type, long field, int generation)
         {
             entries.WriteByte(type);
-            for (var i = 3; i >= 0; i--) entries.WriteByte((byte)(field >> (i * 8)));
-            entries.WriteByte((byte)(generation >> 8)); entries.WriteByte((byte)generation);
+            for (var i = 3; i >= 0; i--)
+            {
+                entries.WriteByte((byte)(field >> (i * 8)));
+            }
+
+            entries.WriteByte((byte)(generation >> 8));
+            entries.WriteByte((byte)generation);
         }
+
         Entry(0, 0, 65535);
-        for (var i = 0; i < 3; i++) Entry(2, 4, i);
-        Entry(1, objOffset, 0); Entry(1, xrefOffset, 0);
+        for (var i = 0; i < 3; i++)
+        {
+            Entry(2, 4, i);
+        }
+
+        Entry(1, objOffset, 0);
+        Entry(1, xrefOffset, 0);
         var xref = Compress(entries.ToArray());
         Write($"5 0 obj\n<< /Type /XRef /Size 6 /Root 1 0 R /W [1 4 2] /Filter /FlateDecode /Length {xref.Length} >>\nstream\n");
-        output.Write(xref); Write($"\nendstream\nendobj\nstartxref\n{xrefOffset}\n%%EOF\n");
+        output.Write(xref);
+        Write($"\nendstream\nendobj\nstartxref\n{xrefOffset}\n%%EOF\n");
         return output.ToArray();
     }
 }

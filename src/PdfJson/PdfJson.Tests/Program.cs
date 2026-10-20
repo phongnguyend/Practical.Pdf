@@ -3,23 +3,62 @@ using Practical.PdfJson;
 var checks = 0;
 void Check(bool condition, string name)
 {
-    if (!condition) throw new Exception($"FAILED: {name}");
+    if (!condition)
+    {
+        throw new Exception($"FAILED: {name}");
+    }
+
     checks++;
 }
+
 void Reject(Action action, string name)
 {
-    try { action(); }
-    catch (InvalidDataException) { checks++; return; }
+    try
+    {
+        action();
+    }
+    catch (InvalidDataException)
+    {
+        checks++;
+        return;
+    }
+
     throw new Exception($"FAILED: {name}");
 }
 
 var source = new DocumentModel
 {
-    Pages =
-    [
-        new() { Width = 600, Height = 800, Text = [new() { Value = "Hello world", X = 40, Y = 740, FontSize = 16 }] },
-        new() { Width = 800, Height = 600, Text = [new() { Value = "Second page", X = 50, Y = 500 }] },
-        new() { Width = 300, Height = 300 }
+    Pages = [new()
+    {
+        Width = 600,
+        Height = 800,
+        Text = [new()
+        {
+            Value = "Hello world",
+            X = 40,
+            Y = 740,
+            FontSize = 16
+        }
+
+        ]
+    }, new()
+    {
+        Width = 800,
+        Height = 600,
+        Text = [new()
+        {
+            Value = "Second page",
+            X = 50,
+            Y = 500
+        }
+
+        ]
+    }, new()
+    {
+        Width = 300,
+        Height = 300
+    }
+
     ]
 };
 var pdf = PdfJsonConverter.WritePdf(source);
@@ -56,6 +95,7 @@ if (args.Length == 1)
     fontGraph.TextIndex[0].Text = firstIndexedText;
     Check(string.Join(" ", PdfJsonConverter.ReadPdf(rebuiltFont).Pages[0].Text.Select(t => t.Value)) == "Tiếng Việt", "embedded font and CMap object round trip");
 }
+
 Console.WriteLine($"Passed {checks} integration checks.");
 ObjectGraphTests.Run(pdf);
 NativeParserTests.Run();

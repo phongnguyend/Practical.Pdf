@@ -1,4 +1,5 @@
 namespace Practical.PdfJson;
+
 internal static class PdfFallbackFont
 {
     internal sealed record Result(byte[] Bytes, double Width, string ResourceName);
@@ -10,10 +11,22 @@ internal static class PdfFallbackFont
         var resources = new Dictionary<string, PdfValue>(page.Resources.Entries!);
         var fonts = graph.Get(page.Resources, "Font")?.Entries is { } existing ? new Dictionary<string, PdfValue>(existing) : [];
         var name = "PdfJsonEditFont";
-        for (var i = 1; fonts.ContainsKey(name); i++) name = "PdfJsonEditFont" + i;
+        for (var i = 1; fonts.ContainsKey(name); i++)
+        {
+            name = "PdfJsonEditFont" + i;
+        }
+
         fonts[name] = embedded.Font;
-        resources["Font"] = new() { Type = "dictionary", Entries = fonts };
-        page.Dictionary.Entries!["Resources"] = new() { Type = "dictionary", Entries = resources };
+        resources["Font"] = new()
+        {
+            Type = "dictionary",
+            Entries = fonts
+        };
+        page.Dictionary.Entries!["Resources"] = new()
+        {
+            Type = "dictionary",
+            Entries = resources
+        };
         var encoded = embedded.Encode(text);
         return new(encoded.Bytes, encoded.Width, name);
     }

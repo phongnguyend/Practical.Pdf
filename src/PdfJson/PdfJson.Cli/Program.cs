@@ -22,60 +22,96 @@ if (args.Length == 0 || args is ["--help"])
 
 try
 {
-    if (args.Length < 3) throw new ArgumentException("Expected command, input path and output path. Use --help.");
+    if (args.Length < 3)
+    {
+        throw new ArgumentException("Expected command, input path and output path. Use --help.");
+    }
+
     var overwrite = false;
     var includeOriginal = false;
     var objectsOnly = false;
-    if (string.Equals(Path.GetFullPath(args[1]), Path.GetFullPath(args[2]),
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+    if (string.Equals(Path.GetFullPath(args[1]), Path.GetFullPath(args[2]), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+    {
         throw new ArgumentException("Input and output must use different paths.");
+    }
+
     if (args[0] is "to-json" or "text-to-json")
     {
         foreach (var option in args.Skip(3))
         {
-            if (option == "--overwrite" && !overwrite) overwrite = true;
-            else if (option == "--objects-only" && args[0] == "to-json" && !objectsOnly) objectsOnly = true;
-            else if (option == "--include-original" && args[0] == "text-to-json" && !includeOriginal) includeOriginal = true;
-            else throw new ArgumentException("Unknown or duplicate JSON export option. Use --help.");
+            if (option == "--overwrite" && !overwrite)
+            {
+                overwrite = true;
+            }
+            else if (option == "--objects-only" && args[0] == "to-json" && !objectsOnly)
+            {
+                objectsOnly = true;
+            }
+            else if (option == "--include-original" && args[0] == "text-to-json" && !includeOriginal)
+            {
+                includeOriginal = true;
+            }
+            else
+            {
+                throw new ArgumentException("Unknown or duplicate JSON export option. Use --help.");
+            }
         }
     }
+
     byte[] output;
     switch (args[0])
     {
         case "to-json":
-            output = System.Text.Encoding.UTF8.GetBytes(PdfObjectConverter.ToJson(
-                PdfObjectConverter.ReadPdf(File.ReadAllBytes(args[1]), includeIndexes: !objectsOnly)));
+            output = System.Text.Encoding.UTF8.GetBytes(PdfObjectConverter.ToJson(PdfObjectConverter.ReadPdf(File.ReadAllBytes(args[1]), includeIndexes: !objectsOnly)));
             break;
         case "to-pdf":
             byte[]? fallbackFont = null;
             for (var index = 3; index < args.Length; index++)
             {
-                if (args[index] == "--overwrite" && !overwrite) overwrite = true;
+                if (args[index] == "--overwrite" && !overwrite)
+                {
+                    overwrite = true;
+                }
                 else if (args[index] == "--font" && fallbackFont is null && index + 1 < args.Length)
+                {
                     fallbackFont = File.ReadAllBytes(args[++index]);
-                else throw new ArgumentException("Unknown or duplicate to-pdf option. Use --help.");
+                }
+                else
+                {
+                    throw new ArgumentException("Unknown or duplicate to-pdf option. Use --help.");
+                }
             }
-            output = PdfObjectConverter.WritePdf(PdfObjectConverter.FromJson(File.ReadAllText(args[1])),
-                new() { FallbackFont = fallbackFont });
+
+            output = PdfObjectConverter.WritePdf(PdfObjectConverter.FromJson(File.ReadAllText(args[1])), new() { FallbackFont = fallbackFont });
             break;
         case "text-to-json":
             var document = PdfJsonConverter.ReadPdf(File.ReadAllBytes(args[1]), includeOriginal);
             output = System.Text.Encoding.UTF8.GetBytes(PdfJsonConverter.ToJson(document));
             if (document.Pages.Any(p => p.Text.Count == 0))
+            {
                 Console.Error.WriteLine("Note: some pages contain no extracted text. OCR is not included.");
+            }
+
             break;
         case "text-to-pdf":
             byte[]? textFont = null;
             for (var index = 3; index < args.Length; index++)
             {
-                if (args[index] == "--overwrite" && !overwrite) overwrite = true;
+                if (args[index] == "--overwrite" && !overwrite)
+                {
+                    overwrite = true;
+                }
                 else if (args[index] == "--font" && textFont is null && index + 1 < args.Length)
+                {
                     textFont = File.ReadAllBytes(args[++index]);
-                else throw new ArgumentException("Unknown or duplicate text-to-pdf option. Use --help.");
+                }
+                else
+                {
+                    throw new ArgumentException("Unknown or duplicate text-to-pdf option. Use --help.");
+                }
             }
-            output = PdfJsonConverter.WritePdf(
-                PdfJsonConverter.FromJson(File.ReadAllText(args[1])),
-                textFont);
+
+            output = PdfJsonConverter.WritePdf(PdfJsonConverter.FromJson(File.ReadAllText(args[1])), textFont);
             break;
         case "restore" when args.Length == 3 || (args.Length == 4 && args[3] == "--overwrite"):
             overwrite = args.Length == 4;
@@ -97,11 +133,15 @@ try
                 stream.Write(output);
                 stream.Flush(flushToDisk: true);
             }
+
             File.Move(temporary, destination, overwrite: true);
         }
         finally
         {
-            if (File.Exists(temporary)) File.Delete(temporary);
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
         }
     }
     else
@@ -109,6 +149,7 @@ try
         using var stream = new FileStream(args[2], FileMode.CreateNew, FileAccess.Write);
         stream.Write(output);
     }
+
     Console.WriteLine($"Saved {Path.GetFullPath(args[2])}");
     return 0;
 }
