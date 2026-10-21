@@ -1,3 +1,4 @@
+using PdfObjectKit.Options;
 using System.Security.Cryptography;
 using System.Text;
 using PdfObjectKit.Graphs;
@@ -15,8 +16,10 @@ public static class PdfParagraphExtractor
     /// Run operator indices follow the concatenated page content streams, as in the text index.
     /// Results are ordered top-to-bottom, then left-to-right, not semantic column reading order.
     /// </summary>
-    public static List<PdfParagraph> Extract(PdfObjectDocument document, int pageNumber)
+    public static List<PdfParagraph> Extract(PdfObjectDocument document, int pageNumber, PdfHeuristicOptions? heuristics = null)
     {
+        var h = heuristics ?? new();
+        h.Validate();
         PdfDocumentValidator.Validate(document);
         var graph = new PdfGraph(document);
         var pages = graph.Pages();
@@ -26,11 +29,13 @@ public static class PdfParagraphExtractor
         }
 
         var page = pages[pageNumber - 1];
-        return Extract(page, new PdfPageInterpreter(graph, page));
+        return Extract(page, new PdfPageInterpreter(graph, page), h.TextColumnGapFactor, h);
     }
 
-    internal static List<PdfParagraph> Extract(NativePage page, PdfPageInterpreter parsed)
+    internal static List<PdfParagraph> Extract(NativePage page, PdfPageInterpreter parsed, double columnGapFactor = 2, PdfHeuristicOptions? heuristics = null)
     {
+        var h = heuristics ?? new();
+        h.Validate();
         var pageNumber = page.Number;
         if (parsed.TextWarning is not null)
         {
@@ -50,7 +55,9 @@ public static class PdfParagraphExtractor
             .OrderByDescending(s => s.BaselineStart.Y).ThenBy(s => s.BaselineStart.X))
         {
             var row = rows.FirstOrDefault(r => Math.Abs(r[0].BaselineStart.Y - slot.BaselineStart.Y)
-                <= Math.Min(r[0].Height, slot.Height) * 0.25);
+                <= Math.Min(r[0].Height, slot.Height) * h.LineBaselineTolerance
+                || (Math.Min(r[0].Height, slot.Height) / Math.Max(r[0].Height, slot.Height) < h.SuperscriptSizeRatio
+                    && Math.Abs(r[0].BaselineStart.Y - slot.BaselineStart.Y) <= Math.Max(r[0].Height, slot.Height) * h.SuperscriptBaselineTolerance));
             if (row is null)
             {
                 row = [];
@@ -67,22 +74,22 @@ public static class PdfParagraphExtractor
             foreach (var slot in row.OrderBy(s => s.BaselineStart.X))
             {
                 if (segment.Count > 0 && slot.BaselineStart.X - segment[^1].BaselineEnd.X
-                    > Math.Max(slot.Height, segment[^1].Height) * 2)
+                    > Math.Max(slot.Height, segment[^1].Height) * columnGapFactor)
                 {
-                    lines.Add(BuildLine(segment, hashes));
+                    lines.Add(BuildLine(segment, hashes, h));
                     segment = [];
                 }
 
                 segment.Add(slot);
             }
 
-            lines.Add(BuildLine(segment, hashes));
+            lines.Add(BuildLine(segment, hashes, h));
         }
 
         var paragraphs = new List<PdfParagraph>();
         foreach (var line in lines.OrderByDescending(l => l.Baseline).ThenBy(l => l.Left))
         {
-            var paragraph = paragraphs.Where(p => CanJoin(p.Lines[^1], line))
+            var paragraph = paragraphs.Where(p => CanJoin(p.Lines[^1], line, h))
                 .OrderBy(p => p.Lines[^1].Baseline - line.Baseline)
                 .ThenBy(p => Math.Abs(p.Lines[^1].Left - line.Left)).FirstOrDefault();
             if (paragraph is null)
@@ -97,23 +104,23 @@ public static class PdfParagraphExtractor
         return paragraphs;
     }
 
-    private static bool CanJoin(PdfParagraphLine previous, PdfParagraphLine next)
+    private static bool CanJoin(PdfParagraphLine previous, PdfParagraphLine next, PdfHeuristicOptions h)
     {
         var height = Math.Max(previous.Height, next.Height);
         var gap = previous.Baseline - next.Baseline;
-        return gap > height * 0.5 && gap <= height * 1.6
-            && Math.Min(previous.Height, next.Height) / height >= 0.8
-            && Math.Abs(previous.Left - next.Left) <= height * 1.5
+        return gap > height * h.MinimumLineGapFactor && gap <= height * h.MaximumLineGapFactor
+            && Math.Min(previous.Height, next.Height) / height >= h.ParagraphSizeRatio
+            && Math.Abs(previous.Left - next.Left) <= height * h.LeftAlignmentTolerance
             && Math.Min(previous.Right, next.Right) > Math.Max(previous.Left, next.Left);
     }
 
-    private static PdfParagraphLine BuildLine(List<NativeSlot> slots, Dictionary<PdfReference, string> hashes)
+    private static PdfParagraphLine BuildLine(List<NativeSlot> slots, Dictionary<PdfReference, string> hashes, PdfHeuristicOptions h)
     {
         var text = new StringBuilder();
         for (var i = 0; i < slots.Count; i++)
         {
             var slot = slots[i];
-            if (i > 0 && slot.BaselineStart.X - slots[i - 1].BaselineEnd.X > slot.Height * 0.15
+            if (i > 0 && slot.BaselineStart.X - slots[i - 1].BaselineEnd.X > slot.Height * h.WordGapFactor
                 && text.Length > 0 && !char.IsWhiteSpace(text[^1]) && !char.IsWhiteSpace(slot.Text[0]))
             {
                 text.Append(' ');
@@ -127,7 +134,7 @@ public static class PdfParagraphExtractor
             Text = text.ToString(),
             Left = slots.Min(s => s.BaselineStart.X),
             Right = slots.Max(s => s.BaselineEnd.X),
-            Baseline = slots[0].BaselineStart.Y,
+            Baseline = slots.MaxBy(s => s.Height)!.BaselineStart.Y,
             Height = slots.Max(s => s.Height),
             Runs = slots.Select(s => new PdfTextRun
             {

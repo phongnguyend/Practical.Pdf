@@ -67,7 +67,7 @@ Reference `PdfObjectKit/PdfObjectKit.csproj`:
 | `PdfConverter.ToJson(document)` | Serialize an object graph to JSON. |
 | `PdfConverter.FromJson(json)` | Deserialize and validate an object graph. |
 
-These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json` and `to-pdf` only; the legacy text-only conversion and original-file restoration commands have been removed.
+These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json`, `to-pdf`, and `to-markdown`; the legacy text-only conversion and original-file restoration commands have been removed.
 
 ```csharp
 using PdfObjectKit.Readers;
@@ -306,6 +306,100 @@ Top-level fields: `format: "pdf-object-graph"`, `schemaVersion: 1`, `pdfVersion`
 | `stream` | `entries` and `base64`, the original encoded stream bytes |
 
 Literal and hexadecimal strings both become byte strings, avoiding assumptions about text encoding. Name escapes are regenerated. Compression filters and decode parameters are retained; streams are not recompressed. Stream lengths are recalculated from the Base64 data.
+
+## Markdown conversion (first version)
+
+```powershell
+dotnet run --project src/PdfObjectKit/PdfObjectKit.Cli -- to-markdown input.pdf output.md --overwrite
+```
+
+```csharp
+using PdfObjectKit.Converters;
+using PdfObjectKit.Readers;
+
+var document = PdfReader.Read(File.ReadAllBytes("input.pdf"));
+var result = PdfMarkdownConverter.Convert(document);
+File.WriteAllText("output.md", result.Markdown);
+foreach (var warning in result.Warnings)
+{
+    Console.WriteLine(warning);
+}
+```
+
+The converter first creates `result.Document`, a `PdfStructuredDocument` with pages and source-linked blocks, then renders Markdown. Blocks are paragraphs, headings, list items, or tables. `SourceLines` retain geometry and PDF operand references. `PdfDocumentAnalyzer.Analyze` in `PdfObjectKit.Analysis` exposes this intermediate step directly, and `PdfMarkdownConverter.Render` renders a reviewed or corrected structure. The original PDF graph is unchanged.
+
+This version supports conservative borderless-table detection and horizontal single-column text, wrapped paragraphs, left-aligned or centered multiline headings, and basic flat ordered/unordered lists with hanging continuations. Same-row form labels ending in a colon are joined to their values. Adjacent labeled fields remain separate blocks. Currency fragments are normalized before table detection, and nearby superscripts stay inline. Body text height is estimated using character-weighted frequency in transformed PDF coordinates. Larger or separated bold text becomes a heading candidate; matching nearby lines join into one block. Heading levels follow distinct heading heights across the document. These are heuristics, not tagged-PDF semantics: titles, captions, numbered headings, and unusual styles may need correction. Headers and footers are currently retained.
+
+Use `new PdfMarkdownOptions { BodyTextHeight = 12 }` to override a poor body-height estimate. Hyphens are preserved by default. `JoinHyphenatedWords = true` removes hyphens between alphabetic line endings and lowercase continuations, which can incorrectly join legitimate compound words. Markdown control syntax and HTML are escaped while ordinary punctuation is retained; inline bold/italic, links, and code formatting are not inferred. Page boundaries keep separate blocks; paragraphs are not joined across pages.
+
+Heuristic thresholds are configurable per call. Defaults preserve the existing behavior:
+
+```csharp
+using PdfObjectKit.Options;
+
+var heuristics = new PdfHeuristicOptions
+{
+    HeadingSizeRatio = 1.4,
+    MaximumLineGapFactor = 1.8,
+    ColumnGutterFactor = 2.5,
+    TableRowGapFactor = 4,
+    MinimumTableRows = 3,
+    EnableSingleRowTables = true
+};
+var markdown = PdfMarkdownConverter.Convert(document, new PdfMarkdownOptions
+{
+    Heuristics = heuristics
+});
+var paragraphs = PdfParagraphExtractor.Extract(document, 1, heuristics);
+var paragraphJson = PdfConverter.ToParagraphsJson(document, heuristics);
+```
+
+`PdfHeuristicOptions` also controls baseline and superscript grouping, inferred spaces, font-size compatibility, alignment, list indentation, column evidence, and table evidence. Distance factors use transformed text heights, not fixed pixels; each property documents its scale. Standalone paragraphs use `TextColumnGapFactor` (default 2), while Markdown uses `MarkdownColumnGapFactor` (default 0.8) to retain smaller table fragments. `MinimumNumericCells` counts numeric cells below the first row; lowering `MinimumTableRows` may also require lowering this threshold. Styled single-row tables have a separate opt-in rule, enabled by default.
+
+Options are immutable after initialization and validated before processing. Factors must be finite and positive; smaller/larger size ratios must be at most 1. Minimum line gap must be less than maximum line gap. Invalid values throw `ArgumentException` or `ArgumentOutOfRangeException`. CLI commands currently use the defaults; custom thresholds are available through the library API. Adjustments can trade missed structure for false positives, so verify them against representative documents.
+
+Images and vector graphics are not exported as assets in this version. Detected images or unsupported image interpretation produce warnings; image-only pages report the lack of OCR. Rotated/skewed text, text inside Form XObjects, or failed text interpretation causes that page's text to be skipped with a warning. After table detection, `PdfLayoutAnalyzer` separates regions at table boundaries and large vertical gaps. A continuous horizontal gutter wider than twice the typical text height can separate columns when each has at least two lines and their vertical ranges overlap. Resolved regions are read left-to-right, with each column read top-to-bottom. Paragraph joins cannot cross region boundaries. Unresolved parallel fragments remain separate in spatial order and produce warnings containing page number, coordinates, and a text preview. This fallback does not infer column reading order or uncertain table structure; review the output. Other complex layouts may still be misclassified. Complex column layouts (including spanning headings without separating whitespace), ruled-table geometry, automatic merged-cell detection, nested lists, image decoding/assets, OCR, and repeated header/footer removal remain future work.
+
+The CLI writes warnings to stderr and returns success when conversion completes, including partial or empty Markdown. Always inspect `Warnings` when deciding whether the result is usable. `--overwrite` has the same behavior as the other commands; `to-markdown` creates only the Markdown file.
+
+### Typed conversion diagnostics
+
+Markdown conversion and document analysis expose `Diagnostics` with stable enum codes in `PdfObjectKit.Diagnostics`. Each `PdfDiagnostic` contains `Code`, `Severity`, `Message`, optional one-based `PageNumber`, related `SourceObjects`, and optional `Location` in unrotated PDF user space. Source objects provide context; they are not always the exact failing object. Diagnostic enums serialize as names in JSON.
+
+```csharp
+using PdfObjectKit.Diagnostics;
+
+foreach (var diagnostic in result.Diagnostics)
+{
+    if (diagnostic.Code == PdfDiagnosticCode.TextExtractionFailed)
+    {
+        Console.WriteLine($"Review page {diagnostic.PageNumber}: {diagnostic.Message}");
+    }
+}
+```
+
+| Code | Meaning |
+| --- | --- |
+| `ImagesOmitted` | Detected images were not exported to Markdown. |
+| `ImageExtractionIncomplete` | Image interpretation failed or is incomplete. |
+| `OcrRequired` | An image-containing page has no extractable text; OCR is unavailable. |
+| `TextExtractionFailed` | Text interpretation failed and the page's text was omitted. |
+| `UnsupportedTextLayout` | Extracted text uses a layout the analyzer does not support. |
+| `AmbiguousReadingOrder` | Text is preserved, but a region's reading order is uncertain. |
+
+Current recoverable conversion issues have `Warning` severity. `Information` and `Error` are available for diagnostic consumers and future policies. Use codes rather than matching message strings. Existing `Warnings` remains a read-only projection of warning/error messages; change `result.Document.Diagnostics` when annotating a reviewed result. The CLI prints severity and code, for example `Warning [AmbiguousReadingOrder]: ...`.
+
+This first diagnostic API covers Markdown analysis and layout. Low-level parser validation still throws exceptions, and text/image extraction result models retain their existing warning fields. No strict mode or new resource-limit policy is introduced by this change.
+
+### Table blocks
+
+The analyzer detects tables before paragraph/heading classification. It requires at least three aligned rows with at least two occupied cells each (data rows may have empty columns), plus repeated numeric values in a non-first column or a distinct bold header. Both left and right alignment can support a column. Row spacing up to 3.2 times text height is accepted. Header geometry and repeated alignment preserve columns even when no data row fills every cell. Nearby partial rows preserve empty cells; indented single-fragment continuations in the first column join the preceding description cell. A distinct bold header followed closely by one aligned data row is also accepted, including a row with only one populated cell. Empty neighboring cells retain their columns. A lone row without header evidence remains text; geometry from borders is not yet used. These conservative rules can miss text-only tables without a styled header and unindented wrapped cells.
+
+`PdfContentBlockKind.Table` stores a `PdfTable` in `block.Table`. Tables contain `Rows`, each with `IsHeader` and `Cells`. Each cell has `Text`, `RowSpan`, `ColumnSpan`, and `SourceLines` retaining PDF run references. Detected tables consume their source fragments so the same text is not emitted again as paragraphs. The original PDF objects remain unchanged.
+
+Header identification uses a distinct bold style or a transition from text labels to repeated numeric values. It does not automatically designate every first row as a header. Review inferred tables when the layout is ambiguous; `result.Document` can be corrected before calling `PdfMarkdownConverter.Render`.
+
+Rectangular tables with zero or one initial header row use Markdown pipe tables, right-align numeric columns, escape cell text, and render cell line breaks with `<br>`. Headerless tables receive an empty Markdown header, preserving every source row as data. Multiple header rows, ragged rows, and explicit cell spans use escaped HTML `<table>` markup. Positive `RowSpan` and `ColumnSpan` values are supported when supplied by the caller; automatic span detection is not implemented. Table borders are not interpreted, and tables are not joined across page boundaries. Uncertain regions retain the spatial-order text fallback and warnings.
 
 ## Reconstruction
 

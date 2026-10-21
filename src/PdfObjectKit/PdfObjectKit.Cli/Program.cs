@@ -9,6 +9,7 @@ if (args.Length == 0 || args is ["--help"])
         PDF / JSON converter
         to-json input.pdf output.json [--objects-only] [--overwrite]
         to-pdf input.json output.pdf [--overwrite]
+        to-markdown input.pdf output.md [--overwrite]
 
         All commands accept --overwrite to replace an existing output.
         Without it, outputs must not already exist. to-pdf rebuilds the PDF object graph.
@@ -67,6 +68,7 @@ try
             }
             break;
         case "to-pdf":
+        case "to-markdown":
             for (var index = 3; index < args.Length; index++)
             {
                 if (args[index] == "--overwrite" && !overwrite)
@@ -75,11 +77,23 @@ try
                 }
                 else
                 {
-                    throw new ArgumentException("Unknown or duplicate to-pdf option. Use --help.");
+                    throw new ArgumentException("Unknown or duplicate output option. Use --help.");
                 }
             }
 
-            output = PdfWriter.Write(PdfConverter.FromJson(File.ReadAllText(args[1])));
+            if (args[0] == "to-markdown")
+            {
+                var markdown = PdfMarkdownConverter.Convert(PdfReader.Read(File.ReadAllBytes(args[1])));
+                output = System.Text.Encoding.UTF8.GetBytes(markdown.Markdown);
+                foreach (var diagnostic in markdown.Diagnostics)
+                {
+                    Console.Error.WriteLine($"{diagnostic.Severity} [{diagnostic.Code}]: {diagnostic.Message}");
+                }
+            }
+            else
+            {
+                output = PdfWriter.Write(PdfConverter.FromJson(File.ReadAllText(args[1])));
+            }
             break;
         default:
             throw new ArgumentException("Unknown command or options. Use --help.");

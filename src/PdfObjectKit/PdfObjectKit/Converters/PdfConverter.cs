@@ -3,6 +3,7 @@ using PdfObjectKit.Extractors;
 using PdfObjectKit.Interpreters;
 using PdfObjectKit.Validators;
 using PdfObjectKit.Models;
+using PdfObjectKit.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -41,9 +42,11 @@ public static class PdfConverter
     }
 
     /// <summary>Exports derived paragraphs separately, with a warning for unsupported pages.</summary>
-    public static string ToParagraphsJson(PdfObjectDocument document)
+    public static string ToParagraphsJson(PdfObjectDocument document, PdfHeuristicOptions? heuristics = null)
     {
         PdfDocumentValidator.Validate(document);
+        var h = heuristics ?? new();
+        h.Validate();
         var graph = new PdfGraph(document);
         var pages = graph.Pages().Select(page =>
         {
@@ -51,7 +54,7 @@ public static class PdfConverter
             string? warning = null;
             try
             {
-                paragraphs = PdfParagraphExtractor.Extract(page, new PdfPageInterpreter(graph, page));
+                paragraphs = PdfParagraphExtractor.Extract(page, new PdfPageInterpreter(graph, page), h.TextColumnGapFactor, h);
             }
             catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
             {

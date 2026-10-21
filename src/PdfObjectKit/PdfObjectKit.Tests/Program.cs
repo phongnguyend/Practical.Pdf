@@ -75,3 +75,11 @@ ImageInsertionTests.Run();
 TextEditorTests.Run(args.Length == 1 ? args[0] : null);
 
 ParagraphTests.Run();
+
+MarkdownTests.Run();
+
+TableTests.Run();
+
+DiagnosticTests.Run();
+
+HeuristicTests.Run();
