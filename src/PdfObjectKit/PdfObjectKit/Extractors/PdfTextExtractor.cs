@@ -1,14 +1,16 @@
+using PdfObjectKit.Validators;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Interpreters;
 using PdfObjectKit.Models;
 using System.Security.Cryptography;
 
-namespace PdfObjectKit.Indexers;
+namespace PdfObjectKit.Extractors;
 
-internal static class PdfTextIndexer
+public static class PdfTextExtractor
 {
-    public static List<PdfPageTextIndex> Build(PdfObjectDocument document)
+    public static List<PdfPageTextIndex> Extract(PdfObjectDocument document)
     {
+        PdfDocumentValidator.Validate(document);
         var graph = new PdfGraph(document);
         return graph.Pages().Select(page =>
         {

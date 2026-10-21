@@ -257,7 +257,14 @@ internal sealed class PdfPageInterpreter
             var bytes = Convert.FromBase64String(value.Base64!);
             var glyphs = font.Decode(bytes);
             var text = string.Concat(glyphs.Select(g => g.Text));
-            Slots.Add(new(operation, token, Text.Length, text, bytes, font, glyphs, state.Size, stream));
+            var matrix = state.Matrix.Multiply(tm);
+            var slot = new NativeSlot(operation, token, Text.Length, text, bytes, font, glyphs, state.Size, stream)
+            {
+                BaselineStart = matrix.Point(0, state.Rise),
+                Height = Math.Abs(matrix.D * state.Size),
+                IsHorizontal = matrix.A > 0 && matrix.D > 0 && Math.Abs(matrix.B) < 0.000001 && Math.Abs(matrix.C) < 0.000001 && state.Scale > 0
+            };
+            Slots.Add(slot);
             foreach (var glyph in glyphs)
             {
                 var point = state.Matrix.Multiply(tm).Point(0, state.Rise);
@@ -265,6 +272,8 @@ internal sealed class PdfPageInterpreter
                 var advance = (glyph.Width * state.Size + state.CharSpace + (glyph.Bytes.Length == 1 && glyph.Bytes[0] == 32 ? state.WordSpace : 0)) * state.Scale;
                 tm = tm.Translate(advance, 0);
             }
+
+            slot.BaselineEnd = state.Matrix.Multiply(tm).Point(0, state.Rise);
         }
         catch (Exception ex)when (ex is not OutOfMemoryException)
         {

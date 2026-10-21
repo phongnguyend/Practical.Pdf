@@ -11,11 +11,6 @@ public sealed class PdfObjectDocument
     public required PdfValue Trailer { get; set; }
 
     public List<PdfIndirectObject> Objects { get; set; } = [];
-
-    // Derived inspection data. Use PdfTextEditor to change actual PDF content.
-    public List<PdfPageTextIndex> TextIndex { get; set; } = [];
-
-    public List<PdfPageImageIndex> ImageIndex { get; set; } = [];
 }
 
 public sealed class PdfPageImageIndex

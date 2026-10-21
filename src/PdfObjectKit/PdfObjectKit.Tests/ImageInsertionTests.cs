@@ -1,3 +1,4 @@
+using PdfObjectKit.Extractors;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Primitives;
 using PdfObjectKit.Readers;
@@ -36,20 +37,20 @@ internal static class ImageInsertionTests
 
         var jpeg = Convert.FromBase64String(Jpeg);
         var document = Fixture();
-        document.TextIndex[0].Runs![0].Text = "Changed";
+        PdfTextExtractor.Extract(document)[0].Runs![0].Text = "Changed";
         var id = PdfImageEditor.InsertImage(document, 1, jpeg, 50, 60, 200, 100);
-        Check(document.TextIndex[0].Text == "Original", "index text edit ignored");
-        Check(document.TextIndex[1].Text == "Original", "other page text preserved");
-        Check(document.TextIndex[0].Runs is null && document.TextIndex[0].RunWarning is not null, "index refreshed for multiple streams");
+        Check(PdfTextExtractor.Extract(document)[0].Text == "Original", "index text edit ignored");
+        Check(PdfTextExtractor.Extract(document)[1].Text == "Original", "other page text preserved");
+        Check(PdfTextExtractor.Extract(document)[0].Runs is null && PdfTextExtractor.Extract(document)[0].RunWarning is not null, "index refreshed for multiple streams");
         var image = document.Objects.Single(o => o.Id == id).Value;
         Check(image.Entries!["Filter"].Name == "DCTDecode" && Convert.FromBase64String(image.Base64!).SequenceEqual(jpeg), "JPEG program retained");
         Check(image.Entries["Width"].Number == "2" && image.Entries["Height"].Number == "1", "JPEG dimensions read");
-        var occurrence = document.ImageIndex[0].Images.Single();
+        var occurrence = PdfImageExtractor.Extract(document)[0].Images.Single();
         Check(occurrence.ImageObjects.Single() == id, "image index reference");
         Check(occurrence.Corners.SequenceEqual(new[] { new PdfImagePoint(50, 60), new PdfImagePoint(250, 60), new PdfImagePoint(250, 160), new PdfImagePoint(50, 160) }), "display rectangle");
-        Check(document.ImageIndex[1].Images.Count == 0, "other page unchanged");
+        Check(PdfImageExtractor.Extract(document)[1].Images.Count == 0, "other page unchanged");
         var pdf = PdfWriter.Write(PdfConverter.FromJson(PdfConverter.ToJson(document)));
-        Check(PdfReader.Read(pdf).ImageIndex[0].Images.Single().ImageObjects.Single() == id, "JSON/PDF round trip");
+        Check(PdfImageExtractor.Extract(PdfReader.Read(pdf))[0].Images.Single().ImageObjects.Single() == id, "JSON/PDF round trip");
         using (var independent = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(pdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
         {
             var resources = independent.Pages[0].Resources.Elements.GetDictionary("/XObject")!;
@@ -58,8 +59,8 @@ internal static class ImageInsertionTests
         }
 
         var second = PdfImageEditor.InsertImage(document, 1, jpeg, -10, 20, 10, 20);
-        Check(second != id && document.ImageIndex[0].Images.Count == 2, "repeat insertion with unique name");
-        Check(document.ImageIndex[0].Images[0].Corners[0] == new PdfImagePoint(50, 60), "previous placement preserved");
+        Check(second != id && PdfImageExtractor.Extract(document)[0].Images.Count == 2, "repeat insertion with unique name");
+        Check(PdfImageExtractor.Extract(document)[0].Images[0].Corners[0] == new PdfImagePoint(50, 60), "previous placement preserved");
 
         // Shared content and inherited, indirect resources must not be edited in place.
         document = Fixture();
@@ -84,7 +85,6 @@ internal static class ImageInsertionTests
             page.Dictionary.Entries["Contents"] = Ref(oldStream.Id);
         }
 
-        document.TextIndex.Clear();
         PdfImageEditor.InsertImage(document, 1, jpeg, 20, 30, 40, 50);
         graph = new PdfGraph(document);
         pages = graph.Pages();
@@ -92,7 +92,7 @@ internal static class ImageInsertionTests
         Check(!pages[1].Dictionary.Entries!.ContainsKey("Resources") && pages[1].Streams.Single().Id == oldStream.Id, "other page still inherits resources and shared stream");
         Check(graph.Resolve(Ref(xobjectsId)).Entries!.Count == 1, "shared XObject dictionary unchanged");
         Check(graph.Get(pages[0].Resources, "XObject")!.Entries!.ContainsKey("PdfObjectKitImage1"), "resource name collision handled");
-        Check(document.ImageIndex[0].Images.Single().Corners[0] == new PdfImagePoint(20, 30), "existing transform isolated");
+        Check(PdfImageExtractor.Extract(document)[0].Images.Single().Corners[0] == new PdfImagePoint(20, 30), "existing transform isolated");
         var content = Encoding.ASCII.GetString(Convert.FromBase64String(pages[0].Streams[^1].Value.Base64!));
         Check(content.StartsWith("\nQ\nn\nq\n"), "graphics restore precedes image drawing");
 
@@ -131,9 +131,8 @@ internal static class ImageInsertionTests
         document = Fixture();
         var blankPage = new PdfGraph(document).Pages()[1].Dictionary;
         blankPage.Entries!.Remove("Contents");
-        document.TextIndex.Clear();
         PdfImageEditor.InsertImage(document, 2, jpeg, 0, 0, 10, 10);
-        Check(document.ImageIndex[1].Images.Count == 1 && document.TextIndex[1].Text == "", "page without Contents");
+        Check(PdfImageExtractor.Extract(document)[1].Images.Count == 1 && PdfTextExtractor.Extract(document)[1].Text == "", "page without Contents");
 
         void Reject(Action action, string name)
         {
@@ -162,7 +161,6 @@ internal static class ImageInsertionTests
         Reject(() => PdfImageEditor.InsertImage(document, 1, Png(1, 1, 2, [0], 0), 0, 0, 1, 1), "PNG sample count");
         var targetStream = new PdfGraph(document).Pages()[0].Streams.Single().Value;
         targetStream.Base64 = Convert.ToBase64String("q\n"u8);
-        document.TextIndex.Clear();
         Reject(() => PdfImageEditor.InsertImage(document, 1, jpeg, 0, 0, 1, 1), "unbalanced original content");
         Console.WriteLine($"Passed {checks} image insertion checks.");
     }

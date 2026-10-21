@@ -4,7 +4,7 @@ using PdfObjectKit.Primitives;
 using PdfObjectKit.Readers;
 using PdfObjectKit.Writers;
 using PdfObjectKit.Models;
-using PdfObjectKit.Indexers;
+using PdfObjectKit.Extractors;
 using System.Text;
 using PdfObjectKit;
 using PdfObjectKit.Editors;
@@ -43,7 +43,7 @@ internal static class NativeFeatureTests
         PdfObjectDocument Fixture(string content)
         {
             var bytes = PdfFixture.Create(null, new FixturePage(Width: 200, Height: 200));
-            var result = PdfReader.Read(bytes, false);
+            var result = PdfReader.Read(bytes);
             var stream = result.Objects.Single(o => o.Value.Type == "stream").Value;
             stream.Base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes(content));
             return result;
@@ -73,7 +73,6 @@ internal static class NativeFeatureTests
         Check(Interpret(graph).Text == "" && Interpret(graph).TextWarning is null, "ASCII85 content");
         content.Entries["Filter"] = Name("UnsupportedFilter");
         Check(Interpret(graph).TextWarning is not null, "unsupported filter reported");
-        graph.TextIndex = [];
         Check(PdfWriter.Write(graph).Length > 0, "unsupported content preserved structurally");
         graph = Fixture("q 2 0 0 3 4 5 cm BT /F1 10 Tf 1 0 0 1 10 20 Tm (X) Tj ET Q");
         page = Interpret(graph);
@@ -82,8 +81,7 @@ internal static class NativeFeatureTests
         page = Interpret(graph);
         Check(page.Text == "abc" && page.Letters[2].StartBaseLine.Y == 60, "quote operators and leading indexed");
         graph = Fixture("BT /F1 10 Tf 2 Tc (test) Tj ET");
-        graph.TextIndex = PdfTextIndexer.Build(graph);
-        Reject(() => PdfTextEditor.UpdateText(graph, 1, graph.TextIndex[0].Runs![0], "edit"), "character spacing edit");
+        Reject(() => PdfTextEditor.UpdateText(graph, 1, PdfTextExtractor.Extract(graph)[0].Runs![0], "edit"), "character spacing edit");
         graph = Fixture("BT /F1 10 Tf <414243> Tj ET");
         var font = graph.Objects.Single(o => o.Value.Entries?.GetValueOrDefault("Type")?.Name == "Font").Value;
         var mapId = new PdfReference(graph.Objects.Max(o => o.Id.ObjectNumber) + 1);
@@ -118,13 +116,13 @@ internal static class NativeFeatureTests
             using var independent = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(pdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
             Check(independent.Pages[0].Resources.Elements.GetDictionary("/Font")!.Elements.Count == 1, "independent reader sees embedded font");
             graph = PdfReader.Read(pdf);
-            Check(graph.TextIndex[0].Text == "A\u1ec7", "native Unicode round trip");
+            Check(PdfTextExtractor.Extract(graph)[0].Text == "A\u1ec7", "native Unicode round trip");
             Check(graph.Objects.Any(o => o.Value.Entries?.GetValueOrDefault("FontFile2")is not null), "TrueType descriptor emitted");
             Check(graph.Objects.Where(o => o.Value.Type == "stream").Any(o => Convert.FromBase64String(o.Value.Base64!).SequenceEqual(bytes)), "full original font program embedded");
-            Reject(() => PdfTextEditor.UpdateText(graph, 1, graph.TextIndex[0].Runs![0], "X\u1ec7"), "missing original font mapping");
-            PdfTextEditor.UpdateText(graph, 1, graph.TextIndex[0].Runs![0], "X\u1ec7", new() { FallbackFont = bytes });
+            Reject(() => PdfTextEditor.UpdateText(graph, 1, PdfTextExtractor.Extract(graph)[0].Runs![0], "X\u1ec7"), "missing original font mapping");
+            PdfTextEditor.UpdateText(graph, 1, PdfTextExtractor.Extract(graph)[0].Runs![0], "X\u1ec7", new() { FallbackFont = bytes });
             var edited = PdfWriter.Write(graph);
-            Check(PdfReader.Read(edited).TextIndex[0].Text == "X\u1ec7", "fallback font edit");
+            Check(PdfTextExtractor.Extract(PdfReader.Read(edited))[0].Text == "X\u1ec7", "fallback font edit");
             Reject(() => PdfFixture.Create([0, 1, 2], fontPage), "truncated font");
         }
 

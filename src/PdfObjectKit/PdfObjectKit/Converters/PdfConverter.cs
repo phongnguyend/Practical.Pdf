@@ -1,3 +1,6 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Extractors;
+using PdfObjectKit.Interpreters;
 using PdfObjectKit.Validators;
 using PdfObjectKit.Models;
 using System.Text.Json;
@@ -21,6 +24,43 @@ public static class PdfConverter
     {
         PdfDocumentValidator.Validate(document);
         return JsonSerializer.Serialize(document, Options);
+    }
+
+    /// <summary>Exports a fresh text index separately from the object graph.</summary>
+    public static string ToTextsJson(PdfObjectDocument document)
+    {
+        PdfDocumentValidator.Validate(document);
+        return JsonSerializer.Serialize(new { Pages = PdfTextExtractor.Extract(document) }, Options);
+    }
+
+    /// <summary>Exports a fresh image index separately from the object graph.</summary>
+    public static string ToImagesJson(PdfObjectDocument document)
+    {
+        PdfDocumentValidator.Validate(document);
+        return JsonSerializer.Serialize(new { Pages = PdfImageExtractor.Extract(document) }, Options);
+    }
+
+    /// <summary>Exports derived paragraphs separately, with a warning for unsupported pages.</summary>
+    public static string ToParagraphsJson(PdfObjectDocument document)
+    {
+        PdfDocumentValidator.Validate(document);
+        var graph = new PdfGraph(document);
+        var pages = graph.Pages().Select(page =>
+        {
+            List<PdfParagraph>? paragraphs = null;
+            string? warning = null;
+            try
+            {
+                paragraphs = PdfParagraphExtractor.Extract(page, new PdfPageInterpreter(graph, page));
+            }
+            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
+            {
+                warning = ex.Message;
+            }
+
+            return new { PageNumber = page.Number, Paragraphs = paragraphs, Warning = warning };
+        }).ToList();
+        return JsonSerializer.Serialize(new { Pages = pages }, Options);
     }
 
     public static PdfObjectDocument FromJson(string json)

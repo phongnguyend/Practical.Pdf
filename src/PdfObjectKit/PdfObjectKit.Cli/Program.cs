@@ -13,7 +13,8 @@ if (args.Length == 0 || args is ["--help"])
         All commands accept --overwrite to replace an existing output.
         Without it, outputs must not already exist. to-pdf rebuilds the PDF object graph.
         Text/image indexes are informational; use the C# editor APIs to change content.
-        --objects-only skips text/image indexes and uses only the native parser.
+        to-json also writes <output>.texts.json, <output>.images.json and <output>.pagaraphs.json.
+        --objects-only skips all three derived files.
         """);
     return 0;
 }
@@ -52,10 +53,18 @@ try
     }
 
     byte[] output;
+    var derivedOutputs = new List<(string Extension, string Json)>();
     switch (args[0])
     {
         case "to-json":
-            output = System.Text.Encoding.UTF8.GetBytes(PdfConverter.ToJson(PdfReader.Read(File.ReadAllBytes(args[1]), includeIndexes: !objectsOnly)));
+            var document = PdfReader.Read(File.ReadAllBytes(args[1]));
+            output = System.Text.Encoding.UTF8.GetBytes(PdfConverter.ToJson(document));
+            if (!objectsOnly)
+            {
+                derivedOutputs.Add((".texts.json", PdfConverter.ToTextsJson(document)));
+                derivedOutputs.Add((".images.json", PdfConverter.ToImagesJson(document)));
+                derivedOutputs.Add((".pagaraphs.json", PdfConverter.ToParagraphsJson(document)));
+            }
             break;
         case "to-pdf":
             for (var index = 3; index < args.Length; index++)
@@ -76,36 +85,55 @@ try
             throw new ArgumentException("Unknown command or options. Use --help.");
     }
 
-    if (overwrite)
+    var outputs = new List<(string Path, byte[] Data)> { (Path.GetFullPath(args[2]), output) };
+    foreach (var derived in derivedOutputs)
     {
-        var destination = Path.GetFullPath(args[2]);
-        var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".pdfobjectkit-{Guid.NewGuid():N}.tmp");
-        try
-        {
-            // Finish writing in the destination directory before replacing the existing file.
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
-            {
-                stream.Write(output);
-                stream.Flush(flushToDisk: true);
-            }
+        outputs.Add((Path.ChangeExtension(Path.GetFullPath(args[2]), derived.Extension), System.Text.Encoding.UTF8.GetBytes(derived.Json)));
+    }
 
-            File.Move(temporary, destination, overwrite: true);
-        }
-        finally
+    var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    foreach (var item in outputs)
+    {
+        if (string.Equals(item.Path, Path.GetFullPath(args[1]), comparison))
         {
-            if (File.Exists(temporary))
+            throw new ArgumentException("Input and output must use different paths.");
+        }
+
+        if (Directory.Exists(item.Path) || (!overwrite && File.Exists(item.Path)))
+        {
+            throw new IOException($"Output already exists: {item.Path}");
+        }
+    }
+
+    var staged = new List<(string Temporary, string Destination)>();
+    try
+    {
+        foreach (var item in outputs)
+        {
+            var temporary = Path.Combine(Path.GetDirectoryName(item.Path)!, $".pdfobjectkit-{Guid.NewGuid():N}.tmp");
+            staged.Add((temporary, item.Path));
+            using var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write);
+            stream.Write(item.Data);
+            stream.Flush(flushToDisk: true);
+        }
+
+        foreach (var item in staged)
+        {
+            File.Move(item.Temporary, item.Destination, overwrite);
+            Console.WriteLine($"Saved {item.Destination}");
+        }
+    }
+    finally
+    {
+        foreach (var item in staged)
+        {
+            if (File.Exists(item.Temporary))
             {
-                File.Delete(temporary);
+                File.Delete(item.Temporary);
             }
         }
     }
-    else
-    {
-        using var stream = new FileStream(args[2], FileMode.CreateNew, FileAccess.Write);
-        stream.Write(output);
-    }
 
-    Console.WriteLine($"Saved {Path.GetFullPath(args[2])}");
     return 0;
 }
 catch (Exception exception)

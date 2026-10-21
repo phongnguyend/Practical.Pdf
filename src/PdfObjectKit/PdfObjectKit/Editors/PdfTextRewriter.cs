@@ -3,7 +3,7 @@ using PdfObjectKit.Interpreters;
 using PdfObjectKit.Primitives;
 using PdfObjectKit.Writers;
 using PdfObjectKit.Models;
-using PdfObjectKit.Indexers;
+using PdfObjectKit.Extractors;
 using PdfObjectKit.Parsers;
 using System.Globalization;
 using System.Text;
@@ -16,7 +16,7 @@ internal static class PdfTextRewriter
         string replacementText, PdfTextEditOptions options)
     {
         var source = document;
-        var baseline = PdfTextIndexer.Build(source);
+        var baseline = PdfTextExtractor.Extract(source);
         var working = PdfNativeParser.Parse(PdfWriter.Write(document));
         var graph = new PdfGraph(source);
         var pages = graph.Pages();
@@ -128,7 +128,7 @@ internal static class PdfTextRewriter
         stream.Entries.Remove("Length");
 
         var output = PdfWriter.WriteObjects(working);
-        var verified = PdfTextIndexer.Build(PdfNativeParser.Parse(output));
+        var verified = PdfTextExtractor.Extract(PdfNativeParser.Parse(output));
         foreach (var entry in verified)
         {
             if (entry.Text != expected[entry.PageNumber] || (entry.PageNumber == pageNumber && entry.Warning is not null))

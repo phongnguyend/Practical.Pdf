@@ -48,8 +48,8 @@ internal static class NativeParserTests
         Check(root["Number"].Number == "+001.2300");
         Check(root["Flags"].Items![2].Type == "null");
         Check(Convert.FromBase64String(graph.Objects[2].Value.Base64!).SequenceEqual(Encoding.Latin1.GetBytes(payload)));
-        Check(graph.TextIndex.Count == 0 && graph.ImageIndex.Count == 0);
-        Check(PdfReader.Read(bytes, includeIndexes: false).Objects.Count == 4);
+        Check(typeof(PdfObjectKit.Models.PdfObjectDocument).GetProperty("TextIndex") is null && typeof(PdfObjectKit.Models.PdfObjectDocument).GetProperty("ImageIndex") is null);
+        Check(PdfReader.Read(bytes).Objects.Count == 4);
         Reject(Fixture(["<< /Type /Catalog >>", "<< /Length 99999 >>\nstream\nx\nendstream"]));
         Reject(Fixture(["<< /Type /Catalog /A (unterminated >>"]));
         Reject(Fixture(["<< /Type /Catalog /A 1 /A 2 >>"]));

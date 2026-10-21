@@ -1,3 +1,4 @@
+using PdfObjectKit.Extractors;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Validators;
 using PdfObjectKit.Readers;
@@ -50,7 +51,7 @@ public static class PdfTextEditor
 
         // Re-index a copy of the actual streams, ignoring caller-supplied index text.
         var working = PdfReader.Read(PdfWriter.Write(document));
-        var page = working.TextIndex[pageNumber - 1];
+        var page = PdfTextExtractor.Extract(working)[pageNumber - 1];
         if (page.Warning is not null || page.Runs is null)
         {
             throw new InvalidDataException($"Cannot edit page {pageNumber}: {page.Warning ?? page.RunWarning ?? "editable text runs unavailable."}");
@@ -73,7 +74,5 @@ public static class PdfTextEditor
         document.PdfVersion = updated.PdfVersion;
         document.Trailer = updated.Trailer;
         document.Objects = updated.Objects;
-        document.TextIndex = updated.TextIndex;
-        document.ImageIndex = updated.ImageIndex;
     }
 }

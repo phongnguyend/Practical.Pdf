@@ -1,12 +1,14 @@
+using PdfObjectKit.Validators;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Interpreters;
 using PdfObjectKit.Models;
-namespace PdfObjectKit.Indexers;
+namespace PdfObjectKit.Extractors;
 
-internal static class PdfImageIndexer
+public static class PdfImageExtractor
 {
-    public static List<PdfPageImageIndex> Build(PdfObjectDocument document)
+    public static List<PdfPageImageIndex> Extract(PdfObjectDocument document)
     {
+        PdfDocumentValidator.Validate(document);
         var graph = new PdfGraph(document);
         return graph.Pages().Select(page =>
         {

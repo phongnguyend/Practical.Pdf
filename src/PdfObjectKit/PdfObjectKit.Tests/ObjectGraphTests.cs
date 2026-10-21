@@ -1,3 +1,4 @@
+using PdfObjectKit.Extractors;
 using PdfObjectKit.Readers;
 using PdfObjectKit.Writers;
 using PdfObjectKit.Converters;
@@ -37,9 +38,9 @@ internal static class ObjectGraphTests
         }
 
         var simple = PdfReader.Read(simplePdf);
-        Check(simple.TextIndex.Count == 3, "text index includes blank pages");
-        Check(simple.TextIndex[0].Text.Contains("Hello world"), "readable page text");
-        Check(simple.TextIndex[2].Text == "" && simple.TextIndex[2].Warning is null, "blank page text");
+        Check(PdfTextExtractor.Extract(simple).Count == 3, "text index includes blank pages");
+        Check(PdfTextExtractor.Extract(simple)[0].Text.Contains("Hello world"), "readable page text");
+        Check(PdfTextExtractor.Extract(simple)[2].Text == "" && PdfTextExtractor.Extract(simple)[2].Warning is null, "blank page text");
         var simpleRebuilt = PdfWriter.Write(PdfConverter.FromJson(PdfConverter.ToJson(simple)));
         using (var parsed = NativeTestDocument.Open(simpleRebuilt))
         {
@@ -48,49 +49,55 @@ internal static class ObjectGraphTests
         }
 
         var graph = PdfReader.Read(CreateFixture());
-        Check(simple.ImageIndex.Count == 3 && simple.ImageIndex.All(p => p.Images.Count == 0 && p.Warning is null), "image index includes empty pages");
-        Check(graph.ImageIndex.Count == 1 && graph.ImageIndex[0].Warning is null, "image index page");
-        var indexedImage = graph.ImageIndex[0].Images.Single();
+        Check(PdfImageExtractor.Extract(simple).Count == 3 && PdfImageExtractor.Extract(simple).All(p => p.Images.Count == 0 && p.Warning is null), "image index includes empty pages");
+        Check(PdfImageExtractor.Extract(graph).Count == 1 && PdfImageExtractor.Extract(graph)[0].Warning is null, "image index page");
+        var indexedImage = PdfImageExtractor.Extract(graph)[0].Images.Single();
         Check(indexedImage.PixelWidth == 1 && indexedImage.PixelHeight == 1 && indexedImage.BitsPerComponent == 8, "image pixel metadata");
         Check(indexedImage.ImageObjects.SequenceEqual([new PdfReference(5)]), "image object reference");
         Check(indexedImage.Corners.SequenceEqual([new PdfImagePoint(20, 260), new PdfImagePoint(60, 260), new PdfImagePoint(60, 300), new PdfImagePoint(20, 300)]), "image placement corners");
         Check(!indexedImage.IsInline && indexedImage.InlineDataBase64 is null, "XObject payload not duplicated");
         var manyImages = PdfReader.Read(CreateFixture(extraImages: true));
-        Check(manyImages.ImageIndex[0].Warning is null && manyImages.ImageIndex[0].Images.Count == 3, "repeated and inline image occurrences");
-        var resourceImages = manyImages.ImageIndex[0].Images.Where(i => !i.IsInline).ToList();
+        Check(PdfImageExtractor.Extract(manyImages)[0].Warning is null && PdfImageExtractor.Extract(manyImages)[0].Images.Count == 3, "repeated and inline image occurrences");
+        var resourceImages = PdfImageExtractor.Extract(manyImages)[0].Images.Where(i => !i.IsInline).ToList();
         Check(resourceImages.Count == 2 && resourceImages.All(i => i.ImageObjects.SequenceEqual([new PdfReference(5)])), "shared image resource occurrence mapping");
         Check(resourceImages[0].Corners[0] != resourceImages[1].Corners[0], "shared image has distinct placements");
-        var inlineImage = manyImages.ImageIndex[0].Images.Single(i => i.IsInline);
+        var inlineImage = PdfImageExtractor.Extract(manyImages)[0].Images.Single(i => i.IsInline);
         Check(inlineImage.ImageObjects.Count == 0 && Convert.FromBase64String(inlineImage.InlineDataBase64!).SequenceEqual(new byte[] { 255, 0, 0 }), "inline image preserves fixture payload");
         var unchangedImagePdf = PdfWriter.Write(manyImages);
-        manyImages.ImageIndex[0].Images.Clear();
+        PdfImageExtractor.Extract(manyImages)[0].Images.Clear();
         Check(unchangedImagePdf.SequenceEqual(PdfWriter.Write(manyImages)), "image index informational only");
         var json = PdfConverter.ToJson(graph);
-        Check(graph.TextIndex[0].ContentStreams.SequenceEqual([new PdfReference(10)]), "text index content reference");
-        Check(graph.TextIndex[0].Text.Contains("Object graph"), "compressed text index");
-        Check(graph.TextIndex[0].FormStreams.Count == 0, "image excluded from form candidates");
+        Check(PdfTextExtractor.Extract(graph)[0].ContentStreams.SequenceEqual([new PdfReference(10)]), "text index content reference");
+        Check(PdfTextExtractor.Extract(graph)[0].Text.Contains("Object graph"), "compressed text index");
+        Check(PdfTextExtractor.Extract(graph)[0].FormStreams.Count == 0, "image excluded from form candidates");
         var legacyJson = System.Text.Json.Nodes.JsonNode.Parse(json)!;
         legacyJson.AsObject().Remove("textIndex");
         legacyJson.AsObject().Remove("imageIndex");
-        Check(PdfConverter.FromJson(legacyJson.ToJsonString()).ImageIndex.Count == 0, "old JSON without imageIndex supported");
-        Check(PdfConverter.FromJson(legacyJson.ToJsonString()).TextIndex.Count == 0, "JSON without index remains supported");
-        var indexed = PdfConverter.FromJson(json);
-        Check(indexed.ImageIndex[0].Images[0].EncodedDataSha256 == indexedImage.EncodedDataSha256, "image index JSON round trip");
-        Check(indexed.TextIndex[0].Text == graph.TextIndex[0].Text, "text index JSON round trip");
+        Check(PdfConverter.FromJson(legacyJson.ToJsonString()).Objects.Count == graph.Objects.Count, "old JSON without imageIndex supported");
+        Check(PdfConverter.ToJson(PdfConverter.FromJson(legacyJson.ToJsonString())) == json, "JSON without index remains supported");
+        Check(!json.Contains("\"textIndex\"") && !json.Contains("\"imageIndex\""), "main JSON excludes derived indexes");
+        var textJson = System.Text.Json.Nodes.JsonNode.Parse(PdfConverter.ToTextsJson(graph))!;
+        var imageJson = System.Text.Json.Nodes.JsonNode.Parse(PdfConverter.ToImagesJson(graph))!;
+        Check(textJson["pages"]![0]!["text"]!.GetValue<string>() == PdfTextExtractor.Extract(graph)[0].Text, "separate text export");
+        Check(imageJson["pages"]![0]!["images"]![0]!["encodedDataSha256"]!.GetValue<string>() == indexedImage.EncodedDataSha256, "separate image export");
+        var indexed = PdfReader.Read(PdfWriter.Write(PdfConverter.FromJson(json)));
+        Check(PdfImageExtractor.Extract(indexed)[0].Images[0].EncodedDataSha256 == indexedImage.EncodedDataSha256, "image index JSON round trip");
+        Check(PdfTextExtractor.Extract(indexed)[0].Text == PdfTextExtractor.Extract(graph)[0].Text, "text index JSON round trip");
         var beforeIndexEdit = PdfWriter.Write(indexed);
-        indexed.TextIndex[0].Text = "Changed summary";
-        indexed.TextIndex[0].Runs![0].Text = "Changed run";
-        indexed.TextIndex[0].Runs![0].StreamSha256 = "stale";
+        var detachedTextIndex = PdfTextExtractor.Extract(indexed);
+        detachedTextIndex[0].Text = "Changed summary";
+        detachedTextIndex[0].Runs![0].Text = "Changed run";
+        detachedTextIndex[0].Runs![0].StreamSha256 = "stale";
         var editedBytes = PdfWriter.Write(PdfConverter.FromJson(PdfConverter.ToJson(indexed)));
         Check(beforeIndexEdit.SequenceEqual(editedBytes), "JSON summary/run/checksum changes do not affect PDF bytes");
-        Check(PdfReader.Read(editedBytes).TextIndex[0].Text == "Object graph", "JSON text changes ignored");
-        indexed.TextIndex.Clear();
+        Check(PdfTextExtractor.Extract(PdfReader.Read(editedBytes))[0].Text == "Object graph", "JSON text changes ignored");
+        detachedTextIndex.Clear();
         Check(beforeIndexEdit.SequenceEqual(PdfWriter.Write(indexed)), "removing text index does not affect PDF bytes");
         var positionedEdit = PdfReader.Read(CreateFixture(positioned: true));
-        Check(positionedEdit.TextIndex[0].Runs!.Count == 3, "individual Tj and TJ operands exported");
+        Check(PdfTextExtractor.Extract(positionedEdit)[0].Runs!.Count == 3, "individual Tj and TJ operands exported");
         foreach (var (original, replacement) in new[] { ("Object ", "Item "), ("graph", "map"), (" tail", " a") })
         {
-            PdfTextEditor.UpdateText(positionedEdit, 1, positionedEdit.TextIndex[0].Runs!.Single(r => r.Text == original), replacement);
+            PdfTextEditor.UpdateText(positionedEdit, 1, PdfTextExtractor.Extract(positionedEdit)[0].Runs!.Single(r => r.Text == original), replacement);
         }
 
         using (var runPdf = NativeTestDocument.Open(PdfWriter.Write(positionedEdit)))
@@ -99,13 +106,13 @@ internal static class ObjectGraphTests
         }
 
         var forms = PdfReader.Read(CreateFixture(withForms: true));
-        Check(forms.ImageIndex[0].Warning is null && forms.ImageIndex[0].Images.Count == 2, "nested form image indexed");
-        var rotatedImage = forms.ImageIndex[0].Images[1];
+        Check(PdfImageExtractor.Extract(forms)[0].Warning is null && PdfImageExtractor.Extract(forms)[0].Images.Count == 2, "nested form image indexed");
+        var rotatedImage = PdfImageExtractor.Extract(forms)[0].Images[1];
         Check(rotatedImage.Corners[0] == new PdfImagePoint(100, 100) && rotatedImage.Corners[1] == new PdfImagePoint(100, 120), "rotated image corners preserved");
-        Check(forms.TextIndex[0].Warning is null, "form indexing successful");
-        Check(forms.TextIndex[0].ContentStreams.SequenceEqual([new PdfReference(10), new PdfReference(11)]), "content array references");
-        Check(forms.TextIndex[0].FormStreams.SequenceEqual([new PdfReference(12), new PdfReference(13)]), "inherited nested form resources");
-        Check(forms.TextIndex[0].Text.Contains("Nested form"), "nested form readable text");
+        Check(PdfTextExtractor.Extract(forms)[0].Warning is null, "form indexing successful");
+        Check(PdfTextExtractor.Extract(forms)[0].ContentStreams.SequenceEqual([new PdfReference(10), new PdfReference(11)]), "content array references");
+        Check(PdfTextExtractor.Extract(forms)[0].FormStreams.SequenceEqual([new PdfReference(12), new PdfReference(13)]), "inherited nested form resources");
+        Check(PdfTextExtractor.Extract(forms)[0].Text.Contains("Nested form"), "nested form readable text");
         Reject(() => PdfTextEditor.UpdateText(forms, 1, new PdfReference(10), 0, -1, "Form"), "form edit explicitly rejected");
         var rebuilt = PdfWriter.Write(PdfConverter.FromJson(json));
         var again = PdfReader.Read(rebuilt);

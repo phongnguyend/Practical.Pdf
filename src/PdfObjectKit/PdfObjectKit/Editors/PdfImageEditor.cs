@@ -3,7 +3,7 @@ using PdfObjectKit.Primitives;
 using PdfObjectKit.Validators;
 using PdfObjectKit.Writers;
 using PdfObjectKit.Models;
-using PdfObjectKit.Indexers;
+using PdfObjectKit.Extractors;
 using PdfObjectKit.Parsers;
 using System.Text;
 using static PdfObjectKit.Primitives.PdfPrimitives;
@@ -15,7 +15,7 @@ public static class PdfImageEditor
     /// <summary>
     /// Inserts a JPEG or PNG over a page's existing content. Page numbers are one-based;
     /// coordinates and display dimensions are in unrotated PDF user space.
-    /// Refreshes indexes. The document changes only on success.
+    /// The document changes only on success. Rebuild external indexes after insertion.
     /// Returns the new image object's reference. Existing references into the model must be reacquired.
     /// </summary>
     public static PdfReference InsertImage(PdfObjectDocument document, int pageNumber, byte[] imageBytes,
@@ -94,13 +94,9 @@ public static class PdfImageEditor
         page.Dictionary.Entries["Contents"] = new() { Type = "array", Items = contents };
 
         PdfDocumentValidator.Validate(working);
-        working.TextIndex = PdfTextIndexer.Build(working);
-        working.ImageIndex = PdfImageIndexer.Build(working);
         document.PdfVersion = working.PdfVersion;
         document.Trailer = working.Trailer;
         document.Objects = working.Objects;
-        document.TextIndex = working.TextIndex;
-        document.ImageIndex = working.ImageIndex;
         return imageId;
     }
 
