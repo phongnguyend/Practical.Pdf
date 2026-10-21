@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Parsers;
 
 // Decodes structural streams and, when indexing is requested, content/CMap streams.
 internal static class PdfStreamDecoder

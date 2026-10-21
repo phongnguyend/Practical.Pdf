@@ -4,12 +4,12 @@ C# / .NET 10 library and CLI for reading, editing, and writing PDF object graphs
 
 ## Run
 
-The object graph is read by the handwritten C# parser in `PdfObjectKit/Parser`, with **no NuGet dependencies**. It handles PDF values, byte strings, indirect references, length-delimited streams, classic cross-reference tables, cross-reference streams, compressed object streams, hybrid references, and incremental revisions. Stream bytes remain Base64 in the model; numeric tokens retain their original precision.
+The object graph is read by the handwritten C# parser in `PdfObjectKit/Parsers`, with **no NuGet dependencies**. It handles PDF values, byte strings, indirect references, length-delimited streams, classic cross-reference tables, cross-reference streams, compressed object streams, hybrid references, and incremental revisions. Stream bytes remain Base64 in the model; numeric tokens retain their original precision.
 
 To use the parser directly, reference `PdfObjectKit/PdfObjectKit.csproj`:
 
 ```csharp
-using PdfObjectKit;
+using PdfObjectKit.Parsers;
 var document = PdfNativeParser.Parse(File.ReadAllBytes("input.pdf"));
 ```
 
@@ -142,6 +142,7 @@ Use `PdfImageEditor.InsertImage` with JPEG or PNG file bytes:
 
 ```csharp
 using PdfObjectKit;
+using PdfObjectKit.Editors;
 
 var document = PdfReader.Read(File.ReadAllBytes("input.pdf"));
 
@@ -171,6 +172,9 @@ The target page's content must be readable by the native content parser, with ba
 `textIndex` is inspection data. Changing its page text or run text in JSON does **not** change the rebuilt PDF. `PdfWriter.Write` writes the object graph only. Use `PdfTextEditor` to update a specific text operand:
 
 ```csharp
+using PdfObjectKit;
+using PdfObjectKit.Editors;
+
 var document = PdfReader.Read(File.ReadAllBytes("input.pdf"));
 var run = document.TextIndex[0].Runs!.First(r => r.Text == "Application Form");
 PdfTextEditor.UpdateText(document, 1, run, "Application XX Form");
@@ -239,7 +243,7 @@ Literal and hexadecimal strings both become byte strings, avoiding assumptions a
 
 Content is carried through as PDF objects: page trees, text operators, fonts and CMaps, images, vector commands, resources, annotations, form dictionaries and appearance streams, attachments, metadata, outlines and other dictionary entries. Features do not require separate rendering implementations because their original objects and stream bytes are retained. JSON edits to those objects are used during reconstruction.
 
-The handwritten parser is `PdfObjectKit/Parser/PdfNativeParser.cs`. The writer in `PdfWriter.cs` emits PDF syntax, new byte offsets, a classic cross-reference table and a trailer. Compressed object streams are expanded. Old xref streams, object-stream containers and linearization dictionaries are omitted because they describe the old physical layout. Incremental updates are consolidated into the latest document state.
+The handwritten parser is `PdfObjectKit/Parsers/PdfNativeParser.cs`. The writer in `PdfWriter.cs` emits PDF syntax, new byte offsets, a classic cross-reference table and a trailer. Compressed object streams are expanded. Old xref streams, object-stream containers and linearization dictionaries are omitted because they describe the old physical layout. Incremental updates are consolidated into the latest document state.
 
 ## Boundaries
 

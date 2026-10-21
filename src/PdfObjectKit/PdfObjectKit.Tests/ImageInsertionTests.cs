@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using PdfObjectKit;
+using PdfObjectKit.Editors;
 using static PdfObjectKit.PdfPrimitives;
 
 internal static class ImageInsertionTests

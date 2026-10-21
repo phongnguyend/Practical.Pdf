@@ -1,5 +1,6 @@
 using System.Text;
 using PdfObjectKit;
+using PdfObjectKit.Editors;
 
 internal static class TextEditorTests
 {

@@ -1,4 +1,5 @@
 using PdfObjectKit;
+using PdfObjectKit.Editors;
 using QRCoder;
 
 var document = PdfReader.Read(File.ReadAllBytes("bin/input.pdf"));

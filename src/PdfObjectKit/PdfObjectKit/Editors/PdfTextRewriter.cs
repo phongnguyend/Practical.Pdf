@@ -1,7 +1,9 @@
+using PdfObjectKit.Indexers;
+using PdfObjectKit.Parsers;
 using System.Globalization;
 using System.Text;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Editors;
 
 internal static class PdfTextRewriter
 {

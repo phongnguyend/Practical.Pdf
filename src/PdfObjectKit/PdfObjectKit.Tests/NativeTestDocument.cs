@@ -1,3 +1,4 @@
+using PdfObjectKit.Parsers;
 using PdfObjectKit;
 
 // Native semantic assertions plus independent PDFsharp checks of the generated file.

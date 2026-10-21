@@ -1,4 +1,4 @@
-namespace PdfObjectKit;
+namespace PdfObjectKit.Editors;
 
 internal static class PdfFallbackFont
 {

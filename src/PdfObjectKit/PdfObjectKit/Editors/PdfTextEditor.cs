@@ -1,4 +1,4 @@
-namespace PdfObjectKit;
+namespace PdfObjectKit.Editors;
 
 /// <summary>Replaces individual text drawing operands in a PDF object graph.</summary>
 public static class PdfTextEditor

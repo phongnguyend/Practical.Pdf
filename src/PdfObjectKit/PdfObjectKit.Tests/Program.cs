@@ -1,4 +1,5 @@
 using PdfObjectKit;
+using PdfObjectKit.Editors;
 
 var checks = 0;
 void Check(bool condition, string name)

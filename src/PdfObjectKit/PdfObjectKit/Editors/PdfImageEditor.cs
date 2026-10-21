@@ -1,7 +1,9 @@
+using PdfObjectKit.Indexers;
+using PdfObjectKit.Parsers;
 using System.Text;
 using static PdfObjectKit.PdfPrimitives;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Editors;
 
 public static class PdfImageEditor
 {

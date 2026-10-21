@@ -1,5 +1,6 @@
 using System.Text;
 using PdfObjectKit;
+using PdfObjectKit.Editors;
 using static PdfObjectKit.PdfPrimitives;
 
 // Test data construction only; not a text-only document API in the library.

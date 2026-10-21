@@ -1,4 +1,4 @@
-namespace PdfObjectKit;
+namespace PdfObjectKit.Indexers;
 
 internal static class PdfImageIndexer
 {

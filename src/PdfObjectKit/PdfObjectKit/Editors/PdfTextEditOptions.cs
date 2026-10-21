@@ -1,4 +1,4 @@
-namespace PdfObjectKit;
+namespace PdfObjectKit.Editors;
 
 public sealed class PdfTextEditOptions
 {

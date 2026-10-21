@@ -1,9 +1,10 @@
+using PdfObjectKit.Parsers;
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using static PdfObjectKit.PdfPrimitives;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Editors;
 
 internal sealed record PdfImageData(PdfValue Image, PdfValue? Mask = null)
 {

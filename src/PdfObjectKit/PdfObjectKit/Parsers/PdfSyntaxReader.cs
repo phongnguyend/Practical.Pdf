@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Parsers;
 
 // Byte-oriented lexer: strings, names and streams must never pass through UTF-8.
 internal sealed class PdfSyntaxReader(byte[] bytes, int position = 0)

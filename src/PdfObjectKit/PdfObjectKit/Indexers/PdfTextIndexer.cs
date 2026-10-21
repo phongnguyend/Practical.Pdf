@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Indexers;
 
 internal static class PdfTextIndexer
 {

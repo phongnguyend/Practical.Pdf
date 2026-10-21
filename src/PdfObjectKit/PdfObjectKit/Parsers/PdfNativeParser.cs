@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Parsers;
 
 /// <summary>Dependency-free, strict PDF object parser. Does not interpret page content or fonts.</summary>
 public sealed class PdfNativeParser

@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Text;
 using static PdfObjectKit.PdfPrimitives;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Editors;
 
 // Full TrueType embedding with an explicit CID-to-glyph map and ToUnicode CMap.
 internal sealed class PdfTrueTypeFont

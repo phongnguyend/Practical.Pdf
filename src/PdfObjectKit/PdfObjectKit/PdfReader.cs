@@ -1,3 +1,5 @@
+using PdfObjectKit.Indexers;
+using PdfObjectKit.Parsers;
 namespace PdfObjectKit;
 
 /// <summary>Reads a PDF object graph and optionally builds text and image indexes.</summary>
