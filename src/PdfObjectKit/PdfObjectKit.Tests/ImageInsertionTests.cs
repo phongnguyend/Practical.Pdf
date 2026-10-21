@@ -31,7 +31,7 @@ internal static class ImageInsertionTests
         var document = Fixture();
         document.TextIndex[0].Runs![0].Text = "Changed";
         var id = PdfImageEditor.InsertImage(document, 1, jpeg, 50, 60, 200, 100);
-        Check(document.TextIndex[0].Text == "Changed", "pending text edit applied");
+        Check(document.TextIndex[0].Text == "Original", "index text edit ignored");
         Check(document.TextIndex[1].Text == "Original", "other page text preserved");
         Check(document.TextIndex[0].Runs is null && document.TextIndex[0].RunWarning is not null, "index refreshed for multiple streams");
         var image = document.Objects.Single(o => o.Id == id).Value;

@@ -42,8 +42,6 @@ To rebuild and replace an existing PDF:
 
 ```powershell
 dotnet run --project src/PdfObjectKit/PdfObjectKit.Cli -- to-pdf document.json updated.pdf --overwrite
-# Can be combined with text editing options in either order:
-dotnet run --project src/PdfObjectKit/PdfObjectKit.Cli -- to-pdf document.json updated.pdf --font C:/Windows/Fonts/arial.ttf --overwrite
 ```
 
 A failed conversion leaves the existing output untouched. If a PDF viewer locks the destination, close it and retry.
@@ -55,11 +53,12 @@ Reference `PdfObjectKit/PdfObjectKit.csproj`:
 | API | Responsibility |
 | --- | --- |
 | `PdfReader.Read(bytes, includeIndexes: true)` | Parse a PDF and optionally build text/image indexes. |
-| `PdfWriter.Write(document, textOptions: null)` | Rebuild a PDF, applying indexed text edits. |
+| `PdfWriter.Write(document)` | Rebuild a PDF from its objects; indexes are informational. |
+| `PdfTextEditor.UpdateText(document, pageNumber, run, text, textOptions: null)` | Replace one text operand and refresh indexes. |
 | `PdfConverter.ToJson(document)` | Serialize an object graph to JSON. |
 | `PdfConverter.FromJson(json)` | Deserialize and validate an object graph. |
 
-These replace the previous combined object converter. Structural validation is shared internally by all three classes and the image editor. The object-graph JSON schema is unchanged. The CLI supports `to-json` and `to-pdf` only; the legacy text-only conversion and original-file restoration commands have been removed.
+These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json` and `to-pdf` only; the legacy text-only conversion and original-file restoration commands have been removed.
 
 ```csharp
 using PdfObjectKit;
@@ -161,60 +160,49 @@ File.WriteAllText("with-image.json", PdfConverter.ToJson(document));
 
 Page numbers are one-based. The rectangle uses unrotated PDF user-space coordinates, normally points (72 per inch), with the origin usually at the bottom-left. CropBox, page rotation, UserUnit, and EXIF orientation are not automatically converted. The image is stretched to the supplied width and height and painted after existing page content; annotations can still appear above it. Choose proportional dimensions to preserve its aspect ratio.
 
-The method returns the new image object's reference and updates the supplied document only after success. It applies pending `textIndex` edits first; pass the optional `textOptions` argument if those edits need a fallback font. It refreshes both indexes, isolates the existing graphics state, and creates page-local resources without changing shared resource dictionaries or original content streams (apart from separately requested text edits). Reacquire object/page references from the document after insertion because its object graph is replaced.
+The method returns the new image object's reference and updates the supplied document only after success. It refreshes both indexes, isolates the existing graphics state, and creates page-local resources without changing shared resource dictionaries or original content streams. Reacquire object/page references from the document after insertion because its object graph is replaced.
 
 Supported input is 8-bit grayscale or three-component DCT JPEG (baseline, extended sequential, or progressive), and non-interlaced PNG (1-bit grayscale, or 8-bit grayscale, RGB, palette, grayscale-alpha, or RGBA). PNG transparency becomes a PDF soft mask; PDF versions older than 1.4 are upgraded when needed. PNG pixels are decoded and recompressed; JPEG bytes are embedded intact after header validation, without decoding the JPEG entropy data. Images are limited to 16 million pixels. CMYK JPEG, other PNG sample depths, interlaced/animated PNG, and other image formats are rejected. Embedded color profiles and image metadata are not imported; color management is not implemented.
 
 The target page's content must be readable by the native content parser, with balanced `q`/`Q` and `BT`/`ET` operations. Unsupported filters or filtered inline images can prevent insertion. The helper adds content streams around the original sequence. Consequently, the existing text editor's one-content-stream restriction applies afterward: apply text edits before insertion. The refreshed page index reports this through `runWarning`. Other pages retain their editable runs where supported. Image insertion is currently a C# API, not a CLI command.
 
-### Editing indexed text
+### Editing text in C#
 
-New exports include `textIndex[].runs`. **Edit only a run's `text` field**; leave its identity, checksum and `originalText` unchanged. The page-level `text` remains a search summary when using run edits. Example (indices/checksum are illustrative; use the exported values):
+`textIndex` is inspection data. Changing its page text or run text in JSON does **not** change the rebuilt PDF. `PdfWriter.Write` writes the object graph only. Use `PdfTextEditor` to update a specific text operand:
 
-```json
-{
-  "streamObject": { "objectNumber": 71, "generation": 0 },
-  "operatorIndex": 77,
-  "operandIndex": 2,
-  "streamSha256": "<exported checksum>",
-  "originalText": "Application Form",
-  "text": "Application XX Form",
-  "fontName": "LiberationSans",
-  "fontSize": 12
-}
+```csharp
+var document = PdfReader.Read(File.ReadAllBytes("input.pdf"));
+var run = document.TextIndex[0].Runs!.First(r => r.Text == "Application Form");
+PdfTextEditor.UpdateText(document, 1, run, "Application XX Form");
+File.WriteAllBytes("updated.pdf", PdfWriter.Write(document));
 ```
 
-Operator indices are zero-based. `operandIndex` is `-1` for a `Tj` string, or the zero-based `TJ` array index (including numeric spacing entries). A visible heading can span multiple runs. Runs can contain a single character, a word, or a whole line, depending on the PDF producer; they are actual PDF operands, not inferred semantic text boxes. Font fields are informational.
+Page numbers are one-based. The selected run identifies a stream object, operator, and string operand, so repeated text elsewhere stays unchanged. The run overload validates the stream checksum and operand identity. Reacquire runs from the refreshed index after each successful edit. Passing an empty replacement deletes that operand's text.
 
-You can edit multiple runs on one page, including multiple strings in the same `TJ` array. Duplicate mappings, changed source-stream checksums and mismatched original text are rejected. Deleting a run from the index does not delete PDF text; set its `text` to an empty string instead. Re-export the resulting PDF to obtain fresh mappings before further edits. Pages whose runs cannot be indexed have `runWarning` and retain their readable summary.
+You can also address the current operand explicitly:
 
-Then run:
-
-```powershell
-dotnet run --project src/PdfObjectKit/PdfObjectKit.Cli -- to-pdf document.json updated.pdf
+```csharp
+PdfTextEditor.UpdateText(document, pageNumber, run.StreamObject,
+    run.OperatorIndex, run.OperandIndex, "Replacement");
 ```
 
-The writer addresses each changed run directly, validates its source, rewrites the corresponding operand, and verifies the complete extracted page text before returning output. Other drawing operators and subsequent text advances are preserved. Caller objects are not mutated. The `contentStreams`/`formStreams` lists remain navigation hints; individual runs carry exact mappings.
+Operator indices are zero-based. Operand index is `-1` for `Tj`, or the `TJ` array index including numeric spacing entries. A heading can span several operands; update each separately using freshly acquired runs.
 
-Current editing constraints:
+If the existing font lacks a glyph, pass a TrueType fallback to the editor:
 
-- Each run edit changes one operand; multiple run edits are supported. No line-break changes or automatic redistribution of text across operands.
-- Wider replacements are allowed by default at the original font size. Following text keeps its original position, so the replacement may overlap it or extend beyond the page; layout adjustments are the user's responsibility. Text is never automatically shrunk or reflowed.
-- Glyphs normally come from the existing font's mappings. `--font path/to/font.ttf` supplies a TrueType fallback to embed when the original subset cannot represent an edit. The entire changed string operand then uses that font, so choose an appropriate style and embedding license. Unsupported glyphs still cause failure.
-- The page must have one unshared content stream and no Form XObject resources. Vertical fonts, nonzero character/word spacing, quote text operators and inline images are unsupported for editing. Unchanged pages still round-trip normally.
-- Text extraction must map exactly back to the operands; ambiguous layouts or extraction failures are rejected. Always review the resulting layout. This is not a secure-redaction tool.
-
-Do not simultaneously edit content in `objects` and leave an outdated `textIndex`: the indexed text is treated as the requested result. Remove `textIndex` (or set it to `[]`) for object-only editing, then re-export the resulting PDF to regenerate it. Older JSON without `textIndex` remains accepted. Re-export JSON created by an earlier indexing implementation before editing: native content-order summaries and operator mappings can differ.
-
-Legacy editing of page-level `text` is still supported with one contiguous edit inside one operand per page. Do not change both page-level text and run text in the same conversion. To get the new runs, export the PDF to a new JSON file; existing JSON is not rewritten automatically.
-
-For example, to add `XX` to a heading whose embedded subset lacks `X`:
-
-```powershell
-dotnet run --project src/PdfObjectKit/PdfObjectKit.Cli -- to-pdf document.json updated.pdf --font C:/Windows/Fonts/arial.ttf
+```csharp
+PdfTextEditor.UpdateText(document, pageNumber, run, "Replacement",
+    new PdfTextEditOptions { FallbackFont = File.ReadAllBytes("font.ttf") });
 ```
 
-From C#, pass `new PdfTextEditOptions { FallbackFont = File.ReadAllBytes(fontPath) }` as the second argument to `PdfWriter.Write`.
+The entire changed operand uses the fallback font when needed. The editor verifies the resulting extracted text before updating the supplied document; failure leaves it unchanged. Both indexes are refreshed on success. JSON serialization preserves the resulting object changes, but editing index fields itself has no effect. The CLI's former `--font` option is removed.
+
+Current constraints:
+
+- One unshared content stream per page and no Form XObject resources. Edit text before inserting images, which adds content streams.
+- Vertical fonts, nonzero character/word spacing, quote text operators, inline images, and line-break changes are unsupported for editing.
+- Replacements retain font size and following text positions. Wider text can overlap; no automatic shrinking or reflow occurs.
+- Runs require reliable font mappings. Unsupported pages report `runWarning` or `warning`. This API is not a secure-redaction tool.
 
 Example stream object inside the `objects` array:
 

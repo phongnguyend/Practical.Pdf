@@ -42,7 +42,7 @@ Check(parsed.TextIndex[0].Text == "Hello world", "text extraction");
 var first = new PdfPageInterpreter(graph, pages[0]).Letters[0];
 Check(Math.Abs(first.StartBaseLine.X - 40) < 0.1 && Math.Abs(first.StartBaseLine.Y - 740) < 0.1, "baseline position");
 parsed.TextIndex[0].Runs![0].Text = "Edited";
-Check(PdfReader.Read(PdfWriter.Write(parsed)).TextIndex[0].Text == "Edited", "JSON edits applied when rebuilding");
+Check(PdfReader.Read(PdfWriter.Write(parsed)).TextIndex[0].Text == "Hello world", "JSON text edits ignored when rebuilding");
 Reject(() => PdfConverter.FromJson("null"), "null JSON");
 Reject(() => PdfConverter.FromJson("{\"schemaVersion\":2,\"trailer\":{\"type\":\"null\"}}"), "unknown schema");
 if (args.Length == 1)
@@ -53,8 +53,8 @@ if (args.Length == 1)
     Check(fontGraph.TextIndex[0].Text == "Ti?ng Vi?t", "Unicode with TrueType font");
     var rebuiltFont = PdfWriter.Write(PdfConverter.FromJson(PdfConverter.ToJson(fontGraph)));
     var firstIndexedText = fontGraph.TextIndex[0].Text;
-    fontGraph.TextIndex[0].Text = "X" + firstIndexedText[1..];
-    var fallbackResult = PdfWriter.Write(fontGraph, new() { FallbackFont = File.ReadAllBytes(args[0]) });
+    PdfTextEditor.UpdateText(fontGraph, 1, fontGraph.TextIndex[0].Runs![0], "X" + firstIndexedText[1..], new() { FallbackFont = File.ReadAllBytes(args[0]) });
+    var fallbackResult = PdfWriter.Write(fontGraph);
     Check(PdfReader.Read(fallbackResult).TextIndex[0].Text == fontGraph.TextIndex[0].Text, "fallback embeds missing glyphs");
     Check(PdfReader.Read(fallbackResult).TextIndex[1].Text == fontGraph.TextIndex[1].Text, "fallback leaves other pages unchanged");
     Check(PdfReader.Read(rebuiltFont).TextIndex[0].Text == "Ti?ng Vi?t", "embedded font and CMap object round trip");
@@ -65,3 +65,4 @@ ObjectGraphTests.Run(pdf);
 NativeParserTests.Run();
 NativeFeatureTests.Run(args.Length == 1 ? args[0] : null);
 ImageInsertionTests.Run();
+TextEditorTests.Run(args.Length == 1 ? args[0] : null);

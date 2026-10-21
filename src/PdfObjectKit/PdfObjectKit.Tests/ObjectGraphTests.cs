@@ -73,93 +73,26 @@ internal static class ObjectGraphTests
         Check(indexed.ImageIndex[0].Images[0].EncodedDataSha256 == indexedImage.EncodedDataSha256, "image index JSON round trip");
         Check(indexed.TextIndex[0].Text == graph.TextIndex[0].Text, "text index JSON round trip");
         var beforeIndexEdit = PdfWriter.Write(indexed);
-        indexed.TextIndex[0].Text = indexed.TextIndex[0].Text.Replace("Object graph", "Object");
-        var editedBytes = PdfWriter.Write(indexed);
-        Check(!beforeIndexEdit.SequenceEqual(editedBytes), "index edits change PDF bytes");
-        Check(PdfReader.Read(editedBytes).TextIndex[0].Text == indexed.TextIndex[0].Text, "index edit updates extracted text");
-        Check(editedBytes.SequenceEqual(PdfWriter.Write(indexed)), "repeated write does not mutate source graph");
-        indexed.TextIndex[0].Text = "This replacement is much wider than the original content";
-        using (var wider = NativeTestDocument.Open(PdfWriter.Write(indexed)))
-        {
-            Check(wider.GetPage(1).Text == indexed.TextIndex[0].Text, "wider replacement allowed by default");
-            Check(wider.GetPage(1).Letters.All(l => Math.Abs(l.FontSize - 18) < 0.001), "wider replacement retains font size");
-        }
-
-        indexed.TextIndex[0].Text = "\u4e2d";
-        Reject(() => PdfWriter.Write(indexed), "unavailable glyph");
+        indexed.TextIndex[0].Text = "Changed summary";
+        indexed.TextIndex[0].Runs![0].Text = "Changed run";
+        indexed.TextIndex[0].Runs![0].StreamSha256 = "stale";
+        var editedBytes = PdfWriter.Write(PdfConverter.FromJson(PdfConverter.ToJson(indexed)));
+        Check(beforeIndexEdit.SequenceEqual(editedBytes), "JSON summary/run/checksum changes do not affect PDF bytes");
+        Check(PdfReader.Read(editedBytes).TextIndex[0].Text == "Object graph", "JSON text changes ignored");
+        indexed.TextIndex.Clear();
+        Check(beforeIndexEdit.SequenceEqual(PdfWriter.Write(indexed)), "removing text index does not affect PDF bytes");
         var positionedEdit = PdfReader.Read(CreateFixture(positioned: true));
         Check(positionedEdit.TextIndex[0].Runs!.Count == 3, "individual Tj and TJ operands exported");
-        var runDocument = PdfConverter.FromJson(PdfConverter.ToJson(positionedEdit));
-        var runs = runDocument.TextIndex[0].Runs!;
-        runs.Single(r => r.Text == "Object ").Text = "Item ";
-        runs.Single(r => r.Text == "graph").Text = "map";
-        runs.Single(r => r.Text == " tail").Text = " a";
-        var editedRuns = PdfWriter.Write(runDocument);
-        using (var runPdf = NativeTestDocument.Open(editedRuns))
+        foreach (var (original, replacement) in new[] { ("Object ", "Item "), ("graph", "map"), (" tail", " a") })
         {
-            Check(runPdf.GetPage(1).Text == "Item map a", "multiple edits within and across operators");
+            PdfTextEditor.UpdateText(positionedEdit, 1, positionedEdit.TextIndex[0].Runs!.Single(r => r.Text == original), replacement);
         }
 
-        Check(PdfReader.Read(editedRuns).TextIndex[0].Runs!.Any(r => r.Text == "map"), "re-export refreshes run mappings");
-        Check(PdfWriter.Write(runDocument).SequenceEqual(editedRuns), "run writes are repeatable");
-        runs[0].StreamSha256 = "stale";
-        Reject(() => PdfWriter.Write(runDocument), "stale run hash rejected");
-        runDocument = PdfConverter.FromJson(PdfConverter.ToJson(positionedEdit));
-        runDocument.TextIndex[0].Runs![0].OriginalText = "wrong";
-        Reject(() => PdfWriter.Write(runDocument), "stale original run text rejected");
-        runDocument = PdfConverter.FromJson(PdfConverter.ToJson(positionedEdit));
-        runDocument.TextIndex[0].Runs!.Add(runDocument.TextIndex[0].Runs![0]);
-        Reject(() => PdfWriter.Write(runDocument), "duplicate run rejected");
-        runDocument = PdfConverter.FromJson(PdfConverter.ToJson(positionedEdit));
-        runDocument.TextIndex[0].Runs![0].Text = "Item ";
-        runDocument.TextIndex[0].Text = "Changed summary";
-        Reject(() => PdfWriter.Write(runDocument), "mixed run and summary edits rejected");
-        var duplicateWords = PdfReader.Read(CreateFixture(repeated: true));
-        var repeatedRuns = duplicateWords.TextIndex[0].Runs!;
-        Check(repeatedRuns.Count(r => r.Text == "Repeat") == 2, "identical text has separate run identities");
-        repeatedRuns[1].Text = "Again";
-        using (var repeatedPdf = NativeTestDocument.Open(PdfWriter.Write(duplicateWords)))
+        using (var runPdf = NativeTestDocument.Open(PdfWriter.Write(positionedEdit)))
         {
-            Check(repeatedPdf.GetPage(1).Text == "RepeatAgain", "only selected identical occurrence changes");
+            Check(runPdf.GetPage(1).Text == "Item map a", "successive direct edits within and across operators");
         }
 
-        runDocument = PdfConverter.FromJson(PdfConverter.ToJson(positionedEdit));
-        runDocument.TextIndex[0].Runs![0].Text = "A much longer first string ";
-        runDocument.TextIndex[0].Runs![1].Text = "a much longer second string";
-        using (var overflowRuns = NativeTestDocument.Open(PdfWriter.Write(runDocument)))
-        {
-            using (var originalRuns = NativeTestDocument.Open(CreateFixture(positioned: true)))
-            {
-                Check(overflowRuns.GetPage(1).Text == "A much longer first string a much longer second string tail", "overlapping run edits allowed");
-                Check(overflowRuns.GetPage(1).Letters.All(l => Math.Abs(l.FontSize - 18) < 0.001), "overlapping runs retain font size");
-                Check(Math.Abs(overflowRuns.GetPage(1).Letters.Last().StartBaseLine.X - originalRuns.GetPage(1).Letters.Last().StartBaseLine.X) < 0.001, "overflow leaves following text in place");
-            }
-        }
-
-        runDocument = PdfConverter.FromJson(PdfConverter.ToJson(positionedEdit));
-        runDocument.TextIndex[0].Runs![1].Text = "";
-        using (var deletedRun = NativeTestDocument.Open(PdfWriter.Write(runDocument)))
-        {
-            Check(deletedRun.GetPage(1).Text == "Object  tail", "empty run text removes operand text");
-        }
-
-        using var beforePositioned = NativeTestDocument.Open(CreateFixture(positioned: true));
-        var oldTail = beforePositioned.GetPage(1).Letters.Last().StartBaseLine;
-        positionedEdit.TextIndex[0].Text = positionedEdit.TextIndex[0].Text.Replace("graph", "gap");
-        using (var afterPositioned = NativeTestDocument.Open(PdfWriter.Write(positionedEdit)))
-        {
-            Check(afterPositioned.GetPage(1).Text.Contains("gap"), "TJ text replacement");
-            Check(Math.Abs(afterPositioned.GetPage(1).Letters.Last().StartBaseLine.X - oldTail.X) < 0.001, "following text position preserved");
-        }
-
-        var shared = PdfConverter.FromJson(json);
-        shared.Objects.Single(o => o.Id.ObjectNumber == 1).Value.Entries!["Shared"] = new()
-        {
-            Type = "reference",
-            Reference = new(10)
-        };
-        shared.TextIndex[0].Text = shared.TextIndex[0].Text.Replace("graph", "gap");
-        Reject(() => PdfWriter.Write(shared), "shared stream edit");
         var forms = PdfReader.Read(CreateFixture(withForms: true));
         Check(forms.ImageIndex[0].Warning is null && forms.ImageIndex[0].Images.Count == 2, "nested form image indexed");
         var rotatedImage = forms.ImageIndex[0].Images[1];
@@ -168,8 +101,7 @@ internal static class ObjectGraphTests
         Check(forms.TextIndex[0].ContentStreams.SequenceEqual([new PdfReference(10), new PdfReference(11)]), "content array references");
         Check(forms.TextIndex[0].FormStreams.SequenceEqual([new PdfReference(12), new PdfReference(13)]), "inherited nested form resources");
         Check(forms.TextIndex[0].Text.Contains("Nested form"), "nested form readable text");
-        forms.TextIndex[0].Text = forms.TextIndex[0].Text.Replace("Nested form", "Form");
-        Reject(() => PdfWriter.Write(forms), "form edit explicitly rejected");
+        Reject(() => PdfTextEditor.UpdateText(forms, 1, new PdfReference(10), 0, -1, "Form"), "form edit explicitly rejected");
         var rebuilt = PdfWriter.Write(PdfConverter.FromJson(json));
         var again = PdfReader.Read(rebuilt);
         using (var independent = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(rebuilt), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))

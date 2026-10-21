@@ -3,16 +3,12 @@ using System.Text;
 
 namespace PdfObjectKit;
 
-/// <summary>Writes a PDF object graph, applying requested indexed text edits.</summary>
+/// <summary>Writes a PDF object graph. Derived indexes are informational and do not change PDF content.</summary>
 public static class PdfWriter
 {
     private static readonly string[] TrailerStorageKeys = ["Size", "Prev", "XRefStm", "Type", "W", "Index", "Length", "Filter", "DecodeParms"];
 
-    public static byte[] Write(PdfObjectDocument document, PdfTextEditOptions? textOptions = null)
-    {
-        var original = WriteObjects(document);
-        return PdfIndexedTextEditor.Apply(document, original, textOptions ?? new());
-    }
+    public static byte[] Write(PdfObjectDocument document) => WriteObjects(document);
 
     internal static byte[] WriteObjects(PdfObjectDocument document)
     {

@@ -5,11 +5,11 @@ if (args.Length == 0 || args is ["--help"])
     Console.WriteLine("""
         PDF / JSON converter
         to-json input.pdf output.json [--objects-only] [--overwrite]
-        to-pdf input.json output.pdf [--font path/to/font.ttf] [--overwrite]
+        to-pdf input.json output.pdf [--overwrite]
 
         All commands accept --overwrite to replace an existing output.
         Without it, outputs must not already exist. to-pdf rebuilds the PDF object graph.
-        Text edits keep font size and may overlap. Text is never automatically shrunk.
+        Text/image indexes are informational; use the C# editor APIs to change content.
         --objects-only skips text/image indexes and uses only the native parser.
         """);
     return 0;
@@ -55,16 +55,11 @@ try
             output = System.Text.Encoding.UTF8.GetBytes(PdfConverter.ToJson(PdfReader.Read(File.ReadAllBytes(args[1]), includeIndexes: !objectsOnly)));
             break;
         case "to-pdf":
-            byte[]? fallbackFont = null;
             for (var index = 3; index < args.Length; index++)
             {
                 if (args[index] == "--overwrite" && !overwrite)
                 {
                     overwrite = true;
-                }
-                else if (args[index] == "--font" && fallbackFont is null && index + 1 < args.Length)
-                {
-                    fallbackFont = File.ReadAllBytes(args[++index]);
                 }
                 else
                 {
@@ -72,7 +67,7 @@ try
                 }
             }
 
-            output = PdfWriter.Write(PdfConverter.FromJson(File.ReadAllText(args[1])), new() { FallbackFont = fallbackFont });
+            output = PdfWriter.Write(PdfConverter.FromJson(File.ReadAllText(args[1])));
             break;
         default:
             throw new ArgumentException("Unknown command or options. Use --help.");

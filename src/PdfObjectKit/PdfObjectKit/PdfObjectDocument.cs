@@ -12,7 +12,7 @@ public sealed class PdfObjectDocument
 
     public List<PdfIndirectObject> Objects { get; set; } = [];
 
-    // Text edits are applied by PdfWriter.Write; references remain informational.
+    // Derived inspection data. Use PdfTextEditor to change actual PDF content.
     public List<PdfPageTextIndex> TextIndex { get; set; } = [];
 
     public List<PdfPageImageIndex> ImageIndex { get; set; } = [];
@@ -81,8 +81,6 @@ public sealed class PdfTextRun
     public int OperandIndex { get; set; }
 
     public required string StreamSha256 { get; set; }
-
-    public required string OriginalText { get; set; }
 
     public required string Text { get; set; }
 

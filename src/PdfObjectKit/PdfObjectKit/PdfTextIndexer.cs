@@ -61,7 +61,7 @@ internal static class PdfTextIndexer
             }
             else
             {
-                entry.Runs = parsed.Slots.Select(slot => new PdfTextRun { StreamObject = slot.Stream, OperatorIndex = slot.Operation, OperandIndex = slot.Token, StreamSha256 = Convert.ToHexString(SHA256.HashData(Convert.FromBase64String(page.Streams.Single().Value.Base64!))), OriginalText = slot.Text, Text = slot.Text, FontName = slot.Font.Name, FontSize = slot.FontSize }).ToList();
+                entry.Runs = parsed.Slots.Select(slot => new PdfTextRun { StreamObject = slot.Stream, OperatorIndex = slot.Operation, OperandIndex = slot.Token, StreamSha256 = Convert.ToHexString(SHA256.HashData(Convert.FromBase64String(page.Streams.Single().Value.Base64!))), Text = slot.Text, FontName = slot.Font.Name, FontSize = slot.FontSize }).ToList();
             }
 
             return entry;

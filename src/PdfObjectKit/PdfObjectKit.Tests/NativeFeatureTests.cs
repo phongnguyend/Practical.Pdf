@@ -75,8 +75,7 @@ internal static class NativeFeatureTests
         Check(page.Text == "abc" && page.Letters[2].StartBaseLine.Y == 60, "quote operators and leading indexed");
         graph = Fixture("BT /F1 10 Tf 2 Tc (test) Tj ET");
         graph.TextIndex = PdfTextIndexer.Build(graph);
-        graph.TextIndex[0].Runs![0].Text = "edit";
-        Reject(() => PdfWriter.Write(graph), "character spacing edit");
+        Reject(() => PdfTextEditor.UpdateText(graph, 1, graph.TextIndex[0].Runs![0], "edit"), "character spacing edit");
         graph = Fixture("BT /F1 10 Tf <414243> Tj ET");
         var font = graph.Objects.Single(o => o.Value.Entries?.GetValueOrDefault("Type")?.Name == "Font").Value;
         var mapId = new PdfReference(graph.Objects.Max(o => o.Id.ObjectNumber) + 1);
@@ -114,9 +113,9 @@ internal static class NativeFeatureTests
             Check(graph.TextIndex[0].Text == "A\u1ec7", "native Unicode round trip");
             Check(graph.Objects.Any(o => o.Value.Entries?.GetValueOrDefault("FontFile2")is not null), "TrueType descriptor emitted");
             Check(graph.Objects.Where(o => o.Value.Type == "stream").Any(o => Convert.FromBase64String(o.Value.Base64!).SequenceEqual(bytes)), "full original font program embedded");
-            graph.TextIndex[0].Runs![0].Text = "X\u1ec7";
-            Reject(() => PdfWriter.Write(graph), "missing original font mapping");
-            var edited = PdfWriter.Write(graph, new() { FallbackFont = bytes });
+            Reject(() => PdfTextEditor.UpdateText(graph, 1, graph.TextIndex[0].Runs![0], "X\u1ec7"), "missing original font mapping");
+            PdfTextEditor.UpdateText(graph, 1, graph.TextIndex[0].Runs![0], "X\u1ec7", new() { FallbackFont = bytes });
+            var edited = PdfWriter.Write(graph);
             Check(PdfReader.Read(edited).TextIndex[0].Text == "X\u1ec7", "fallback font edit");
             Reject(() => PdfFixture.Create([0, 1, 2], fontPage), "truncated font");
         }

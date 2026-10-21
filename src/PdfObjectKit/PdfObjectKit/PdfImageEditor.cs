@@ -8,11 +8,11 @@ public static class PdfImageEditor
     /// <summary>
     /// Inserts a JPEG or PNG over a page's existing content. Page numbers are one-based;
     /// coordinates and display dimensions are in unrotated PDF user space.
-    /// Applies pending text edits and refreshes indexes. The document changes only on success.
+    /// Refreshes indexes. The document changes only on success.
     /// Returns the new image object's reference. Existing references into the model must be reacquired.
     /// </summary>
     public static PdfReference InsertImage(PdfObjectDocument document, int pageNumber, byte[] imageBytes,
-        double x, double y, double width, double height, PdfTextEditOptions? textOptions = null)
+        double x, double y, double width, double height)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(imageBytes);
@@ -30,9 +30,9 @@ public static class PdfImageEditor
         }
 
         var image = PdfImageData.Read(imageBytes);
-        // PdfWriter.Write applies pending text edits without changing the caller. All subsequent work
+        // Copy the object graph without changing the caller. All subsequent work
         // happens on this independent graph, including operations that may fail.
-        var working = PdfNativeParser.Parse(PdfWriter.Write(document, textOptions));
+        var working = PdfNativeParser.Parse(PdfWriter.Write(document));
         var graph = new PdfGraph(working);
         var page = graph.Pages()[pageNumber - 1];
         ValidateContent(page);
