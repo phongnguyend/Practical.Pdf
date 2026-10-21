@@ -1,0 +1,48 @@
+name: .Net Build PdfObjectKit
+
+on:
+  push:
+    paths:
+      - 'src/PdfObjectKit/**'
+  pull_request:
+    paths:
+      - 'src/PdfObjectKit/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    defaults:
+      run:
+        working-directory: src/PdfObjectKit
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.100
+
+    - name: Build
+      run: dotnet build PdfObjectKit/PdfObjectKit.csproj --configuration Release
+
+    - name: Upload PdfObjectKit
+      uses: actions/upload-artifact@v4
+      with:
+        name: PdfObjectKit
+        path: src/PdfObjectKit/PdfObjectKit/nupkg/*.nupkg
+
+    - name: Publish PdfObjectKit to NuGet
+      if: startsWith(github.ref, 'refs/tags/releases/v')
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      run: |
+        dotnet nuget push "PdfObjectKit/nupkg/*.nupkg" \
+          --api-key "$NUGET_API_KEY" \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
