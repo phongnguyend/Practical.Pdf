@@ -1,3 +1,5 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Interpreters;
 using PdfObjectKit.Parsers;
 using PdfObjectKit;
 

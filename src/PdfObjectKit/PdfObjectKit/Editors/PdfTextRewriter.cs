@@ -1,3 +1,8 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Interpreters;
+using PdfObjectKit.Primitives;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Models;
 using PdfObjectKit.Indexers;
 using PdfObjectKit.Parsers;
 using System.Globalization;

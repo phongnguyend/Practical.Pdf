@@ -1,7 +1,12 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Primitives;
+using PdfObjectKit.Validators;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Models;
 using PdfObjectKit.Indexers;
 using PdfObjectKit.Parsers;
 using System.Text;
-using static PdfObjectKit.PdfPrimitives;
+using static PdfObjectKit.Primitives.PdfPrimitives;
 
 namespace PdfObjectKit.Editors;
 

@@ -1,7 +1,9 @@
+using PdfObjectKit.Validators;
+using PdfObjectKit.Models;
 using System.Globalization;
 using System.Text;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Writers;
 
 /// <summary>Writes a PDF object graph. Derived indexes are informational and do not change PDF content.</summary>
 public static class PdfWriter

@@ -1,3 +1,6 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Interpreters;
+using PdfObjectKit.Models;
 namespace PdfObjectKit.Indexers;
 
 internal static class PdfImageIndexer

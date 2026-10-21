@@ -1,3 +1,6 @@
+using PdfObjectKit.Fonts;
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Models;
 namespace PdfObjectKit.Editors;
 
 internal static class PdfFallbackFont

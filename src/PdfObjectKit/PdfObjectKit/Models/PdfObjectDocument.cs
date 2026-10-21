@@ -1,4 +1,4 @@
-namespace PdfObjectKit;
+namespace PdfObjectKit.Models;
 
 public sealed class PdfObjectDocument
 {

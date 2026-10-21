@@ -1,3 +1,4 @@
+using PdfObjectKit.Readers;
 using PdfObjectKit.Parsers;
 using System.Text;
 using PdfObjectKit;

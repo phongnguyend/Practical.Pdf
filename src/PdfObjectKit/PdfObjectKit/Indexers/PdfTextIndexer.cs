@@ -1,3 +1,6 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Interpreters;
+using PdfObjectKit.Models;
 using System.Security.Cryptography;
 
 namespace PdfObjectKit.Indexers;

@@ -1,8 +1,14 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Interpreters;
+using PdfObjectKit.Primitives;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Models;
 using PdfObjectKit.Indexers;
 using System.Text;
 using PdfObjectKit;
 using PdfObjectKit.Editors;
-using static PdfObjectKit.PdfPrimitives;
+using static PdfObjectKit.Primitives.PdfPrimitives;
 
 internal static class NativeFeatureTests
 {

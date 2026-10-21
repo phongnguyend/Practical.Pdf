@@ -1,6 +1,8 @@
+using PdfObjectKit.Validators;
+using PdfObjectKit.Models;
 using PdfObjectKit.Indexers;
 using PdfObjectKit.Parsers;
-namespace PdfObjectKit;
+namespace PdfObjectKit.Readers;
 
 /// <summary>Reads a PDF object graph and optionally builds text and image indexes.</summary>
 public static class PdfReader

@@ -1,3 +1,7 @@
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Converters;
+using PdfObjectKit.Models;
 using System.Text;
 using PdfObjectKit;
 using PdfObjectKit.Editors;

@@ -1,3 +1,5 @@
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
 using PdfObjectKit;
 using PdfObjectKit.Editors;
 using QRCoder;

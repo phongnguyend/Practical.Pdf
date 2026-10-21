@@ -1,6 +1,7 @@
+using PdfObjectKit.Models;
 using System.Text.RegularExpressions;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Validators;
 
 /// <summary>Shared structural validation for reading, writing, conversion, and editing.</summary>
 internal static class PdfDocumentValidator

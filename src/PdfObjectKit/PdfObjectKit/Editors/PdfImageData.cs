@@ -1,8 +1,10 @@
+using PdfObjectKit.Primitives;
+using PdfObjectKit.Models;
 using PdfObjectKit.Parsers;
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
-using static PdfObjectKit.PdfPrimitives;
+using static PdfObjectKit.Primitives.PdfPrimitives;
 
 namespace PdfObjectKit.Editors;
 

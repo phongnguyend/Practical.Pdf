@@ -61,7 +61,10 @@ Reference `PdfObjectKit/PdfObjectKit.csproj`:
 These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json` and `to-pdf` only; the legacy text-only conversion and original-file restoration commands have been removed.
 
 ```csharp
-using PdfObjectKit;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Converters;
+using PdfObjectKit.Models;
 
 PdfObjectDocument document = PdfReader.Read(File.ReadAllBytes("input.pdf"));
 File.WriteAllText("document.json", PdfConverter.ToJson(document));
@@ -141,7 +144,10 @@ The demo inserts the QR code on page 1 at `(50, 600)`, with a square size of `10
 Use `PdfImageEditor.InsertImage` with JPEG or PNG file bytes:
 
 ```csharp
-using PdfObjectKit;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Converters;
+using PdfObjectKit.Models;
 using PdfObjectKit.Editors;
 
 var document = PdfReader.Read(File.ReadAllBytes("input.pdf"));
@@ -172,7 +178,8 @@ The target page's content must be readable by the native content parser, with ba
 `textIndex` is inspection data. Changing its page text or run text in JSON does **not** change the rebuilt PDF. `PdfWriter.Write` writes the object graph only. Use `PdfTextEditor` to update a specific text operand:
 
 ```csharp
-using PdfObjectKit;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
 using PdfObjectKit.Editors;
 
 var document = PdfReader.Read(File.ReadAllBytes("input.pdf"));
@@ -243,7 +250,7 @@ Literal and hexadecimal strings both become byte strings, avoiding assumptions a
 
 Content is carried through as PDF objects: page trees, text operators, fonts and CMaps, images, vector commands, resources, annotations, form dictionaries and appearance streams, attachments, metadata, outlines and other dictionary entries. Features do not require separate rendering implementations because their original objects and stream bytes are retained. JSON edits to those objects are used during reconstruction.
 
-The handwritten parser is `PdfObjectKit/Parsers/PdfNativeParser.cs`. The writer in `PdfWriter.cs` emits PDF syntax, new byte offsets, a classic cross-reference table and a trailer. Compressed object streams are expanded. Old xref streams, object-stream containers and linearization dictionaries are omitted because they describe the old physical layout. Incremental updates are consolidated into the latest document state.
+The handwritten parser is `PdfObjectKit/Parsers/PdfNativeParser.cs`. The writer in `Writers/PdfWriter.cs` emits PDF syntax, new byte offsets, a classic cross-reference table and a trailer. Compressed object streams are expanded. Old xref streams, object-stream containers and linearization dictionaries are omitted because they describe the old physical layout. Incremental updates are consolidated into the latest document state.
 
 ## Boundaries
 

@@ -1,8 +1,10 @@
+using PdfObjectKit.Primitives;
+using PdfObjectKit.Models;
 using System.Buffers.Binary;
 using System.Text;
-using static PdfObjectKit.PdfPrimitives;
+using static PdfObjectKit.Primitives.PdfPrimitives;
 
-namespace PdfObjectKit.Editors;
+namespace PdfObjectKit.Fonts;
 
 // Full TrueType embedding with an explicit CID-to-glyph map and ToUnicode CMap.
 internal sealed class PdfTrueTypeFont

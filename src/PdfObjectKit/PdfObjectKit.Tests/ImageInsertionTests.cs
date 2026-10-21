@@ -1,9 +1,15 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Primitives;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Converters;
+using PdfObjectKit.Models;
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using PdfObjectKit;
 using PdfObjectKit.Editors;
-using static PdfObjectKit.PdfPrimitives;
+using static PdfObjectKit.Primitives.PdfPrimitives;
 
 internal static class ImageInsertionTests
 {

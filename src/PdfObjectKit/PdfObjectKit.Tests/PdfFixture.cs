@@ -1,7 +1,11 @@
+using PdfObjectKit.Fonts;
+using PdfObjectKit.Primitives;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Models;
 using System.Text;
 using PdfObjectKit;
 using PdfObjectKit.Editors;
-using static PdfObjectKit.PdfPrimitives;
+using static PdfObjectKit.Primitives.PdfPrimitives;
 
 // Test data construction only; not a text-only document API in the library.
 internal sealed record FixturePage(string Text = "", double Width = 595, double Height = 842,

@@ -1,3 +1,4 @@
+using PdfObjectKit.Models;
 using System.IO.Compression;
 
 namespace PdfObjectKit.Parsers;

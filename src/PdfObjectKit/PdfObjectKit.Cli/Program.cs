@@ -1,3 +1,6 @@
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Converters;
 using PdfObjectKit;
 
 if (args.Length == 0 || args is ["--help"])

@@ -1,3 +1,8 @@
+using PdfObjectKit.Graphs;
+using PdfObjectKit.Validators;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+using PdfObjectKit.Models;
 namespace PdfObjectKit.Editors;
 
 /// <summary>Replaces individual text drawing operands in a PDF object graph.</summary>

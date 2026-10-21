@@ -1,7 +1,9 @@
+using PdfObjectKit.Validators;
+using PdfObjectKit.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace PdfObjectKit;
+namespace PdfObjectKit.Converters;
 
 /// <summary>Converts PDF object graphs to and from their JSON representation.</summary>
 public static class PdfConverter
