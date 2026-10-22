@@ -13,7 +13,8 @@ public static class PdfParagraphExtractor
 {
     /// <summary>
     /// Detects paragraphs on a one-based page. Coordinates use unrotated PDF user space.
-    /// Run operator indices follow the concatenated page content streams, as in the text index.
+    /// Page run operator indices follow concatenated page content streams; Form run indices are local to their stream.
+    /// FormOccurrenceId distinguishes repeated/nested placements within the page traversal.
     /// Results are ordered top-to-bottom, then left-to-right, not semantic column reading order.
     /// </summary>
     public static List<PdfParagraph> Extract(PdfObjectDocument document, int pageNumber, PdfHeuristicOptions? heuristics = null)
@@ -42,13 +43,12 @@ public static class PdfParagraphExtractor
             throw new InvalidDataException($"Cannot detect paragraphs: {parsed.TextWarning}");
         }
 
-        var streams = page.Streams.Select(s => s.Id).ToHashSet();
-        if (parsed.Slots.Any(s => !streams.Contains(s.Stream) || !s.IsHorizontal || s.Height <= 0))
+        if (parsed.Slots.Any(s => !s.IsHorizontal || s.Height <= 0))
         {
-            throw new NotSupportedException("Paragraph detection requires horizontal text in page content streams; Form XObjects are unsupported.");
+            throw new NotSupportedException("Paragraph detection requires horizontal text in page coordinates.");
         }
 
-        var hashes = page.Streams.DistinctBy(s => s.Id).ToDictionary(s => s.Id,
+        var hashes = parsed.TextStreams.Select(s => (Id: s.Key, Value: s.Value)).ToDictionary(s => s.Id,
             s => Convert.ToHexString(SHA256.HashData(Convert.FromBase64String(s.Value.Base64!))));
         var rows = new List<List<NativeSlot>>();
         foreach (var slot in parsed.Slots.Where(s => !string.IsNullOrWhiteSpace(s.Text))
@@ -139,6 +139,7 @@ public static class PdfParagraphExtractor
             Runs = slots.Select(s => new PdfTextRun
             {
                 StreamObject = s.Stream,
+                FormOccurrenceId = s.FormOccurrenceId,
                 OperatorIndex = s.Operation,
                 OperandIndex = s.Token,
                 StreamSha256 = hashes[s.Stream],

@@ -71,6 +71,9 @@ public sealed class PdfPageTextIndex
 
 public sealed class PdfTextRun
 {
+    /// <summary>One-based Form invocation in page traversal order, including nested Forms. Null for page content. Rebuild after edits.</summary>
+    public int? FormOccurrenceId { get; set; }
+
     public required PdfReference StreamObject { get; set; }
 
     public int OperatorIndex { get; set; }

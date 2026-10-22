@@ -18,6 +18,10 @@ public static class PdfTextEditor
         string text, PdfTextEditOptions? textOptions = null)
     {
         ArgumentNullException.ThrowIfNull(run);
+        if (run.FormOccurrenceId is not null)
+        {
+            throw new NotSupportedException("Editing a Form text occurrence is not supported; its stream may be shared by other placements.");
+        }
         Update(document, pageNumber, run.StreamObject, run.OperatorIndex, run.OperandIndex, text, textOptions, run);
     }
 

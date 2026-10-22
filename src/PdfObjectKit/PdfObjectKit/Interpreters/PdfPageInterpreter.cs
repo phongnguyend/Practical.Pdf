@@ -28,6 +28,9 @@ internal sealed class PdfPageInterpreter
     private readonly Dictionary<PdfValue, PdfNativeFont> fonts = [];
     private readonly HashSet<PdfValue> forms = [];
     private int count;
+    private int formCount;
+    private int? formOccurrenceId;
+    internal Dictionary<PdfReference, PdfValue> TextStreams { get; } = [];
     public PdfPageInterpreter(PdfGraph graph, NativePage page)
     {
         this.graph = graph;
@@ -37,6 +40,7 @@ internal sealed class PdfPageInterpreter
         var stack = new Stack<State>();
         foreach (var(id, stream)in page.Streams)
         {
+            TextStreams[id] = stream;
             try
             {
                 var operations = PdfContent.Parse(PdfStreamDecoder.Decode(stream));
@@ -212,8 +216,12 @@ internal sealed class PdfPageInterpreter
                             throw new InvalidDataException("Recursive Form XObject.");
                         }
 
+                        var parentOccurrence = formOccurrenceId;
                         try
                         {
+                            var formId = raw.Reference ?? throw new NotSupportedException("Form streams must be indirect objects.");
+                            TextStreams[formId] = xobject;
+                            formOccurrenceId = ++formCount;
                             var childState = state;
                             if (graph.Get(xobject, "Matrix")?.Items is { } matrix)
                             {
@@ -229,6 +237,7 @@ internal sealed class PdfPageInterpreter
                         }
                         finally
                         {
+                            formOccurrenceId = parentOccurrence;
                             forms.Remove(xobject);
                         }
                     }
@@ -260,6 +269,7 @@ internal sealed class PdfPageInterpreter
             var matrix = state.Matrix.Multiply(tm);
             var slot = new NativeSlot(operation, token, Text.Length, text, bytes, font, glyphs, state.Size, stream)
             {
+                FormOccurrenceId = formOccurrenceId,
                 BaselineStart = matrix.Point(0, state.Rise),
                 Height = Math.Abs(matrix.D * state.Size),
                 IsHorizontal = matrix.A > 0 && matrix.D > 0 && Math.Abs(matrix.B) < 0.000001 && Math.Abs(matrix.C) < 0.000001 && state.Scale > 0
