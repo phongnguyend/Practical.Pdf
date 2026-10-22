@@ -1,0 +1,2 @@
+.modal { border: 0; border-radius: 12px; color: #263850; }
+.modal::backdrop { background: #10203d88; }

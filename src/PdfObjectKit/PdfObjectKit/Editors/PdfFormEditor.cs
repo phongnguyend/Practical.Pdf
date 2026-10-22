@@ -1,6 +1,7 @@
 using System.Text;
 using PdfObjectKit.Converters;
 using PdfObjectKit.Graphs;
+using PdfObjectKit.Fonts;
 using PdfObjectKit.Models;
 using PdfObjectKit.Validators;
 using static PdfObjectKit.Primitives.PdfPrimitives;
@@ -15,11 +16,16 @@ public static partial class PdfFormEditor
     /// Text appearances are regenerated as plain black Helvetica, 12pt, clipped to the widget rectangle.
     /// Existing custom appearance styling is replaced. ASCII single-line text and dropdowns are supported.
     /// </summary>
-    public static void SetValue(PdfObjectDocument document, string fieldName, string value)
+    public static void SetValue(PdfObjectDocument document, string fieldName, string value, PdfTextAlignment? textAlignment = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
         ArgumentNullException.ThrowIfNull(value);
+        if (textAlignment.HasValue && !Enum.IsDefined(textAlignment.Value))
+        {
+            throw new ArgumentOutOfRangeException(nameof(textAlignment));
+        }
+
         PdfDocumentValidator.Validate(document);
         var working = PdfConverter.FromJson(PdfConverter.ToJson(document));
         var form = new PdfFormGraph(working);
@@ -46,6 +52,11 @@ public static partial class PdfFormEditor
             throw new NotSupportedException("Fields with additional actions are not supported.");
         }
 
+        if (textAlignment.HasValue && field.Model.Kind is not (PdfFormFieldKind.Text or PdfFormFieldKind.Choice))
+        {
+            throw new ArgumentException("Text alignment requires a text or choice field.", nameof(textAlignment));
+        }
+
         switch (field.Model.Kind)
         {
             case PdfFormFieldKind.CheckBox:
@@ -54,7 +65,7 @@ public static partial class PdfFormEditor
                 break;
             case PdfFormFieldKind.Text:
             case PdfFormFieldKind.Choice:
-                SetText(working, form, field, value);
+                SetText(working, form, field, value, textAlignment ?? field.Model.TextAlignment);
                 break;
             default:
                 throw new NotSupportedException("Editing this field type is not supported.");
@@ -126,7 +137,7 @@ public static partial class PdfFormEditor
         field.Node.Entries!["V"] = Name(value);
     }
 
-    private static void SetText(PdfObjectDocument document, PdfFormGraph form, PdfFormGraph.Field field, string value)
+    private static void SetText(PdfObjectDocument document, PdfFormGraph form, PdfFormGraph.Field field, string value, PdfTextAlignment textAlignment)
     {
         var flags = field.Model.Flags;
         var display = value;
@@ -171,7 +182,9 @@ public static partial class PdfFormEditor
             return Ref(id);
         }
 
-        var font = Add(Dict(("Type", Name("Font")), ("Subtype", Name("Type1")), ("BaseFont", Name("Helvetica")), ("Encoding", Name("WinAnsiEncoding"))));
+        var fontDictionary = Dict(("Type", Name("Font")), ("Subtype", Name("Type1")), ("BaseFont", Name("Helvetica")), ("Encoding", Name("WinAnsiEncoding")));
+        var textWidth = new PdfNativeFont(form.Graph, fontDictionary).Decode(Encoding.ASCII.GetBytes(display)).Sum(g => g.Width) * 12;
+        var font = Add(fontDictionary);
         var dr = form.Graph.Get(form.AcroForm!, "DR");
         var resources = dr?.Entries is { } original ? new Dictionary<string, PdfValue>(original) : new();
         var originalFonts = dr is null ? null : form.Graph.Get(dr, "Font");
@@ -186,7 +199,7 @@ public static partial class PdfFormEditor
         resources["Font"] = new PdfValue { Type = "dictionary", Entries = fonts };
         form.AcroForm!.Entries!["DR"] = new PdfValue { Type = "dictionary", Entries = resources };
         field.Node.Entries!["DA"] = Str(Encoding.ASCII.GetBytes($"/{fontName} 12 Tf 0 g"));
-        field.Node.Entries["Q"] = Num(0);
+        field.Node.Entries["Q"] = Num((int)textAlignment);
         foreach (var widget in field.Widgets)
         {
             var rect = form.Graph.Get(widget, "Rect")?.Items?.Select(v => Number(form.Graph.Resolve(v))).ToArray();
@@ -202,15 +215,21 @@ public static partial class PdfFormEditor
 
             var width = Syntax(Num(rect[2] - rect[0]));
             var height = Syntax(Num(rect[3] - rect[1]));
+            var x = Syntax(Num(textAlignment switch
+            {
+                PdfTextAlignment.Center => (rect[2] - rect[0] - textWidth) / 2,
+                PdfTextAlignment.Right => rect[2] - rect[0] - 2 - textWidth,
+                _ => 2
+            }));
             var y = Syntax(Num(Math.Max(2, (rect[3] - rect[1] - 12) / 2 + 2)));
-            var appearance = Stream(Encoding.ASCII.GetBytes($"q 0 0 {width} {height} re W n /Tx BMC BT /{fontName} 12 Tf 0 g 1 0 0 1 2 {y} Tm {Syntax(Str(Encoding.ASCII.GetBytes(display)))} Tj ET EMC Q"));
+            var appearance = Stream(Encoding.ASCII.GetBytes($"q 0 0 {width} {height} re W n /Tx BMC BT /{fontName} 12 Tf 0 g 1 0 0 1 {x} {y} Tm {Syntax(Str(Encoding.ASCII.GetBytes(display)))} Tj ET EMC Q"));
             appearance.Entries!["Type"] = Name("XObject");
             appearance.Entries["Subtype"] = Name("Form");
             appearance.Entries["BBox"] = Array(Num(0), Num(0), Num(rect[2] - rect[0]), Num(rect[3] - rect[1]));
             appearance.Entries["Resources"] = Dict(("Font", Dict((fontName, font))));
             widget.Entries!["AP"] = Dict(("N", Add(appearance)));
             widget.Entries["DA"] = field.Node.Entries["DA"];
-            widget.Entries["Q"] = Num(0);
+            widget.Entries["Q"] = Num((int)textAlignment);
         }
 
         field.Node.Entries!["V"] = Str(new byte[] { 0xFE, 0xFF }.Concat(Encoding.BigEndianUnicode.GetBytes(value)).ToArray());

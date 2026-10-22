@@ -474,6 +474,10 @@ Rectangular tables with zero or one initial header row use Markdown pipe tables,
 
 ## AcroForm fields
 
+Rename an existing terminal field with `PdfFormEditor.RenameField(document, "Applicant.FullName", "LegalName")`. The result is `Applicant.LegalName`: the new name replaces only the final partial name, retaining the parent group, values, widget references and appearance streams. Unicode names are supported. Empty names, dots, control characters, name collisions and ambiguous targets are rejected atomically. Read-only fields, signed forms, XFA forms, and documents containing JavaScript or name-dependent form actions are unsupported for renaming; scripts and action name references are not rewritten.
+
+In the playground, select a form field, edit **Field name**, and click **Rename**. The API accepts `kind: "rename-field"`, the current full `fieldName`, and the new partial name in `value` through the existing edit endpoint. The rebuilt PDF and overlays refresh using the same workflow as value edits.
+
 Read existing interactive fields with `PdfFormExtractor` and fill them with `PdfFormEditor`. These are AcroForm fields, distinct from reusable Form XObjects.
 
 ```csharp
@@ -486,6 +490,7 @@ var document = PdfReader.Read(File.ReadAllBytes("application.pdf"));
 var fields = PdfFormExtractor.Extract(document);
 
 PdfFormEditor.SetValue(document, "Applicant.FullName", "Jane Smith");
+PdfFormEditor.SetValue(document, "Applicant.FullName", "Jane Smith", PdfTextAlignment.Center);
 PdfFormEditor.SetValue(document, "Country", "US"); // Dropdown export value.
 PdfFormEditor.SetChecked(document, "Accepted", true);
 PdfFormEditor.SetValue(document, "Plan", "Premium"); // Radio appearance-state name.
@@ -495,7 +500,7 @@ File.WriteAllBytes("filled.pdf", PdfWriter.Write(document));
 
 Extraction returns terminal fields with qualified names, types, inherited flags and values, default values, choice export/display pairs, and widget references, page numbers, rectangles and appearance-state names. Documents without an AcroForm return an empty list. XFA forms are unsupported.
 
-Editing updates the field value and every associated widget appearance. Checkboxes and radio buttons use their existing appearance streams; `SetValue` accepts an appearance-state name or `Off`. Single-line text and single-selection dropdowns generate plain black 12pt Helvetica appearances using printable ASCII display text. This replaces custom styling, borders and backgrounds, and clips text to the widget rectangle without fitting. Dropdowns store the export value and display the matching label. Fields remain interactive; they are not flattened.
+Editing updates the field value and every associated widget appearance. Checkboxes and radio buttons use their existing appearance streams; `SetValue` accepts an appearance-state name or `Off`. Single-line text and single-selection dropdowns generate plain black 12pt Helvetica appearances using printable ASCII display text. This replaces custom styling, borders and backgrounds, and clips text to the widget rectangle without fitting. Text and dropdown fields support `PdfTextAlignment.Left`, `Center`, and `Right`. Pass the optional `textAlignment` argument to `SetValue` or `InsertTextField`; value edits preserve the inherited alignment when it is omitted. `PdfFormExtractor` exposes `TextAlignment`. The playground provides alignment buttons for new and existing fields, with live alignment previews when creating fields. Dropdowns store the export value and display the matching label. Fields remain interactive; they are not flattened.
 
 Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, multiline/password/comb/rich-text fields, list boxes, multiple selections, and unsupported display characters are rejected. Signature and pushbutton editing, script execution and font/style preservation are not implemented. `PdfFormEditor.InsertTextField` creates a top-level single-line text field; `DeleteField` removes a terminal field and all its widgets from the field tree and page annotations.
 
@@ -579,3 +584,7 @@ dotnet run --project src/PdfObjectKit/PdfObjectKit.Tests -- C:/Windows/Fonts/ari
 ```
 
 Independently constructed fixtures cover compressed streams, images, vector drawing, forms, attachments, binary strings, escaped names, nonzero generations, custom trailers, object streams, xref streams and incremental updates. Tests compare reconstructed object data, verify edits, and reject invalid graphs. PDFsharp independently reads rebuilt files. This is not exhaustive compatibility or visual testing of every PDF feature.
+
+The playground toolbar includes **View Markdown** for the current saved PDF. The viewer uses Marked with sanitized HTML, provides Preview and Source views, conversion notes, and a `.md` download. Uninserted drafts are not included.
+
+Playground UI layout: `src/pages/PlaygroundPage.tsx` owns the page state; `src/components/` contains reusable controls, shared `Modal` and `Toast`, and colocated dialog styles. `src/main.tsx` only mounts the page. Copy `.env.example` to `.env` to configure `PLAYGROUND_API_URL` and `PLAYGROUND_UI_PORT` for Vite; process environment variables take precedence. Local `.env` files are ignored by Git.

@@ -1,0 +1,18 @@
+.image-file-input { display: none; }
+.inspector .image-drop-zone { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 12px; border: 1px dashed #a9bce0; background: #f7faff; border-radius: 10px; color: #48658e; }
+.inspector .image-drop-zone:hover, .inspector .image-drop-zone.dragging { border-color: #2358d3; background: #eaf1ff; }
+.image-drop-zone img { max-width: 100%; height: 100px; object-fit: contain; }
+.image-drop-zone span { font-size: 11px; overflow-wrap: anywhere; max-width: 100%; }
+.image-picker-actions { display: flex; gap: 8px; margin: 10px 0 14px; }
+.image-picker-actions button, .drawing-dialog button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.drawing-dialog { width: min(850px, 94vw); max-height: 92vh; overflow: auto; border: 0; border-radius: 14px; padding: 24px; color: #263850; box-shadow: 0 24px 80px #0004; }
+.drawing-dialog header { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
+.drawing-dialog h2 { margin: 0 0 8px; font-size: 20px; }
+.drawing-dialog p { font-size: 13px; color: #64748b; }
+.drawing-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 16px 0; }
+.drawing-tools label { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.drawing-tools input[type=color] { width: 40px; height: 32px; padding: 2px; }
+.drawing-dialog canvas { display: block; width: 100%; height: auto; margin: 0 auto; border: 1px solid #dbe2ec; border-radius: 6px; touch-action: none; cursor: crosshair; background: repeating-conic-gradient(#f1f3f6 0% 25%, white 0% 50%) 0 / 20px 20px; }
+.drawing-dialog footer { display: flex; justify-content: flex-end; gap: 10px; padding: 18px 0 0; border: 0; }
+.drawing-dialog .use-drawing { color: white; background: #2358d3; border-color: #2358d3; }
+.image-size-action button { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; }

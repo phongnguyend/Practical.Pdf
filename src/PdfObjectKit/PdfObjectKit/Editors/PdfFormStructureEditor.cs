@@ -7,6 +7,67 @@ namespace PdfObjectKit.Editors;
 
 public static partial class PdfFormEditor
 {
+    /// <summary>Renames a terminal field's partial name, preserving its parent, values and widgets.</summary>
+    public static void RenameField(PdfObjectDocument document, string fieldName, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        if (newName.Contains('.') || newName.Any(char.IsControl))
+        {
+            throw new ArgumentException("Use a partial field name without dots or control characters.", nameof(newName));
+        }
+
+        var encoded = new byte[] { 0xFE, 0xFF }.Concat(new UnicodeEncoding(true, false, true).GetBytes(newName)).ToArray();
+        PdfPageEditor.Edit(document, working =>
+        {
+            var form = new PdfFormGraph(working);
+            var matches = form.Fields.Where(f => f.Model.Name == fieldName).ToList();
+            if (matches.Count != 1)
+            {
+                throw new ArgumentException("Field name must identify exactly one existing terminal field.", nameof(fieldName));
+            }
+
+            var field = matches[0];
+            if (field.Model.IsReadOnly)
+            {
+                throw new InvalidOperationException("The field is read-only.");
+            }
+
+            if (form.Fields.Any(f => f.Model.Kind == PdfFormFieldKind.Signature && f.Inherited.ContainsKey("V")))
+            {
+                throw new NotSupportedException("Renaming fields in signed forms is not supported.");
+            }
+
+            bool HasNameDependentAction(PdfValue value)
+            {
+                var entries = value.Entries;
+                return entries is not null && (entries.ContainsKey("JS") || entries.ContainsKey("JavaScript")
+                    || entries.TryGetValue("S", out var action) && form.Graph.Resolve(action).Name is "JavaScript" or "SubmitForm" or "ResetForm" or "Hide" or "ImportData")
+                    || (entries?.Values.Any(HasNameDependentAction) ?? false)
+                    || (value.Items?.Any(HasNameDependentAction) ?? false);
+            }
+
+            if (working.Objects.Any(o => HasNameDependentAction(o.Value)) || HasNameDependentAction(working.Trailer))
+            {
+                throw new NotSupportedException("Renaming forms with JavaScript or name-dependent form actions is not supported.");
+            }
+
+            if (form.Graph.Get(field.Node, "T") is not { } title || PdfFormGraph.Text(title).Contains('.'))
+            {
+                throw new NotSupportedException("Renaming requires an explicit valid partial field name.");
+            }
+
+            var newFullName = fieldName[..(fieldName.LastIndexOf('.') + 1)] + newName;
+            if (form.Fields.Any(f => !ReferenceEquals(f, field) && (f.Model.Name == newFullName || f.Model.Name.StartsWith(newFullName + ".", StringComparison.Ordinal))))
+            {
+                throw new ArgumentException("The new name conflicts with an existing field or field group.", nameof(newName));
+            }
+
+            field.Node.Entries!["T"] = Str(encoded);
+        });
+    }
+
     /// <summary>Deletes a terminal field and all of its page widgets. Orphan objects are retained.</summary>
     public static void DeleteField(PdfObjectDocument document, string fieldName)
     {
@@ -52,7 +113,7 @@ public static partial class PdfFormEditor
     }
 
     /// <summary>Adds a top-level single-line text field and its widget, using the default field appearance.</summary>
-    public static void InsertTextField(PdfObjectDocument document, int pageNumber, string fieldName, string value, double x, double y, double width, double height)
+    public static void InsertTextField(PdfObjectDocument document, int pageNumber, string fieldName, string value, double x, double y, double width, double height, PdfTextAlignment textAlignment = PdfTextAlignment.Left)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
         if (fieldName.Contains('.') || !double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(width) || !double.IsFinite(height)
@@ -80,7 +141,7 @@ public static partial class PdfFormEditor
             working.Objects.Add(new(id, widget));
             acro.Entries!["Fields"] = new() { Type = "array", Items = [.. graph.Get(acro, "Fields")?.Items ?? [], Ref(id)] };
             page.Dictionary.Entries!["Annots"] = new() { Type = "array", Items = [.. graph.Get(page.Dictionary, "Annots")?.Items ?? [], Ref(id)] };
-            SetValue(working, fieldName, value);
+            SetValue(working, fieldName, value, textAlignment);
         });
     }
 }

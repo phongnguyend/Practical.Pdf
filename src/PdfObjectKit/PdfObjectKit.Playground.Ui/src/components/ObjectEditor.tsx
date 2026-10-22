@@ -1,0 +1,68 @@
+import { TextAlignment, type Alignment } from './TextAlignment';
+import { useState } from 'react';
+import { Check, Pencil, Save, Trash2 } from 'lucide-react';
+
+export type Edit = { kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; fieldName?: string; imageNumber?: number; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
+type Run = { text: string; fontName?: string | null; fontSize?: number; formOccurrenceId?: number | null };
+type Details = { textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
+
+export function ObjectEditor({ item, busy, onSave }: { item: { kind: string; pageNumber: number; details: unknown }; busy: boolean; onSave: (edit: Edit) => Promise<void> }) {
+  const details = item.details as Details;
+  const runs = details.runs ?? [];
+  const [runIndex, setRunIndex] = useState(0);
+  const partialName = details.name?.split('.').at(-1) ?? '';
+  const [newName, setNewName] = useState(partialName);
+  const initialValue = item.kind === 'text' ? runs[runIndex]?.text ?? '' : details.values?.[0] ?? (['CheckBox', 'RadioButton'].includes(details.kind ?? '') ? 'Off' : '');
+  const initialAlignment = details.textAlignment ?? 'Left';
+  const [alignment, setAlignment] = useState<Alignment>(initialAlignment);
+  const [value, setValue] = useState(initialValue);
+  const supported = item.kind === 'text'
+    ? runs.length > 0 && runs[runIndex]?.formOccurrenceId == null
+    : !details.isReadOnly && ['Text', 'Choice', 'CheckBox', 'RadioButton'].includes(details.kind ?? '');
+  const button = details.kind === 'CheckBox' || details.kind === 'RadioButton';
+  const dirty = value !== initialValue || alignment !== initialAlignment;
+  const canDelete = item.kind === 'image' || (item.kind === 'text' ? supported : !details.isReadOnly);
+  function remove() {
+    void onSave({ kind: item.kind === 'text' ? 'text' : `delete-${item.kind}`, value: '', pageNumber: item.pageNumber,
+      run: item.kind === 'text' ? runs[runIndex] : undefined, fieldName: details.name, imageNumber: details.imageNumber });
+  }
+  return <div className="object-editor">
+    {item.kind !== 'image' && <form className="editor" onSubmit={event => {
+      event.preventDefault();
+      if (supported && dirty) {
+        void onSave({ kind: item.kind, value, textAlignment: item.kind === 'field' && !button ? alignment : undefined, pageNumber: item.pageNumber, run: item.kind === 'text' ? runs[runIndex] : undefined, fieldName: details.name });
+      }
+    }}><fieldset disabled={busy}>
+      <div className="section-heading"><h3>{item.kind === 'text' ? 'Text content' : 'Field value'}</h3><span className={dirty ? 'edit-status dirty' : 'edit-status'}>{dirty ? 'Unsaved' : <><Check size={12} aria-hidden="true" /> Saved</>}</span></div>
+      {item.kind === 'text' && runs.length > 1 && <label>Text segment<select aria-label="Source run" value={runIndex} onChange={event => {
+        const index = Number(event.target.value);
+        setRunIndex(index);
+        setValue(runs[index].text);
+      }}>{runs.map((run, index) => <option key={index} value={index}>{index + 1} of {runs.length}: {run.text || '(empty)'}</option>)}</select><span className="control-help">This line contains multiple editable segments.</span></label>}
+      {item.kind === 'text' && <dl className="text-font-details">
+        <div><dt>Font name</dt><dd aria-label="Font name">{runs[runIndex]?.fontName || 'Unknown'}</dd></div>
+        <div><dt>Font size</dt><dd aria-label="Font size">{Number.isFinite(runs[runIndex]?.fontSize) ? `${runs[runIndex].fontSize} pt` : 'Unknown'}</dd></div>
+      </dl>}
+      {supported ? <>
+        <label>{button ? 'Selection' : 'Content'}{button ? <select aria-label="New value" value={value || 'Off'} onChange={event => setValue(event.target.value)}><option value="Off">Off</option>{details.states?.filter(state => state !== 'Off').map(state => <option key={state}>{state}</option>)}</select>
+          : details.kind === 'Choice' ? <input aria-label="New value" maxLength={10000} value={value} list="field-choices" onChange={event => setValue(event.target.value)} />
+          : <textarea aria-label="New value" rows={4} maxLength={10000} value={value} onChange={event => setValue(event.target.value)} />}</label>
+        {details.kind === 'Choice' && <datalist id="field-choices">{details.choices?.map(choice => <option key={choice.exportValue} value={choice.exportValue}>{choice.displayValue}</option>)}</datalist>}
+        <p className="control-help">{item.kind === 'text' ? 'Edits the selected segment. Single-line text only.' : button ? 'Choose the state to display in the PDF.' : details.kind === 'Choice' ? 'Choose or enter the option export value.' : 'Single-line text. Saved using 12 pt Helvetica.'}</p>
+        {item.kind === 'field' && !button && <TextAlignment value={alignment} onChange={setAlignment} />}
+        <div className="editor-actions"><button className="primary-action" type="submit" disabled={!dirty}><Save size={15} aria-hidden="true" />{busy ? 'Saving...' : 'Save'}</button><button type="button" disabled={!dirty} onClick={() => {
+          setValue(initialValue);
+          setAlignment(initialAlignment);
+        }}>Reset</button></div>
+      </> : <div className="inspector-notice">{details.isReadOnly ? 'This field is read-only.' : 'This selection cannot be edited with the current text editor.'}</div>}
+    </fieldset></form>}
+    {item.kind === 'field' && !details.isReadOnly && <section className="editor inspector-section"><fieldset disabled={busy}><h3>Field identity</h3>
+      <label>Field name<input aria-label="Rename field" value={newName} maxLength={10000} onChange={event => setNewName(event.target.value)} /></label>
+      <p className="control-help">Rename only this part of the name. Parent groups and the value stay unchanged.</p>
+      <button className="secondary-action" type="button" disabled={!newName.trim() || newName === partialName} onClick={() => void onSave({ kind: 'rename-field', value: newName, fieldName: details.name, pageNumber: item.pageNumber })}><Pencil size={14} aria-hidden="true" />Rename</button>
+    </fieldset></section>}
+    {canDelete && <section className="remove-section"><h3>Remove object</h3><p className="control-help">{item.kind === 'field' ? 'Removes this field and all its widgets from every page.' : item.kind === 'image' ? 'Removes this placement. Other copies of the image stay in place.' : 'Removes only the selected text segment.'}</p>
+      <button className="danger-action" type="button" disabled={busy} onClick={remove}><Trash2 size={14} aria-hidden="true" />{item.kind === 'text' ? 'Delete text run' : item.kind === 'image' ? 'Delete image occurrence' : 'Delete field'}</button>
+    </section>}
+  </div>;
+}

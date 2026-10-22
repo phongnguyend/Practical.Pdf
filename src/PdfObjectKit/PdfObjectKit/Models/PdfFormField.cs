@@ -5,6 +5,13 @@ public enum PdfFormFieldKind
     Unknown, Text, CheckBox, RadioButton, PushButton, Choice, Signature
 }
 
+public enum PdfTextAlignment
+{
+    Left = 0,
+    Center = 1,
+    Right = 2
+}
+
 public sealed class PdfFormField
 {
     public required string Name { get; init; }
@@ -12,6 +19,8 @@ public sealed class PdfFormField
     public PdfReference? ObjectReference { get; init; }
 
     public PdfFormFieldKind Kind { get; init; }
+
+    public PdfTextAlignment TextAlignment { get; init; }
 
     public int Flags { get; init; }
 

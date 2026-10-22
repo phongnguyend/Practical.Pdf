@@ -122,6 +122,8 @@ internal sealed class PdfFormGraph
             {
                 Name = name, ObjectReference = raw.Reference, Kind = kind, Flags = flags,
                 Values = ReadValues(values.GetValueOrDefault("V")), DefaultValues = ReadValues(values.GetValueOrDefault("DV")),
+                TextAlignment = values.TryGetValue("Q", out var alignment) && Number(alignment) is 1 or 2
+                    ? (PdfTextAlignment)(int)Number(alignment) : PdfTextAlignment.Left,
                 Choices = choices, Widgets = widgetModels
             }, node, values, widgets));
         }

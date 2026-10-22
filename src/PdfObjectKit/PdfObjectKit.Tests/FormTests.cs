@@ -190,6 +190,46 @@ internal static class FormTests
             Check(rejected && PdfConverter.ToJson(unsupported) == before, "unsupported edit is atomic: " + scenario);
         }
 
+        var renamed = PdfConverter.FromJson(PdfConverter.ToJson(doc));
+        var renameBefore = PdfConverter.ToJson(renamed);
+        var previousTitle = renamed.Objects.Single(o => o.Id == field.Reference).Value.Entries!["T"];
+        PdfFormEditor.RenameField(renamed, "Applicant.FullName", "LegalName\u00e9");
+        var renamedField = PdfFormExtractor.Extract(PdfReader.Read(PdfWriter.Write(renamed)))[0];
+        Check(renamedField.Name == "Applicant.LegalName\u00e9" && renamedField.Values.Single() == "Jane (Smith)", "rename preserves parent/value and Unicode name round trip");
+        renamed.Objects.Single(o => o.Id == field.Reference).Value.Entries!["T"] = previousTitle;
+        Check(PdfConverter.ToJson(renamed) == renameBefore, "rename changes only T; widgets and appearances preserved");
+        PdfFormEditor.RenameField(renamed, "Country", "Location");
+        PdfFormEditor.SetValue(renamed, "Location", "Canada");
+        Check(PdfFormExtractor.Extract(renamed).Single(f => f.Name == "Location").Values.Single() == "Canada", "renamed field remains editable");
+        foreach (var (oldName, newName) in new[] { ("Country", "Accepted"), ("Country", "Applicant"), ("Country", " "), ("Country", "A.B"), ("Missing", "New") })
+        {
+            var before = PdfConverter.ToJson(doc);
+            var rejected = false;
+            try
+            {
+                PdfFormEditor.RenameField(doc, oldName, newName);
+            }
+            catch (ArgumentException)
+            {
+                rejected = true;
+            }
+
+            Check(rejected && PdfConverter.ToJson(doc) == before, "invalid rename is atomic: " + newName);
+        }
+
+        var scripted = PdfConverter.FromJson(PdfConverter.ToJson(doc));
+        new PdfGraph(scripted).Resolve(scripted.Trailer.Entries!["Root"]).Entries!["OpenAction"] = Dict(("S", Name("JavaScript")), ("JS", Text("this.getField('Country');")));
+        var scriptedBefore = PdfConverter.ToJson(scripted);
+        try
+        {
+            PdfFormEditor.RenameField(scripted, "Country", "Location");
+            throw new Exception("Scripted form rename accepted");
+        }
+        catch (NotSupportedException)
+        {
+            Check(scriptedBefore == PdfConverter.ToJson(scripted), "scripted rename rejected atomically");
+        }
+
         var currentField = doc.Objects.Single(o => o.Id == field.Reference).Value;
         currentField.Entries!["Ff"] = Num(1);
         try
@@ -200,6 +240,51 @@ internal static class FormTests
         catch (InvalidOperationException)
         {
             checks++;
+        }
+
+        try
+        {
+            PdfFormEditor.RenameField(doc, "Applicant.FullName", "LegalName");
+            throw new Exception("Read-only rename accepted");
+        }
+        catch (InvalidOperationException)
+        {
+            checks++;
+        }
+
+        var aligned = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Alignment")));
+        foreach (var alignment in Enum.GetValues<PdfTextAlignment>())
+        {
+            var name = "Aligned" + alignment;
+            PdfFormEditor.InsertTextField(aligned, 1, name, "A", 40, 40, 200, 30, alignment);
+            var alignedModel = PdfFormExtractor.Extract(aligned).Single(f => f.Name == name);
+            Check(alignedModel.TextAlignment == alignment, "extract " + alignment);
+            var alignmentGraph = new PdfFormGraph(aligned);
+            var alignedField = alignmentGraph.Fields.Single(f => f.Model.Name == name);
+            var alignedAppearance = alignmentGraph.Graph.Get(alignmentGraph.Graph.Get(alignedField.Widgets[0], "AP")!, "N")!;
+            var content = Encoding.ASCII.GetString(Convert.FromBase64String(alignedAppearance.Base64!));
+            var expectedX = alignment switch
+            {
+                PdfTextAlignment.Center => (200 - 8.004) / 2,
+                PdfTextAlignment.Right => 200 - 2 - 8.004,
+                _ => 2
+            };
+            Check(content.Contains($"1 0 0 1 {Syntax(Num(expectedX))} 11 Tm"), "appearance position " + alignment);
+            PdfFormEditor.SetValue(aligned, name, "AB");
+            Check(PdfFormExtractor.Extract(aligned).Single(f => f.Name == name).TextAlignment == alignment, "preserve alignment on edit");
+        }
+
+        PdfFormEditor.SetValue(aligned, "AlignedLeft", "AB", PdfTextAlignment.Right);
+        Check(PdfFormExtractor.Extract(PdfReader.Read(PdfWriter.Write(aligned))).Single(f => f.Name == "AlignedLeft").TextAlignment == PdfTextAlignment.Right, "alignment survives rebuild");
+        var beforeInvalidAlignment = PdfConverter.ToJson(aligned);
+        try
+        {
+            PdfFormEditor.SetValue(aligned, "AlignedLeft", "Bad", (PdfTextAlignment)99);
+            throw new Exception("Invalid alignment accepted.");
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            Check(PdfConverter.ToJson(aligned) == beforeInvalidAlignment, "invalid alignment is atomic");
         }
 
         Console.WriteLine($"Passed {checks} AcroForm checks.");
