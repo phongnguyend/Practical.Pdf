@@ -1,0 +1,138 @@
+﻿[
+  {
+    PageNumber: 1,
+    Images: [
+      {
+        ImageNumber: 1,
+        IsInline: false,
+        PixelWidth: 1,
+        PixelHeight: 1,
+        BitsPerComponent: 8,
+        IsImageMask: false,
+        Corners: [
+          {
+            X: 30.0,
+            Y: 700.0
+          },
+          {
+            X: 70.0,
+            Y: 700.0
+          },
+          {
+            X: 70.0,
+            Y: 720.0
+          },
+          {
+            X: 30.0,
+            Y: 720.0
+          }
+        ],
+        ImageObjects: [
+          {
+            ObjectNumber: 5
+          }
+        ],
+        EncodedDataSha256: 7FA54A42524916A1648EC76CE75D295024840B7A3A4F4BBAF3E43155D0014767,
+        ContentType: application/octet-stream
+      },
+      {
+        ImageNumber: 2,
+        IsInline: false,
+        PixelWidth: 1,
+        PixelHeight: 1,
+        BitsPerComponent: 8,
+        IsImageMask: false,
+        Corners: [
+          {
+            X: 200.0,
+            Y: 600.0
+          },
+          {
+            X: 200.0,
+            Y: 660.0
+          },
+          {
+            X: 170.0,
+            Y: 660.0
+          },
+          {
+            X: 170.0,
+            Y: 600.0
+          }
+        ],
+        ImageObjects: [
+          {
+            ObjectNumber: 5
+          }
+        ],
+        EncodedDataSha256: 7FA54A42524916A1648EC76CE75D295024840B7A3A4F4BBAF3E43155D0014767,
+        ContentType: application/octet-stream
+      },
+      {
+        ImageNumber: 3,
+        IsInline: true,
+        PixelWidth: 1,
+        PixelHeight: 1,
+        BitsPerComponent: 8,
+        IsImageMask: false,
+        Corners: [
+          {
+            X: 50.0,
+            Y: 500.0
+          },
+          {
+            X: 62.0,
+            Y: 500.0
+          },
+          {
+            X: 62.0,
+            Y: 516.0
+          },
+          {
+            X: 50.0,
+            Y: 516.0
+          }
+        ],
+        EncodedDataSha256: BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD,
+        ContentType: application/octet-stream,
+        InlineDataBase64: YWJj
+      },
+      {
+        ImageNumber: 4,
+        IsInline: false,
+        PixelWidth: 1,
+        PixelHeight: 1,
+        BitsPerComponent: 8,
+        IsImageMask: false,
+        Corners: [
+          {
+            X: 260.0,
+            Y: 420.0
+          },
+          {
+            X: 285.0,
+            Y: 420.0
+          },
+          {
+            X: 285.0,
+            Y: 455.0
+          },
+          {
+            X: 260.0,
+            Y: 455.0
+          }
+        ],
+        ImageObjects: [
+          {
+            ObjectNumber: 5
+          }
+        ],
+        EncodedDataSha256: 7FA54A42524916A1648EC76CE75D295024840B7A3A4F4BBAF3E43155D0014767,
+        ContentType: application/octet-stream
+      }
+    ]
+  },
+  {
+    PageNumber: 2
+  }
+]

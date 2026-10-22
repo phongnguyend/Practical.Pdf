@@ -1,2 +1,3 @@
 *.verified.md text eol=lf
+*.verified.txt text eol=lf
 *.pdf binary

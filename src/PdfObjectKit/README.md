@@ -4,13 +4,23 @@ C# / .NET 10 library and CLI for reading, editing, and writing PDF object graphs
 
 ## Markdown snapshot regression test
 
-`PdfObjectKit.SnapshotTests` uses Verify.Xunit to compare the full Markdown generated from `Fixtures/input.pdf` with `Snapshots/MarkdownSnapshotTests.InputPdf.verified.md`. The fixture is a copy of the original CLI `bin/input.pdf`, kept with the tests so a clean checkout can run them. The initial baseline captures current behavior; it protects against changes, not every possible extraction error.
+The snapshot suite also includes independent extractor tests:
+
+| Test class | Fixture | Captured output |
+| --- | --- | --- |
+| `TextExtractorSnapshotTests` | `input.pdf` | All four pages of text, runs, fonts, operator indices, and source references |
+| `ParagraphExtractorSnapshotTests` | `input.pdf` | Per-page paragraphs, lines, geometry, and source runs |
+| `ImageExtractorSnapshotTests` | `images.pdf` | XObjects, repeated and rotated placements, inline data, Form transforms, hashes, and a blank page |
+
+Each class has its own `.verified.txt` baseline. These run with the Markdown and structured-document snapshots in the existing CI step. The synthetic image fixture has a deterministic generator in `Fixtures/generate_images.py`; Python is not required to run the tests.
+
+`PdfObjectKit.SnapshotTests` uses Verify.Xunit to compare the full Markdown generated from `Fixtures/input.pdf` with `Snapshots/MarkdownSnapshotTests.InputPdf.verified.md`. A second test snapshots the full `PdfStructuredDocument` into `StructuredDocumentSnapshotTests.InputPdf.verified.txt`, covering pages, block kinds, tables, source lines/runs, coordinates, and diagnostics without excluding source metadata. The fixture is a copy of the original CLI `bin/input.pdf`, kept with the tests so a clean checkout can run them. The initial baseline captures current behavior; it protects against changes, not every possible extraction error.
 
 ```powershell
 dotnet test src/PdfObjectKit/PdfObjectKit.SnapshotTests --configuration Release
 ```
 
-On a mismatch, Verify fails the test and writes `MarkdownSnapshotTests.InputPdf.received.md` beside the approved snapshot. Compare it with the `.verified.md` file. For an intentional change, review the entire diff, replace the verified file with the received file, rerun the test, and commit the updated baseline. Do not automatically accept snapshots in CI. Received files are ignored by Git; the PDF fixture and verified Markdown belong in source control. Snapshot Markdown uses LF line endings across platforms.
+On a mismatch, Verify fails the test and writes a `.received.md` or `.received.txt` file beside the corresponding approved snapshot. Compare it with the `.verified.md` file. For an intentional change, review the entire diff, replace the verified file with the received file, rerun the test, and commit the updated baseline. Do not automatically accept snapshots in CI. Received files are ignored by Git; the PDF fixture and verified Markdown belong in source control. Snapshot Markdown uses LF line endings across platforms.
 
 The GitHub workflow runs this test before uploading/publishing the NuGet package and uploads received files as `Markdown-snapshot-differences` on failure. The existing console regression tests remain separate. This fixture covers the invoice, bank statement, and loan form; other PDFs require additional fixtures to protect their behavior.
 

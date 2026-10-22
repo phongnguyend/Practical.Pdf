@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../PdfObjectKit/PdfObjectKit.csproj" />
-    <None Update="Fixtures/input.pdf" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures/*.pdf" CopyToOutputDirectory="PreserveNewest" />
     <Using Include="Xunit" />
   </ItemGroup>
 
