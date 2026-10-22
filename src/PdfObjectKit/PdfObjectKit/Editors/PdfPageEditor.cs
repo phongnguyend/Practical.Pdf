@@ -55,7 +55,7 @@ public static class PdfPageEditor
         RewriteImage(document, pageNumber, imageNumber, null, PdfImageFit.Stretch);
     }
 
-    internal static void RewriteImage(PdfObjectDocument document, int pageNumber, int imageNumber, PdfImageData? replacement, PdfImageFit fit, double? deltaX = null, double deltaY = 0)
+    internal static void RewriteImage(PdfObjectDocument document, int pageNumber, int imageNumber, PdfImageData? replacement, PdfImageFit fit)
     {
         Edit(document, working =>
         {
@@ -110,24 +110,6 @@ public static class PdfPageEditor
                 replacementReference = Add(working, wrapper);
             }
 
-            var localX = 0d;
-            var localY = 0d;
-            if (deltaX.HasValue)
-            {
-                var corners = indexed.Images.Single(i => i.ImageNumber == imageNumber).Corners;
-                var a = corners[1].X - corners[0].X;
-                var b = corners[1].Y - corners[0].Y;
-                var c = corners[3].X - corners[0].X;
-                var d = corners[3].Y - corners[0].Y;
-                var determinant = a * d - b * c;
-                localX = (d * deltaX.Value - c * deltaY) / determinant;
-                localY = (a * deltaY - b * deltaX.Value) / determinant;
-                if (!double.IsFinite(localX) || !double.IsFinite(localY))
-                {
-                    throw new NotSupportedException("Cannot move a degenerate image placement.");
-                }
-            }
-
             var count = 0;
             var removed = false;
             (PdfValue Stream, PdfValue Resources, bool Changed) Rewrite(PdfValue source, PdfValue originalResources, int depth)
@@ -145,7 +127,6 @@ public static class PdfPageEditor
                 foreach (var operation in operations)
                 {
                     var op = operation;
-                    var moving = false;
                     var target = op.Operator == "Do" ? graph.Get(originalResources, "XObject")?.Entries?.GetValueOrDefault(op.Operands[0].Name!) : null;
                     var subtype = target is null ? null : graph.Get(target, "Subtype")?.Name;
                     if (op.Operator == "BI" || subtype == "Image")
@@ -153,22 +134,14 @@ public static class PdfPageEditor
                         if (++count == imageNumber)
                         {
                             removed = changed = true;
-                            if (deltaX.HasValue)
-                            {
-                                moving = true;
-                                output.Append($"q 1 0 0 1 {Syntax(Num(localX))} {Syntax(Num(localY))} cm\n");
-                            }
-                            else if (replacementReference is not null)
+                            if (replacementReference is not null)
                             {
                                 var name = Unique(xobjects, "PdfObjectKitReplacement");
                                 xobjects.Entries![name] = replacementReference;
                                 op = new("Do", [Name(name)]);
                                 output.Append(op.Serialize());
                             }
-                            if (!moving)
-                            {
-                                continue;
-                            }
+                            continue;
                         }
                     }
                     else if (subtype == "Form")
@@ -198,10 +171,6 @@ public static class PdfPageEditor
                     else
                     {
                         output.Append(op.Serialize());
-                    }
-                    if (moving)
-                    {
-                        output.Append("Q\n");
                     }
                 }
 

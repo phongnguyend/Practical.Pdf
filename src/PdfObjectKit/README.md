@@ -593,4 +593,4 @@ Select an image in the playground and use **Replace image** to upload or draw a 
 
 The image picker also offers **Generate QR code** for a URL or text. Generation and preview run locally in the browser; **Use QR code** creates a PNG for insertion or replacement. New image placements become square. For replacements, use Fit to preserve the QR aspect ratio and border.
 
-In the playground, select an existing image or editable form field, then drag its outline to move it. Releasing saves the new position and refreshes the PDF automatically; Escape cancels the drag. Image dimensions and field values are preserved. Existing PDF clipping paths remain in effect, including Form boundaries.
+In the playground, select an existing image or editable form field, then drag its outline to move it. Releasing saves the new position and refreshes the PDF automatically; Escape cancels the drag. Image dimensions and field values are preserved. Image-local clipping and single-image Form boundaries move with the image. Shared ancestor clipping that also applies to other artwork remains fixed.

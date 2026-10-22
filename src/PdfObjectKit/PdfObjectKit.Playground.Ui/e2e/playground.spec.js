@@ -575,3 +575,45 @@ test('drag existing field and image saves on drop and Escape cancels', async ({ 
   expect(updated.encodedDataSha256).toBe(original.encodedDataSha256);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+
+test('moving a clipped Form image moves its border and preserves other copies', async ({ page }) => {
+  const content = 'q 20 20 60 60 re W n 60 0 0 60 20 20 cm /Fm Do Q q 30 0 0 30 10 100 cm /Fm Do Q';
+  const form = '/Im Do';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /XObject << /Fm 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    `<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] /Resources << /XObject << /Im 6 0 R >> >> /Length ${form.length} >>\nstream\n${form}\nendstream`,
+    '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode /Length 7 >>\nstream\nFF0000>\nendstream',
+  ];
+  let pdf = '%PDF-1.7\n';
+  const offsets = [0];
+  objects.forEach((value, i) => {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${i + 1} 0 obj\n${value}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(pdf);
+  pdf += `xref\n0 7\n0000000000 65535 f \n${offsets.slice(1).map(n => `${String(n).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'clipped.pdf', mimeType: 'application/pdf', buffer: Buffer.from(pdf) });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  async function pixel(x, y) {
+    return page.locator('.page > div > canvas').evaluate((canvas, point) => {
+      const ratio = canvas.width / 200;
+      return [...canvas.getContext('2d').getImageData(point.x * ratio, point.y * ratio, 1, 1).data];
+    }, { x, y });
+  }
+  expect(await pixel(50, 150)).toEqual([255, 0, 0, 255]);
+  await page.locator('.object').filter({ hasText: 'image' }).first().click();
+  const bounds = await page.getByLabel('Move selected object').boundingBox();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 80, bounds.y + bounds.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => pixel(130, 150)).toEqual([255, 0, 0, 255]);
+  expect(await pixel(50, 150)).toEqual([255, 255, 255, 255]);
+  expect(await pixel(25, 85)).toEqual([255, 0, 0, 255]);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});

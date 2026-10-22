@@ -19,7 +19,7 @@ public enum PdfImageFit
 
 public static class PdfImageEditor
 {
-    /// <summary>Translates one image occurrence by a delta in unrotated PDF page coordinates. Existing clipping remains in effect.</summary>
+    /// <summary>Translates one image occurrence by a delta in unrotated PDF page coordinates. Image-local clipping moves with the image. Shared ancestor clipping remains in effect.</summary>
     public static void MoveImage(PdfObjectDocument document, int pageNumber, int imageNumber, double deltaX, double deltaY)
     {
         if (!double.IsFinite(deltaX) || !double.IsFinite(deltaY))
@@ -27,7 +27,7 @@ public static class PdfImageEditor
             throw new ArgumentOutOfRangeException(nameof(deltaX));
         }
 
-        PdfPageEditor.RewriteImage(document, pageNumber, imageNumber, null, PdfImageFit.Stretch, deltaX, deltaY);
+        PdfImageMover.Move(document, pageNumber, imageNumber, deltaX, deltaY);
     }
 
     /// <summary>Replaces one image occurrence, preserving its transform, drawing order, and other occurrences.</summary>
