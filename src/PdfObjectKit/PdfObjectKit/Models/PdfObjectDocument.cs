@@ -44,6 +44,9 @@ public sealed class PdfImageOccurrence
 
     public string EncodedDataSha256 { get; set; } = "";
 
+    /// <summary>Encoded stream format, or application/octet-stream when no standalone image format is known.</summary>
+    public string ContentType { get; set; } = "application/octet-stream";
+
     public string? InlineDataBase64 { get; set; }
 }
 

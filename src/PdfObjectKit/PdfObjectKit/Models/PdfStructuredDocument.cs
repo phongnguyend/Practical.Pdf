@@ -25,7 +25,8 @@ public enum PdfContentBlockKind
     Paragraph,
     Heading,
     ListItem,
-    Table
+    Table,
+    Image
 }
 
 public sealed class PdfContentBlock
@@ -37,6 +38,8 @@ public sealed class PdfContentBlock
     public int HeadingLevel { get; set; }
 
     public PdfTable? Table { get; set; }
+
+    public PdfStructuredImage? Image { get; set; }
 
     public string? ListNumber { get; init; }
 

@@ -83,3 +83,5 @@ TableTests.Run();
 DiagnosticTests.Run();
 
 HeuristicTests.Run();
+
+MarkdownImageTests.Run();

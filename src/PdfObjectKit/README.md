@@ -362,6 +362,21 @@ Images and vector graphics are not exported as assets in this version. Detected 
 
 The CLI writes warnings to stderr and returns success when conversion completes, including partial or empty Markdown. Always inspect `Warnings` when deciding whether the result is usable. `--overwrite` has the same behavior as the other commands; `to-markdown` creates only the Markdown file.
 
+### Image comments
+
+Detected inline images and image XObjects become `PdfContentBlockKind.Image` blocks and render as HTML comments in Markdown:
+
+```markdown
+<!-- image: image-<sha256>.jpg -->
+<!-- image: logo.png; caption: Company logo; alt: Blue company logo -->
+```
+
+The fallback name uses the SHA-256 of the encoded PDF image bytes. Standalone DCT/JPEG streams use `.jpg`; other PDF streams use `.bin` because compressed pixel data is not necessarily a PNG or another standalone image file. No image file is written. Repeated occurrences remain separate blocks with the same content-derived name. `Image.Source` retains pixel dimensions, corners, and object references.
+
+Callers can set `block.Image.FileName`, `Caption`, and `AltText` on the analyzed document before calling `PdfMarkdownConverter.Render`. Captions and alt text are not inferred automatically. The renderer strips directories from filenames and escapes comment delimiters and control characters. A manually created image block needs either a filename or a valid `EncodedDataSha256`; `ContentType` selects the fallback extension.
+
+Image placement uses the top of the image bounds while preserving existing text reading order. When text is to the left of a vertically overlapping image, the comment follows those lines, keeping multiline headings together. Images to the left precede adjacent text; tables stay intact. Complex overlapping or multi-column layouts may need caller adjustment. Images remain available even if page text extraction fails. `ImagesOmitted` continues to report that assets are not exported, and image-only pages still report `OcrRequired`.
+
 ### Typed conversion diagnostics
 
 Markdown conversion and document analysis expose `Diagnostics` with stable enum codes in `PdfObjectKit.Diagnostics`. Each `PdfDiagnostic` contains `Code`, `Severity`, `Message`, optional one-based `PageNumber`, related `SourceObjects`, and optional `Location` in unrotated PDF user space. Source objects provide context; they are not always the exact failing object. Diagnostic enums serialize as names in JSON.
@@ -380,7 +395,7 @@ foreach (var diagnostic in result.Diagnostics)
 
 | Code | Meaning |
 | --- | --- |
-| `ImagesOmitted` | Detected images were not exported to Markdown. |
+| `ImagesOmitted` | Image assets were not exported; occurrences are represented by Markdown comments. |
 | `ImageExtractionIncomplete` | Image interpretation failed or is incomplete. |
 | `OcrRequired` | An image-containing page has no extractable text; OCR is unavailable. |
 | `TextExtractionFailed` | Text interpretation failed and the page's text was omitted. |

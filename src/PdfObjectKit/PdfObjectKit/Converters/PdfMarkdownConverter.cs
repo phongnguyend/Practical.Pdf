@@ -29,6 +29,13 @@ public static class PdfMarkdownConverter
                     result.Append(sameList ? "\n" : "\n\n");
                 }
 
+                if (block.Kind == PdfContentBlockKind.Image)
+                {
+                    result.Append(ImageComment(block.Image ?? throw new ArgumentException("Image block requires image data.")));
+                    previous = block;
+                    continue;
+                }
+
                 if (block.Kind == PdfContentBlockKind.Table)
                 {
                     result.Append(RenderTable(block.Table ?? throw new ArgumentException("Table block requires table data.")));
@@ -59,6 +66,54 @@ public static class PdfMarkdownConverter
 
         return result.Length == 0 ? "" : result.Append('\n').ToString();
     }
+
+    private static string ImageComment(PdfStructuredImage image)
+    {
+        var name = image.FileName?.Replace('\\', '/').Split('/')[^1].Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            var extension = image.ContentType.ToLowerInvariant() switch
+            {
+                "image/png" => ".png",
+                "image/jpeg" => ".jpg",
+                "image/gif" => ".gif",
+                "image/webp" => ".webp",
+                "image/svg+xml" => ".svg",
+                "image/bmp" => ".bmp",
+                "image/tiff" => ".tiff",
+                _ => ".bin"
+            };
+            var hash = image.EncodedDataSha256;
+            if (hash.Length != 64 || hash.Any(c => !Uri.IsHexDigit(c)))
+            {
+                throw new ArgumentException("An image without a filename requires a SHA-256 hash of its encoded data.");
+            }
+
+            name = "image-" + hash.ToLowerInvariant() + extension;
+        }
+
+        var fields = new List<string> { "image: " + EscapeComment(name) };
+        if (!string.IsNullOrWhiteSpace(image.Caption))
+        {
+            fields.Add("caption: " + EscapeComment(image.Caption.Trim()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(image.AltText))
+        {
+            fields.Add("alt: " + EscapeComment(image.AltText.Trim()));
+        }
+
+        return "<!-- " + string.Join("; ", fields) + " -->";
+    }
+
+    private static string EscapeComment(string value) => string.Concat(value.Select(c => c switch
+    {
+        '&' => "&amp;",
+        '<' => "&lt;",
+        '>' => "&gt;",
+        _ when char.IsControl(c) => " ",
+        _ => c.ToString()
+    })).Replace("--", "-&#45;");
 
     private static string RenderTable(PdfTable table)
     {

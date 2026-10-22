@@ -34,11 +34,14 @@ public static class PdfDocumentAnalyzer
         var regionStarts = new HashSet<PdfParagraphLine>();
         var tableStarts = new Dictionary<PdfParagraphLine, PdfContentBlock>();
         var tableLines = new HashSet<PdfParagraphLine>();
+        var pageImages = new Dictionary<PdfContentPage, Queue<PdfImageOccurrence>>();
         foreach (var page in graph.Pages())
         {
             var output = new PdfContentPage { PageNumber = page.Number };
             result.Pages.Add(output);
             var parsed = new PdfPageInterpreter(graph, page);
+            pageImages[output] = new Queue<PdfImageOccurrence>(parsed.Images
+                .OrderByDescending(i => i.Corners.Max(c => c.Y)).ThenBy(i => i.Corners.Min(c => c.X)));
             void Report(PdfDiagnosticCode code, string message, IEnumerable<PdfReference>? references = null)
             {
                 result.Diagnostics.Add(new PdfDiagnostic
@@ -53,7 +56,7 @@ public static class PdfDocumentAnalyzer
 
             if (parsed.Images.Count > 0)
             {
-                Report(PdfDiagnosticCode.ImagesOmitted, "images are omitted; image asset export is not implemented.",
+                Report(PdfDiagnosticCode.ImagesOmitted, "image assets are not exported; image occurrences are represented by Markdown comments.",
                     parsed.Images.SelectMany(i => i.ImageObjects).Concat(page.Streams.Select(s => s.Id)));
             }
 
@@ -99,8 +102,21 @@ public static class PdfDocumentAnalyzer
             .ThenBy(g => g.Key).Select(g => g.Key).FirstOrDefault(12);
         foreach (var (page, lines) in pageLines)
         {
-            foreach (var line in lines)
+            var anchors = pageImages[page].ToDictionary(image => image, image => ImageAnchor(lines, image));
+            pageImages[page] = new Queue<PdfImageOccurrence>(pageImages[page].OrderBy(image => anchors[image]));
+            for (var lineIndex = 0; lineIndex < lines.Count; lineIndex++)
             {
+                var line = lines[lineIndex];
+                // Finish text to the left of a vertically overlapping image first.
+                // Tables remain atomic rather than inserting comments into their rows.
+                if (!tableLines.Contains(line) || tableStarts.ContainsKey(line))
+                {
+                    while (pageImages[page].TryPeek(out var image) && anchors[image] <= lineIndex)
+                    {
+                        AddImage(page, pageImages[page].Dequeue());
+                    }
+                }
+
                 if (tableLines.Contains(line))
                 {
                     if (tableStarts.TryGetValue(line, out var table))
@@ -112,6 +128,10 @@ public static class PdfDocumentAnalyzer
                 }
 
                 var previous = regionStarts.Contains(line) ? null : page.Blocks.LastOrDefault();
+                if (previous?.Kind == PdfContentBlockKind.Image)
+                {
+                    previous = null;
+                }
                 var marker = ListMarker.Match(line.Text);
                 var bold = IsBold(line);
                 var gapAbove = previous is null ? double.PositiveInfinity : previous.SourceLines[^1].Baseline - line.Baseline;
@@ -150,6 +170,15 @@ public static class PdfDocumentAnalyzer
             }
         }
 
+        // Also retain images on image-only pages and pages whose text interpretation failed.
+        foreach (var page in result.Pages)
+        {
+            while (pageImages[page].TryDequeue(out var image))
+            {
+                AddImage(page, image);
+            }
+        }
+
         var headings = result.Pages.SelectMany(p => p.Blocks).Where(b => b.Kind == PdfContentBlockKind.Heading).ToList();
         var sizes = headings.Select(b => Math.Round(b.SourceLines[0].Height, h.HeightRoundingDigits)).Distinct().OrderDescending().ToList();
         foreach (var heading in headings)
@@ -158,6 +187,43 @@ public static class PdfDocumentAnalyzer
         }
 
         return result;
+    }
+
+    private static int ImageAnchor(List<PdfParagraphLine> lines, PdfImageOccurrence image)
+    {
+        var top = image.Corners.Max(c => c.Y);
+        var bottom = image.Corners.Min(c => c.Y);
+        var left = image.Corners.Min(c => c.X);
+        var anchor = lines.FindIndex(line => line.Baseline <= top);
+        if (anchor < 0)
+        {
+            anchor = lines.Count;
+        }
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            if (line.Right <= left && line.Baseline <= top && line.Baseline + line.Height >= bottom)
+            {
+                anchor = Math.Max(anchor, i + 1);
+            }
+        }
+
+        return anchor;
+    }
+
+    private static void AddImage(PdfContentPage page, PdfImageOccurrence image)
+    {
+        page.Blocks.Add(new PdfContentBlock
+        {
+            Kind = PdfContentBlockKind.Image,
+            Image = new PdfStructuredImage
+            {
+                EncodedDataSha256 = image.EncodedDataSha256,
+                ContentType = image.ContentType,
+                Source = image
+            }
+        });
     }
 
     private static List<PdfParagraphLine> JoinFieldValues(List<PdfParagraphLine> lines, PdfHeuristicOptions h)

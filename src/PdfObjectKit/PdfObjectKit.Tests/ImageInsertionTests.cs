@@ -47,6 +47,9 @@ internal static class ImageInsertionTests
         Check(image.Entries["Width"].Number == "2" && image.Entries["Height"].Number == "1", "JPEG dimensions read");
         var occurrence = PdfImageExtractor.Extract(document)[0].Images.Single();
         Check(occurrence.ImageObjects.Single() == id, "image index reference");
+        var markdownImage = PdfMarkdownConverter.Convert(document);
+        Check(markdownImage.Document.Pages[0].Blocks.Any(b => b.Image?.Source?.ImageObjects.Contains(id) == true), "Markdown retains image XObject source");
+        Check(markdownImage.Markdown.Contains("image-" + occurrence.EncodedDataSha256.ToLowerInvariant() + ".jpg -->"), "JPEG XObject renders image comment");
         Check(occurrence.Corners.SequenceEqual(new[] { new PdfImagePoint(50, 60), new PdfImagePoint(250, 60), new PdfImagePoint(250, 160), new PdfImagePoint(50, 160) }), "display rectangle");
         Check(PdfImageExtractor.Extract(document)[1].Images.Count == 0, "other page unchanged");
         var pdf = PdfWriter.Write(PdfConverter.FromJson(PdfConverter.ToJson(document)));
