@@ -100,7 +100,7 @@ public static class PdfImageEditor
         return imageId;
     }
 
-    private static void ValidateContent(NativePage page)
+    internal static void ValidateContent(NativePage page)
     {
         var depth = 0;
         var inText = false;

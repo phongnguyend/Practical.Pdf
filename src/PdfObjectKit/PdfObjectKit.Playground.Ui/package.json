@@ -1,0 +1,28 @@
+{
+  "name": "pdfobjectkit-playground",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-pdf-assets.mjs",
+    "dev": "vite --host localhost",
+    "prebuild": "node scripts/copy-pdf-assets.mjs",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host localhost",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "lucide-react": "^1.61.0",
+    "pdfjs-dist": "^6.4.299",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7"
+  }
+}

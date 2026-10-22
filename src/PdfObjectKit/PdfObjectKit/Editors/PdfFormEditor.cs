@@ -8,7 +8,7 @@ using static PdfObjectKit.Primitives.PdfPrimitives;
 namespace PdfObjectKit.Editors;
 
 /// <summary>Fills existing AcroForm fields atomically. Does not flatten fields or execute scripts.</summary>
-public static class PdfFormEditor
+public static partial class PdfFormEditor
 {
     /// <summary>
     /// Sets text or a dropdown export value, or a checkbox/radio appearance-state name ("Off" clears).

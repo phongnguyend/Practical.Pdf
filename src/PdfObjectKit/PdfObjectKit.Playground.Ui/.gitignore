@@ -1,0 +1,6 @@
+node_modules/
+dist/
+public/pdfjs/
+*.tsbuildinfo
+test-results/
+playwright-report/

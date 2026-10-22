@@ -496,7 +496,47 @@ Extraction returns terminal fields with qualified names, types, inherited flags 
 
 Editing updates the field value and every associated widget appearance. Checkboxes and radio buttons use their existing appearance streams; `SetValue` accepts an appearance-state name or `Off`. Single-line text and single-selection dropdowns generate plain black 12pt Helvetica appearances using printable ASCII display text. This replaces custom styling, borders and backgrounds, and clips text to the widget rectangle without fitting. Dropdowns store the export value and display the matching label. Fields remain interactive; they are not flattened.
 
-Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, multiline/password/comb/rich-text fields, list boxes, multiple selections, and unsupported display characters are rejected. Signature and pushbutton editing, script execution, font/style preservation and creating new fields are not implemented.
+Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, multiline/password/comb/rich-text fields, list boxes, multiple selections, and unsupported display characters are rejected. Signature and pushbutton editing, script execution and font/style preservation are not implemented. `PdfFormEditor.InsertTextField` creates a top-level single-line text field; `DeleteField` removes a terminal field and all its widgets from the field tree and page annotations.
+
+## Browser playground
+
+`PdfObjectKit.Playground.Api` is a .NET 10 ASP.NET Core Minimal API. `PdfObjectKit.Playground.Ui` is a React 19 / TypeScript / Vite application. The API extracts text-line bounds, image placements and AcroForm widget rectangles; PDF.js renders the original PDF to canvas in the browser. A second canvas draws selectable overlays using the same viewport transformation, including crop and rotation. The inspector shows source references and metadata. Text bounds are approximate; text lines may contain multiple source runs. Vector paths and other raw PDF objects are rendered by PDF.js but are not individually selectable.
+
+Run the API from the repository root:
+
+```powershell
+dotnet run --project src/PdfObjectKit/PdfObjectKit.Playground.Api
+```
+
+In another terminal (Node.js 22.13+ or a newer supported LTS):
+
+```powershell
+cd src/PdfObjectKit/PdfObjectKit.Playground.Ui
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`, upload or drop a PDF, choose a page, and select an outline or an entry in the object list. Toggle text/image/field layers and adjust zoom. The UI proxies `/api` to `http://localhost:5080`; keep both processes running. PDF.js workers, fonts, CMaps and WASM assets are served locally, with no runtime CDN dependency.
+
+The playground supports text-run editing and AcroForm filling. Select a text line, choose its source run, enter a new value and click Save. For fields, enter a text/dropdown export value or select a checkbox/radio appearance state. Existing library restrictions apply (including unsupported shared Form text, missing glyphs and unsupported field styles). Text field appearances are regenerated as plain 12pt Helvetica. Drag Text, Image, or Form field from the left Create objects toolbox onto the canvas. A placement box appears at the drop position: drag its body to move it and its corner handles to resize width and height. Enter text or choose a PNG/JPEG image (up to 5 MB) in the inspector, then choose Insert object to commit. Clicking a toolbox item or Add object is a keyboard-accessible alternative. Drawing a fresh rectangle on an empty part of the page is also supported. Dropping a PNG/JPEG onto an open document starts image placement with a preview. Numeric coordinates remain available for keyboard use. Image/field dimensions follow the rectangle; resizing a text placement changes its font size from the rectangle height without wrapping or fitting its width. The lower PDF-space edge is the text baseline. Text insertion uses black ASCII Helvetica. Cancel discards a pending insertion.
+
+The inspector provides Delete text run, Delete image occurrence, and Delete field. Field deletion removes all widgets for that field across the document. Image deletion preserves other placements, including shared nested Forms, by cloning the changed invocation path. Vector-path editing and arbitrary raw-object deletion are not exposed. Deleted content can remain in unreachable/shared PDF objects; these operations are not secure redaction.
+
+Each Save posts the current PDF and one edit to the API, rebuilds it, refreshes extraction, and reloads PDF.js while retaining page and zoom. The previous canvas remains visible until its replacement is ready. Rejected edits retain the previous PDF and show an error. Download PDF returns the latest successfully loaded bytes; unsaved input is not included. The API has no document sessions or persistent file storage: uploaded bytes are processed in memory and discarded after each operation. It accepts up to 20 MB and 100 pages, and processes one inspection at a time. Extraction notes are displayed when features cannot be interpreted. This is a local development tool for trusted PDFs, not a hardened public upload service: parser/decompression resource quotas, authentication and execution isolation are not implemented. The page limit is checked after image extraction. Binding the API to a public interface requires additional safeguards.
+
+The upload endpoint is `POST /api/documents/inspect` with raw PDF bytes and `Content-Type: application/pdf`. It returns `pdfVersion`, `pageCount`, `objectCount`, `objects` (page, kind, label, corners and details) and `warnings`. Corners use unrotated PDF user-space coordinates. Invalid or unsupported PDFs return Problem Details; concurrent requests return 429. `POST /api/documents/edit` accepts multipart fields `file` (the current PDF) and `edit` (JSON containing `kind`, `value`, `pageNumber`, and either `run` or `fieldName`). Additional commands are `add-text`, `add-image`, `add-field`, `delete-image` and `delete-field`. Insertions accept PDF-space `x`, `y`, `width`, `height` and `fontSize`; image insertion also accepts an `image` multipart file. Image deletion uses the current `imageNumber` and page number. The response is the rebuilt PDF. Text run checksums are validated by the library; always reacquire targets after editing. `GET /api/health` is available for startup checks.
+
+Validation commands:
+
+```powershell
+dotnet build src/PdfObjectKit/PdfObjectKit.Playground.Api
+cd src/PdfObjectKit/PdfObjectKit.Playground.Ui
+npm run build
+npm test
+npm run test:e2e
+```
+
+Browser tests use installed Google Chrome and start the API and Vite if needed. They cover real fixture uploads, selection, document replacement, page navigation, zoom, invalid uploads, form overlay alignment on rotated/cropped pages, text and form saves, rejected edits, downloaded PDF contents, text/image/field insertion and deletion, and drag/drop/draw/move/resize placement on a rotated page. Set `PLAYGROUND_API_URL`, `PLAYGROUND_UI_PORT` and optionally `PLAYGROUND_CONFIGURATION` to run tests on alternate ports without interrupting existing development servers. `npm run build` creates `dist`; production hosting needs a same-origin `/api` reverse proxy. `npm run preview` only previews static UI assets and does not provide that API proxy.
 
 ## Reconstruction
 
