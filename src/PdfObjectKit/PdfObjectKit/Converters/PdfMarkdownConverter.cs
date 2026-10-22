@@ -1,6 +1,4 @@
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using PdfObjectKit.Analysis;
 using PdfObjectKit.Models;
 
@@ -11,13 +9,15 @@ public static class PdfMarkdownConverter
     public static PdfMarkdownResult Convert(PdfObjectDocument document, PdfMarkdownOptions? options = null)
     {
         var structure = PdfDocumentAnalyzer.Analyze(document, options);
-        return new PdfMarkdownResult { Document = structure, Markdown = Render(structure) };
+        return new PdfMarkdownResult { Document = structure, Markdown = Render(structure, options) };
     }
 
     /// <summary>Renders structured blocks, allowing callers to correct heuristic classification first.</summary>
-    public static string Render(PdfStructuredDocument document)
+    public static string Render(PdfStructuredDocument document, PdfMarkdownOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(document);
+        options ??= new PdfMarkdownOptions();
+        ArgumentNullException.ThrowIfNull(options.ImageRender);
         var result = new StringBuilder();
         foreach (var page in document.Pages)
         {
@@ -25,6 +25,20 @@ public static class PdfMarkdownConverter
             var imageNumber = 0;
             foreach (var block in page.Blocks)
             {
+                string? imageMarkdown = null;
+                if (block.Kind == PdfContentBlockKind.Image)
+                {
+                    var image = block.Image ?? throw new ArgumentException("Image block requires image data.");
+                    imageNumber++;
+                    var occurrenceNumber = image.Source?.ImageNumber > 0 ? image.Source.ImageNumber : imageNumber;
+                    imageMarkdown = options.ImageRender(image, page.PageNumber, occurrenceNumber)
+                        ?? throw new InvalidOperationException("Image renderer returned null. Return an empty string to omit an image.");
+                    if (string.IsNullOrWhiteSpace(imageMarkdown))
+                    {
+                        continue;
+                    }
+                }
+
                 var sameList = previous?.Kind == PdfContentBlockKind.ListItem && block.Kind == PdfContentBlockKind.ListItem
                     && (previous.ListNumber is null) == (block.ListNumber is null);
                 if (result.Length > 0)
@@ -34,7 +48,7 @@ public static class PdfMarkdownConverter
 
                 if (block.Kind == PdfContentBlockKind.Image)
                 {
-                    result.Append(RenderImage(block.Image ?? throw new ArgumentException("Image block requires image data."), page.PageNumber, ++imageNumber));
+                    result.Append(imageMarkdown);
                     previous = block;
                     continue;
                 }
@@ -68,62 +82,6 @@ public static class PdfMarkdownConverter
         }
 
         return result.Length == 0 ? "" : result.Append('\n').ToString();
-    }
-
-    private static string RenderImage(PdfStructuredImage image, int pageNumber, int imageNumber)
-    {
-        var name = image.FileName?.Replace('\\', '/').Split('/')[^1].Trim();
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            var extension = image.ContentType.ToLowerInvariant() switch
-            {
-                "image/png" => ".png",
-                "image/jpeg" => ".jpg",
-                "image/gif" => ".gif",
-                "image/webp" => ".webp",
-                "image/svg+xml" => ".svg",
-                "image/bmp" => ".bmp",
-                "image/tiff" => ".tiff",
-                _ => ".bin"
-            };
-            var hash = image.EncodedDataSha256;
-            if (hash.Length != 64 || hash.Any(c => !Uri.IsHexDigit(c)))
-            {
-                throw new ArgumentException("An image without a filename requires a SHA-256 hash of its encoded data.");
-            }
-
-            name = "image-" + hash.ToLowerInvariant() + extension;
-        }
-
-        static string? Optional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-        var occurrenceNumber = image.Source?.ImageNumber > 0 ? image.Source.ImageNumber : imageNumber;
-        var json = JsonSerializer.Serialize(new
-        {
-            type = "image",
-            fileName = name,
-            pageNumber,
-            imageNumber = occurrenceNumber,
-            contentType = image.ContentType,
-            caption = Optional(image.Caption),
-            altText = Optional(image.AltText),
-            ocrText = Optional(image.OcrText),
-            imageUnderstandingText = Optional(image.ImageUnderstandingText)
-        }, new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        });
-        var longestRun = 0;
-        var run = 0;
-        foreach (var character in json)
-        {
-            run = character == '`' ? run + 1 : 0;
-            longestRun = Math.Max(longestRun, run);
-        }
-
-        var fence = new string('`', Math.Max(3, longestRun + 1));
-        var label = FormattableString.Invariant($"**Image content (page {pageNumber}, image {occurrenceNumber}):**");
-        return label + "\n\n" + fence + "json\n" + json + "\n" + fence;
     }
 
     private static string RenderTable(PdfTable table)

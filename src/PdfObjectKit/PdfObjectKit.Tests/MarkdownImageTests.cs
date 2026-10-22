@@ -33,6 +33,20 @@ internal static class MarkdownImageTests
         var blocks = result.Document.Pages[0].Blocks;
         Check(blocks.Select(b => b.Kind).SequenceEqual([PdfContentBlockKind.Paragraph, PdfContentBlockKind.Image, PdfContentBlockKind.Paragraph]), "image anchors between text blocks");
         var metadata = blocks[1].Image!;
+        var renderCalls = 0;
+        var custom = new PdfMarkdownOptions
+        {
+            ImageRender = (imageData, page, number) =>
+            {
+                renderCalls++;
+                Check(imageData.Source is not null && page == 1 && number == 1, "custom renderer context");
+                return "Custom image content";
+            }
+        };
+        Check(PdfMarkdownConverter.Render(result.Document, custom) == "Above\n\nCustom image content\n\nBelow\n", "custom render output and placement");
+        Check(PdfMarkdownConverter.Convert(document, custom).Markdown.Contains("Custom image content") && renderCalls == 2, "Convert forwards render options");
+        Check(PdfMarkdownConverter.Render(result.Document, new PdfMarkdownOptions { ImageRender = (_, _, _) => "" }) == "Above\n\nBelow\n", "omit images without extra whitespace");
+        Check(PdfMarkdownConverter.Render(result.Document, new PdfMarkdownOptions()) == result.Markdown, "default renderer unchanged");
         Check(metadata.Source is { IsInline: true, PixelWidth: 1, PixelHeight: 1 }, "source occurrence retained");
         JsonElement ImageJson(string markdown)
         {

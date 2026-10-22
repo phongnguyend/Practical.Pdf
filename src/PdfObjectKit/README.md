@@ -388,6 +388,26 @@ The CLI writes warnings to stderr and returns success when conversion completes,
 
 ### Image metadata blocks
 
+`PdfMarkdownOptions.ImageRender` lets clients choose how image blocks render. The default delegate is `DefaultMarkDownImageRender.Render`, which retains the labeled JSON format below. Both `Convert` and `Render` accept `PdfMarkdownOptions` for customization:
+
+```csharp
+var options = new PdfMarkdownOptions
+{
+    ImageRender = (image, pageNumber, imageNumber) =>
+        DefaultMarkDownImageRender.Render(image, pageNumber, imageNumber)
+};
+var result = PdfMarkdownConverter.Convert(document, options);
+
+// After enriching result.Document with OCR or AI output:
+var markdown = PdfMarkdownConverter.Render(result.Document, new PdfMarkdownOptions
+{
+    ImageRender = (image, pageNumber, imageNumber) =>
+        DefaultMarkDownImageRender.Render(image, pageNumber, imageNumber)
+});
+```
+
+Replace the delegate body with your own Markdown format. It receives the enriched image and its one-based page/occurrence numbers. Return an empty string to omit an image. Custom output is emitted verbatim, so the client must escape it appropriately; the converter handles separators between blocks. Pass the options again when re-rendering an enriched document.
+
 Each detected image occurrence renders as a fenced JSON block in reading order:
 
 ````markdown
