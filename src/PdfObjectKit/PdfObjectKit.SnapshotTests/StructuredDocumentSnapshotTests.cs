@@ -16,6 +16,6 @@ public class StructuredDocumentSnapshotTests
 
         await Verifier.Verify(structure)
             .UseDirectory("Snapshots")
-            .DisableDiff();
+            .DontScrubDateTimes().DisableDiff();
     }
 }

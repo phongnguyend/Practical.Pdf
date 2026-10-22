@@ -9432,7 +9432,7 @@
         },
         OperatorIndex: 453,
         StreamSha256: CB11F86E0763CFDAC1D9D2DF3239674E4040EE88A28AA27B0C5909F5FD9D56E7,
-        Text: Date_1,
+        Text: 06/01/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9464,7 +9464,7 @@
         },
         OperatorIndex: 457,
         StreamSha256: CB11F86E0763CFDAC1D9D2DF3239674E4040EE88A28AA27B0C5909F5FD9D56E7,
-        Text: Date_2,
+        Text: 06/02/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9506,7 +9506,7 @@
         },
         OperatorIndex: 461,
         StreamSha256: CB11F86E0763CFDAC1D9D2DF3239674E4040EE88A28AA27B0C5909F5FD9D56E7,
-        Text: Date_3,
+        Text: 06/03/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9549,7 +9549,7 @@
         },
         OperatorIndex: 467,
         StreamSha256: CB11F86E0763CFDAC1D9D2DF3239674E4040EE88A28AA27B0C5909F5FD9D56E7,
-        Text: Date_4,
+        Text: 06/05/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9592,7 +9592,7 @@
         },
         OperatorIndex: 471,
         StreamSha256: CB11F86E0763CFDAC1D9D2DF3239674E4040EE88A28AA27B0C5909F5FD9D56E7,
-        Text: Date_5,
+        Text: 06/07/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9635,7 +9635,7 @@
         },
         OperatorIndex: 477,
         StreamSha256: CB11F86E0763CFDAC1D9D2DF3239674E4040EE88A28AA27B0C5909F5FD9D56E7,
-        Text: Date_6,
+        Text: 06/10/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9765,7 +9765,7 @@
         },
         OperatorIndex: 350,
         StreamSha256: AD3FDA49B1862B5C425750A7086CDFC10C7B0D32AF7BADE404A6C6FE8AE9BDCD,
-        Text: Date_7,
+        Text: 06/12/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9808,7 +9808,7 @@
         },
         OperatorIndex: 356,
         StreamSha256: AD3FDA49B1862B5C425750A7086CDFC10C7B0D32AF7BADE404A6C6FE8AE9BDCD,
-        Text: Date_8,
+        Text: 06/15/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9850,7 +9850,7 @@
         },
         OperatorIndex: 360,
         StreamSha256: AD3FDA49B1862B5C425750A7086CDFC10C7B0D32AF7BADE404A6C6FE8AE9BDCD,
-        Text: Date_9,
+        Text: 06/18/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9893,7 +9893,7 @@
         },
         OperatorIndex: 366,
         StreamSha256: AD3FDA49B1862B5C425750A7086CDFC10C7B0D32AF7BADE404A6C6FE8AE9BDCD,
-        Text: Date_10,
+        Text: 06/22/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9936,7 +9936,7 @@
         },
         OperatorIndex: 372,
         StreamSha256: AD3FDA49B1862B5C425750A7086CDFC10C7B0D32AF7BADE404A6C6FE8AE9BDCD,
-        Text: Date_11,
+        Text: 06/25/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -9979,7 +9979,7 @@
         },
         OperatorIndex: 378,
         StreamSha256: AD3FDA49B1862B5C425750A7086CDFC10C7B0D32AF7BADE404A6C6FE8AE9BDCD,
-        Text: Date_12,
+        Text: 06/28/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },
@@ -10022,7 +10022,7 @@
         },
         OperatorIndex: 384,
         StreamSha256: AD3FDA49B1862B5C425750A7086CDFC10C7B0D32AF7BADE404A6C6FE8AE9BDCD,
-        Text: Date_13,
+        Text: 06/30/2025,
         FontName: RVXDIP+ArialMT,
         FontSize: 1.0
       },

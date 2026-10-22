@@ -20,6 +20,6 @@ public class TextExtractorSnapshotTests
             Assert.NotEmpty(page.Runs!);
         });
 
-        await Verifier.Verify(pages).UseDirectory("Snapshots").DisableDiff();
+        await Verifier.Verify(pages).UseDirectory("Snapshots").DontScrubDateTimes().DisableDiff();
     }
 }

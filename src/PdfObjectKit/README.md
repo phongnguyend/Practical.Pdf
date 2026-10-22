@@ -14,6 +14,8 @@ The snapshot suite also includes independent extractor tests:
 
 Each class has its own `.verified.txt` baseline. These run with the Markdown and structured-document snapshots in the existing CI step. The synthetic image fixture has a deterministic generator in `Fixtures/generate_images.py`; Python is not required to run the tests.
 
+All snapshots disable Verify's automatic date scrubbing with `DontScrubDateTimes()`. Dates in PDF text are meaningful fixture content and must remain literal. This also avoids platform-dependent date recognition changing `Date_1`/`Date_2` placeholders between Windows and Linux. Geometry and other extracted values are not rounded or ignored.
+
 `PdfObjectKit.SnapshotTests` uses Verify.Xunit to compare the full Markdown generated from `Fixtures/input.pdf` with `Snapshots/MarkdownSnapshotTests.InputPdf.verified.md`. A second test snapshots the full `PdfStructuredDocument` into `StructuredDocumentSnapshotTests.InputPdf.verified.txt`, covering pages, block kinds, tables, source lines/runs, coordinates, and diagnostics without excluding source metadata. The fixture is a copy of the original CLI `bin/input.pdf`, kept with the tests so a clean checkout can run them. The initial baseline captures current behavior; it protects against changes, not every possible extraction error.
 
 ```powershell

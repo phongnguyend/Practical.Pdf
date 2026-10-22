@@ -16,6 +16,6 @@ public class MarkdownSnapshotTests
 
         await Verifier.Verify(result.Markdown, extension: "md")
             .UseDirectory("Snapshots")
-            .DisableDiff();
+            .DontScrubDateTimes().DisableDiff();
     }
 }

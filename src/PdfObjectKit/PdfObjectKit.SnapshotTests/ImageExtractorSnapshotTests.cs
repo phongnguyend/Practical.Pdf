@@ -19,6 +19,6 @@ public class ImageExtractorSnapshotTests
         Assert.Equal(pages[0].Images[0].ImageObjects, pages[0].Images[1].ImageObjects);
         Assert.Empty(pages[1].Images);
 
-        await Verifier.Verify(pages).UseDirectory("Snapshots").DisableDiff();
+        await Verifier.Verify(pages).UseDirectory("Snapshots").DontScrubDateTimes().DisableDiff();
     }
 }

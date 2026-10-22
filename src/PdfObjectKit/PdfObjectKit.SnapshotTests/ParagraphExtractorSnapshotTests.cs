@@ -19,6 +19,6 @@ public class ParagraphExtractorSnapshotTests
         }).ToList();
         Assert.All(pages, page => Assert.NotEmpty(page.Paragraphs));
 
-        await Verifier.Verify(pages).UseDirectory("Snapshots").DisableDiff();
+        await Verifier.Verify(pages).UseDirectory("Snapshots").DontScrubDateTimes().DisableDiff();
     }
 }
