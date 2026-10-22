@@ -386,20 +386,31 @@ Images and vector graphics are not exported as assets in this version. Detected 
 
 The CLI writes warnings to stderr and returns success when conversion completes, including partial or empty Markdown. Always inspect `Warnings` when deciding whether the result is usable. `--overwrite` has the same behavior as the other commands; `to-markdown` creates only the Markdown file.
 
-### Image comments
+### Image metadata blocks
 
-Detected inline images and image XObjects become `PdfContentBlockKind.Image` blocks and render as HTML comments in Markdown:
+Each detected image occurrence renders as a fenced JSON block in reading order:
 
-```markdown
-<!-- image: image-<sha256>.jpg -->
-<!-- image: logo.png; caption: Company logo; alt: Blue company logo -->
+````markdown
+**Image content (page 1, image 1):**
+
+```json
+{
+  "type": "image",
+  "fileName": "logo.png",
+  "pageNumber": 1,
+  "imageNumber": 1,
+  "contentType": "image/png",
+  "ocrText": "CONTOSO\nInvoice 123",
+  "imageUnderstandingText": "A company invoice."
+}
 ```
+````
 
-The fallback name uses the SHA-256 of the encoded PDF image bytes. Standalone DCT/JPEG streams use `.jpg`; other PDF streams use `.bin` because compressed pixel data is not necessarily a PNG or another standalone image file. No image file is written. Repeated occurrences remain separate blocks with the same content-derived name. `Image.Source` retains pixel dimensions, corners, and object references.
+Clients can populate `FileName`, `Caption`, `AltText`, `OcrText`, and `ImageUnderstandingText` before calling `PdfMarkdownConverter.Render`. Empty enrichment fields are omitted. JSON serialization preserves multiline text and escapes quotes and control characters. The fence is longer than any backtick run in the serialized payload, keeping image information separate from surrounding prose.
 
-Callers can set `block.Image.FileName`, `Caption`, and `AltText` on the analyzed document before calling `PdfMarkdownConverter.Render`. Captions and alt text are not inferred automatically. The renderer strips directories from filenames and escapes comment delimiters and control characters. A manually created image block needs either a filename or a valid `EncodedDataSha256`; `ContentType` selects the fallback extension.
+Filenames use the supplied basename or `image-<sha256>` derived from encoded PDF bytes. DCT/JPEG streams use `.jpg`; other encoded streams default to `.bin`. No image files are exported. `pageNumber` comes from the containing page; `imageNumber` uses the source occurrence number, or the image's one-based position on the page for manually created blocks. Repeated images produce separate blocks. Source geometry remains available in `Image.Source` but is not embedded in Markdown.
 
-Image placement uses the top of the image bounds while preserving existing text reading order. When text is to the left of a vertically overlapping image, the comment follows those lines, keeping multiline headings together. Images to the left precede adjacent text; tables stay intact. Complex overlapping or multi-column layouts may need caller adjustment. Images remain available even if page text extraction fails. `ImagesOmitted` continues to report that assets are not exported, and image-only pages still report `OcrRequired`.
+Text to the left of a vertically overlapping image precedes its metadata block. Tables stay intact. Complex layouts may need caller adjustment. Images survive text extraction failures; `ImagesOmitted` reports missing asset export, and image-only pages still report `OcrRequired`.
 
 ### Typed conversion diagnostics
 
@@ -419,7 +430,7 @@ foreach (var diagnostic in result.Diagnostics)
 
 | Code | Meaning |
 | --- | --- |
-| `ImagesOmitted` | Image assets were not exported; occurrences are represented by Markdown comments. |
+| `ImagesOmitted` | Image assets were not exported; occurrences are represented by fenced JSON blocks. |
 | `ImageExtractionIncomplete` | Image interpretation failed or is incomplete. |
 | `OcrRequired` | An image-containing page has no extractable text; OCR is unavailable. |
 | `TextExtractionFailed` | Text interpretation failed and the page's text was omitted. |

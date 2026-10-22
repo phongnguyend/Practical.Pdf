@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using PdfObjectKit.Analysis;
 using PdfObjectKit.Models;
 
@@ -20,6 +22,7 @@ public static class PdfMarkdownConverter
         foreach (var page in document.Pages)
         {
             PdfContentBlock? previous = null;
+            var imageNumber = 0;
             foreach (var block in page.Blocks)
             {
                 var sameList = previous?.Kind == PdfContentBlockKind.ListItem && block.Kind == PdfContentBlockKind.ListItem
@@ -31,7 +34,7 @@ public static class PdfMarkdownConverter
 
                 if (block.Kind == PdfContentBlockKind.Image)
                 {
-                    result.Append(ImageComment(block.Image ?? throw new ArgumentException("Image block requires image data.")));
+                    result.Append(RenderImage(block.Image ?? throw new ArgumentException("Image block requires image data."), page.PageNumber, ++imageNumber));
                     previous = block;
                     continue;
                 }
@@ -67,7 +70,7 @@ public static class PdfMarkdownConverter
         return result.Length == 0 ? "" : result.Append('\n').ToString();
     }
 
-    private static string ImageComment(PdfStructuredImage image)
+    private static string RenderImage(PdfStructuredImage image, int pageNumber, int imageNumber)
     {
         var name = image.FileName?.Replace('\\', '/').Split('/')[^1].Trim();
         if (string.IsNullOrWhiteSpace(name))
@@ -92,28 +95,36 @@ public static class PdfMarkdownConverter
             name = "image-" + hash.ToLowerInvariant() + extension;
         }
 
-        var fields = new List<string> { "image: " + EscapeComment(name) };
-        if (!string.IsNullOrWhiteSpace(image.Caption))
+        static string? Optional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        var occurrenceNumber = image.Source?.ImageNumber > 0 ? image.Source.ImageNumber : imageNumber;
+        var json = JsonSerializer.Serialize(new
         {
-            fields.Add("caption: " + EscapeComment(image.Caption.Trim()));
+            type = "image",
+            fileName = name,
+            pageNumber,
+            imageNumber = occurrenceNumber,
+            contentType = image.ContentType,
+            caption = Optional(image.Caption),
+            altText = Optional(image.AltText),
+            ocrText = Optional(image.OcrText),
+            imageUnderstandingText = Optional(image.ImageUnderstandingText)
+        }, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        });
+        var longestRun = 0;
+        var run = 0;
+        foreach (var character in json)
+        {
+            run = character == '`' ? run + 1 : 0;
+            longestRun = Math.Max(longestRun, run);
         }
 
-        if (!string.IsNullOrWhiteSpace(image.AltText))
-        {
-            fields.Add("alt: " + EscapeComment(image.AltText.Trim()));
-        }
-
-        return "<!-- " + string.Join("; ", fields) + " -->";
+        var fence = new string('`', Math.Max(3, longestRun + 1));
+        var label = FormattableString.Invariant($"**Image content (page {pageNumber}, image {occurrenceNumber}):**");
+        return label + "\n\n" + fence + "json\n" + json + "\n" + fence;
     }
-
-    private static string EscapeComment(string value) => string.Concat(value.Select(c => c switch
-    {
-        '&' => "&amp;",
-        '<' => "&lt;",
-        '>' => "&gt;",
-        _ when char.IsControl(c) => " ",
-        _ => c.ToString()
-    })).Replace("--", "-&#45;");
 
     private static string RenderTable(PdfTable table)
     {

@@ -56,7 +56,7 @@ public static class PdfDocumentAnalyzer
 
             if (parsed.Images.Count > 0)
             {
-                Report(PdfDiagnosticCode.ImagesOmitted, "image assets are not exported; image occurrences are represented by Markdown comments.",
+                Report(PdfDiagnosticCode.ImagesOmitted, "image assets are not exported; image occurrences are represented by fenced JSON blocks.",
                     parsed.Images.SelectMany(i => i.ImageObjects).Concat(page.Streams.Select(s => s.Id)));
             }
 
