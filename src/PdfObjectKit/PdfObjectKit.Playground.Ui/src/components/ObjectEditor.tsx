@@ -1,14 +1,20 @@
+import { ImagePicker } from './ImagePicker';
 import { TextAlignment, type Alignment } from './TextAlignment';
 import { useState } from 'react';
-import { Check, Pencil, Save, Trash2 } from 'lucide-react';
+import { Check, Pencil, Save, Trash2, RefreshCw } from 'lucide-react';
 
-export type Edit = { kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; fieldName?: string; imageNumber?: number; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
+export type Edit = { kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
 type Run = { text: string; fontName?: string | null; fontSize?: number; formOccurrenceId?: number | null };
-type Details = { textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
+type Details = { corners?: { x: number; y: number }[]; textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
 
 export function ObjectEditor({ item, busy, onSave }: { item: { kind: string; pageNumber: number; details: unknown }; busy: boolean; onSave: (edit: Edit) => Promise<void> }) {
   const details = item.details as Details;
   const runs = details.runs ?? [];
+  const [replacementImage, setReplacementImage] = useState<File>();
+  const [imageFit, setImageFit] = useState<'Fit' | 'Fill' | 'Stretch'>('Fit');
+  const corners = details.corners;
+  const imageWidth = corners?.length === 4 ? Math.hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y) : 150;
+  const imageHeight = corners?.length === 4 ? Math.hypot(corners[3].x - corners[0].x, corners[3].y - corners[0].y) : 100;
   const [runIndex, setRunIndex] = useState(0);
   const partialName = details.name?.split('.').at(-1) ?? '';
   const [newName, setNewName] = useState(partialName);
@@ -27,6 +33,18 @@ export function ObjectEditor({ item, busy, onSave }: { item: { kind: string; pag
       run: item.kind === 'text' ? runs[runIndex] : undefined, fieldName: details.name, imageNumber: details.imageNumber });
   }
   return <div className="object-editor">
+    {item.kind === 'image' && <form className="editor" onSubmit={event => {
+      event.preventDefault();
+      if (replacementImage) {
+        void onSave({ kind: 'replace-image', value: '', pageNumber: item.pageNumber, imageNumber: details.imageNumber, image: replacementImage, imageFit });
+      }
+    }}><fieldset disabled={busy}><h3>Replace image</h3>
+      <ImagePicker image={replacementImage} width={imageWidth} height={imageHeight} onChange={setReplacementImage} />
+      <label>Image sizing<select aria-label="Image sizing" value={imageFit} onChange={event => setImageFit(event.target.value as 'Fit' | 'Fill' | 'Stretch')}><option value="Fit">Fit - keep whole image</option><option value="Fill">Fill - crop to placement</option><option value="Stretch">Stretch - match placement</option></select></label>
+      <p className="control-help">Replaces only this occurrence. Position, rotation and drawing order stay unchanged. Fit leaves transparent space; Fill crops the edges.</p>
+      <div className="editor-actions"><button type="submit" className="primary-action" disabled={!replacementImage}><RefreshCw size={15} aria-hidden="true" />{busy ? 'Replacing...' : 'Replace image'}</button></div>
+    </fieldset></form>}
+
     {item.kind !== 'image' && <form className="editor" onSubmit={event => {
       event.preventDefault();
       if (supported && dirty) {

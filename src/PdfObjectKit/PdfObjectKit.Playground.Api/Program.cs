@@ -45,11 +45,19 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, cancellation);
         var document = PdfReader.Read(buffer.ToArray());
-        if (edit.Kind == "add-text")
+        if (edit.Kind == "move-image")
+        {
+            PdfImageEditor.MoveImage(document, edit.PageNumber, edit.ImageNumber, edit.DeltaX, edit.DeltaY);
+        }
+        else if (edit.Kind == "move-field" && edit.FieldName is not null)
+        {
+            PdfFormEditor.MoveWidget(document, edit.FieldName, edit.WidgetIndex, edit.DeltaX, edit.DeltaY);
+        }
+        else if (edit.Kind == "add-text")
         {
             PdfPageEditor.InsertText(document, edit.PageNumber, edit.Value, edit.X, edit.Y, edit.FontSize);
         }
-        else if (edit.Kind == "add-image")
+        else if (edit.Kind is "add-image" or "replace-image")
         {
             var image = form.Files.GetFile("image");
             if (image is null || image.Length > 5 * 1024 * 1024)
@@ -59,8 +67,15 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
 
             using var imageBuffer = new MemoryStream();
             await image.CopyToAsync(imageBuffer, cancellation);
-            PdfImageEditor.InsertImage(document, edit.PageNumber, imageBuffer.ToArray(), edit.X, edit.Y, edit.Width, edit.Height);
-            PdfPageEditor.ConsolidateContent(document, edit.PageNumber);
+            if (edit.Kind == "replace-image")
+            {
+                PdfImageEditor.ReplaceImage(document, edit.PageNumber, edit.ImageNumber, imageBuffer.ToArray(), edit.ImageFit);
+            }
+            else
+            {
+                PdfImageEditor.InsertImage(document, edit.PageNumber, imageBuffer.ToArray(), edit.X, edit.Y, edit.Width, edit.Height);
+                PdfPageEditor.ConsolidateContent(document, edit.PageNumber);
+            }
         }
         else if (edit.Kind == "delete-image")
         {
@@ -202,7 +217,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
                 {
                     if (widget.PageNumber is { } page && widget.Rectangle is { Count: 4 } r)
                     {
-                        items.Add(new($"widget{++widgetNumber}", page, "field", field.Name, Rectangle(r[0], r[1], r[2], r[3]), new { field.Name, field.Kind, field.Values, field.TextAlignment, field.IsReadOnly, field.Choices, states = field.Widgets.SelectMany(w => w.AppearanceStates).Distinct(), widget }));
+                        items.Add(new($"widget{++widgetNumber}", page, "field", field.Name, Rectangle(r[0], r[1], r[2], r[3]), new { field.Name, field.Kind, field.Values, field.TextAlignment, field.IsReadOnly, field.Choices, widgetIndex = field.Widgets.IndexOf(widget), states = field.Widgets.SelectMany(w => w.AppearanceStates).Distinct(), widget }));
                     }
                 }
             }
@@ -240,4 +255,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0);

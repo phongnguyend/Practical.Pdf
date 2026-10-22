@@ -10,8 +10,38 @@ using static PdfObjectKit.Primitives.PdfPrimitives;
 
 namespace PdfObjectKit.Editors;
 
+public enum PdfImageFit
+{
+    Fit,
+    Fill,
+    Stretch
+}
+
 public static class PdfImageEditor
 {
+    /// <summary>Translates one image occurrence by a delta in unrotated PDF page coordinates. Existing clipping remains in effect.</summary>
+    public static void MoveImage(PdfObjectDocument document, int pageNumber, int imageNumber, double deltaX, double deltaY)
+    {
+        if (!double.IsFinite(deltaX) || !double.IsFinite(deltaY))
+        {
+            throw new ArgumentOutOfRangeException(nameof(deltaX));
+        }
+
+        PdfPageEditor.RewriteImage(document, pageNumber, imageNumber, null, PdfImageFit.Stretch, deltaX, deltaY);
+    }
+
+    /// <summary>Replaces one image occurrence, preserving its transform, drawing order, and other occurrences.</summary>
+    public static void ReplaceImage(PdfObjectDocument document, int pageNumber, int imageNumber, byte[] imageBytes, PdfImageFit fit = PdfImageFit.Fit)
+    {
+        ArgumentNullException.ThrowIfNull(imageBytes);
+        if (!Enum.IsDefined(fit))
+        {
+            throw new ArgumentOutOfRangeException(nameof(fit));
+        }
+
+        PdfPageEditor.RewriteImage(document, pageNumber, imageNumber, PdfImageData.Read(imageBytes), fit);
+    }
+
     /// <summary>
     /// Inserts a JPEG or PNG over a page's existing content. Page numbers are one-based;
     /// coordinates and display dimensions are in unrotated PDF user space.

@@ -1,0 +1,11 @@
+.qr-dialog { width: min(520px, 94vw); max-height: 92vh; padding: 24px; overflow: auto; }
+.qr-dialog header { padding: 0 0 16px; gap: 16px; align-items: start; }
+.qr-dialog h2 { font-size: 20px; margin: 0 0 8px; }
+.qr-dialog header p, .qr-help { font-size: 12px; line-height: 1.6; color: #64748b; }
+.qr-content-label { display: grid; gap: 8px; font-size: 13px; margin-top: 16px; }
+.qr-content-label textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; resize: vertical; }
+.qr-preview { min-height: 240px; display: grid; place-items: center; background: #f3f5f9; border-radius: 8px; margin-top: 16px; color: #64748b; font-size: 13px; }
+.qr-preview img { width: 240px; max-width: 100%; height: auto; image-rendering: pixelated; }
+.qr-dialog footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 0 0; border: 0; }
+.qr-use { display: inline-flex; align-items: center; gap: 6px; background: #2358d3; color: white; }
+.image-picker-actions { flex-wrap: wrap; }

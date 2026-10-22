@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { QrCodeDialog } from './QrCodeDialog';
 import { Modal } from './Modal';
 import './ImagePicker.css';
-import { Upload, Pencil, Trash2, Undo2, X, Maximize2 } from 'lucide-react';
+import { Upload, Pencil, Trash2, Undo2, X, Maximize2, QrCode } from 'lucide-react';
 
 type Point = { x: number; y: number };
 type Stroke = { points: Point[]; color: string; width: number };
 
-export function ImagePicker({ image, width, height, onChange, onUseSize }: { image?: File; width: number; height: number; onChange: (file?: File) => void; onUseSize: (width: number, height: number) => void }) {
+export function ImagePicker({ image, width, height, onChange, onUseSize }: { image?: File; width: number; height: number; onChange: (file?: File) => void; onUseSize?: (width: number, height: number) => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState('');
   const [dimensions, setDimensions] = useState<{ file: File; width: number; height: number }>();
   const [dragging, setDragging] = useState(false);
   const [drawing, setDrawing] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   useEffect(() => {
     if (!image) {
       setUrl('');
@@ -66,12 +68,20 @@ export function ImagePicker({ image, width, height, onChange, onUseSize }: { ima
       <strong>{image ? 'Replace image' : 'Choose or drop an image'}</strong>
       <span>{image ? image.name : 'PNG, JPEG, WebP and more. Up to 5 MB.'}</span>
     </button>
-    <div className="image-picker-actions"><button type="button" onClick={() => setDrawing(true)}><Pencil size={15} />Draw image</button>{image && <button type="button" onClick={() => onChange(undefined)}><Trash2 size={15} />Remove</button>}</div>
-    {image && <div className="image-size-action"><button type="button" disabled={!size} onClick={() => {
+    <div className="image-picker-actions"><button type="button" onClick={() => setDrawing(true)}><Pencil size={15} />Draw image</button><button type="button" onClick={() => setQrOpen(true)}><QrCode size={15} aria-hidden="true" />Generate QR code</button>{image && <button type="button" onClick={() => onChange(undefined)}><Trash2 size={15} />Remove</button>}</div>
+    {image && onUseSize && <div className="image-size-action"><button type="button" disabled={!size} onClick={() => {
       if (size) {
         onUseSize(size.width, size.height);
       }
     }}><Maximize2 size={15} aria-hidden="true" />Use image size</button><p className="control-help">{size ? `${size.width} x ${size.height} px. Uses 1 pixel = 1 PDF point.` : 'Image dimensions unavailable until decoded.'}</p></div>}
+    {qrOpen && <QrCodeDialog onClose={() => setQrOpen(false)} onUse={file => {
+      onChange(file);
+      if (onUseSize) {
+        const side = Math.max(1, Math.min(width, height));
+        onUseSize(side, side);
+      }
+      setQrOpen(false);
+    }} />}
     {drawing && <DrawingDialog width={width} height={height} onClose={() => setDrawing(false)} onUse={file => {
       onChange(file);
       setDrawing(false);

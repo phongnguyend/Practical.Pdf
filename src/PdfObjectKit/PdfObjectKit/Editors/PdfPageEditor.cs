@@ -52,16 +52,82 @@ public static class PdfPageEditor
     /// <summary>Removes one drawn image occurrence, cloning any shared Form invocation on its path.</summary>
     public static void DeleteImage(PdfObjectDocument document, int pageNumber, int imageNumber)
     {
+        RewriteImage(document, pageNumber, imageNumber, null, PdfImageFit.Stretch);
+    }
+
+    internal static void RewriteImage(PdfObjectDocument document, int pageNumber, int imageNumber, PdfImageData? replacement, PdfImageFit fit, double? deltaX = null, double deltaY = 0)
+    {
         Edit(document, working =>
         {
             var indexed = PdfImageExtractor.Extract(working)[pageNumber - 1];
             if (indexed.Warning is not null || !indexed.Images.Any(i => i.ImageNumber == imageNumber))
             {
-                throw new NotSupportedException("Image deletion requires a complete current image index and a valid occurrence number.");
+                throw new NotSupportedException("Image editing requires a complete current image index and a valid occurrence number.");
             }
 
             var graph = new PdfGraph(working);
             var page = graph.Pages()[pageNumber - 1];
+            PdfValue? replacementReference = null;
+            if (replacement is not null)
+            {
+                var selected = indexed.Images.Single(i => i.ImageNumber == imageNumber);
+                var corners = selected.Corners;
+                double Distance(int first, int second) => Math.Sqrt(Math.Pow(corners[first].X - corners[second].X, 2) + Math.Pow(corners[first].Y - corners[second].Y, 2));
+                var displayWidth = Distance(0, 1);
+                var displayHeight = Distance(0, 3);
+                if (displayWidth <= 0 || displayHeight <= 0 || !double.IsFinite(displayWidth + displayHeight))
+                {
+                    throw new NotSupportedException("Image replacement requires a nondegenerate placement.");
+                }
+
+                var scaleX = 1d;
+                var scaleY = 1d;
+                if (fit != PdfImageFit.Stretch)
+                {
+                    var imageWidth = Number(replacement.Image.Entries!["Width"]);
+                    var imageHeight = Number(replacement.Image.Entries["Height"]);
+                    var scale = fit == PdfImageFit.Fit ? Math.Min(displayWidth / imageWidth, displayHeight / imageHeight) : Math.Max(displayWidth / imageWidth, displayHeight / imageHeight);
+                    scaleX = imageWidth * scale / displayWidth;
+                    scaleY = imageHeight * scale / displayHeight;
+                }
+
+                if (replacement.Mask is not null)
+                {
+                    replacement.Image.Entries!["SMask"] = Add(working, replacement.Mask);
+                    if (string.CompareOrdinal(working.PdfVersion, "1.4") < 0)
+                    {
+                        working.PdfVersion = "1.4";
+                    }
+                }
+
+                var imageReference = Add(working, replacement.Image);
+                // A unit Form preserves the original clipping and pending path while cropping Fill.
+                var wrapper = Stream(Encoding.ASCII.GetBytes($"q {Syntax(Num(scaleX))} 0 0 {Syntax(Num(scaleY))} {Syntax(Num((1 - scaleX) / 2))} {Syntax(Num((1 - scaleY) / 2))} cm /Image Do Q"));
+                wrapper.Entries!["Type"] = Name("XObject");
+                wrapper.Entries["Subtype"] = Name("Form");
+                wrapper.Entries["BBox"] = Array(Num(0), Num(0), Num(1), Num(1));
+                wrapper.Entries["Resources"] = Dict(("XObject", Dict(("Image", imageReference))));
+                replacementReference = Add(working, wrapper);
+            }
+
+            var localX = 0d;
+            var localY = 0d;
+            if (deltaX.HasValue)
+            {
+                var corners = indexed.Images.Single(i => i.ImageNumber == imageNumber).Corners;
+                var a = corners[1].X - corners[0].X;
+                var b = corners[1].Y - corners[0].Y;
+                var c = corners[3].X - corners[0].X;
+                var d = corners[3].Y - corners[0].Y;
+                var determinant = a * d - b * c;
+                localX = (d * deltaX.Value - c * deltaY) / determinant;
+                localY = (a * deltaY - b * deltaX.Value) / determinant;
+                if (!double.IsFinite(localX) || !double.IsFinite(localY))
+                {
+                    throw new NotSupportedException("Cannot move a degenerate image placement.");
+                }
+            }
+
             var count = 0;
             var removed = false;
             (PdfValue Stream, PdfValue Resources, bool Changed) Rewrite(PdfValue source, PdfValue originalResources, int depth)
@@ -79,6 +145,7 @@ public static class PdfPageEditor
                 foreach (var operation in operations)
                 {
                     var op = operation;
+                    var moving = false;
                     var target = op.Operator == "Do" ? graph.Get(originalResources, "XObject")?.Entries?.GetValueOrDefault(op.Operands[0].Name!) : null;
                     var subtype = target is null ? null : graph.Get(target, "Subtype")?.Name;
                     if (op.Operator == "BI" || subtype == "Image")
@@ -86,7 +153,22 @@ public static class PdfPageEditor
                         if (++count == imageNumber)
                         {
                             removed = changed = true;
-                            continue;
+                            if (deltaX.HasValue)
+                            {
+                                moving = true;
+                                output.Append($"q 1 0 0 1 {Syntax(Num(localX))} {Syntax(Num(localY))} cm\n");
+                            }
+                            else if (replacementReference is not null)
+                            {
+                                var name = Unique(xobjects, "PdfObjectKitReplacement");
+                                xobjects.Entries![name] = replacementReference;
+                                op = new("Do", [Name(name)]);
+                                output.Append(op.Serialize());
+                            }
+                            if (!moving)
+                            {
+                                continue;
+                            }
                         }
                     }
                     else if (subtype == "Form")
@@ -116,6 +198,10 @@ public static class PdfPageEditor
                     else
                     {
                         output.Append(op.Serialize());
+                    }
+                    if (moving)
+                    {
+                        output.Append("Q\n");
                     }
                 }
 

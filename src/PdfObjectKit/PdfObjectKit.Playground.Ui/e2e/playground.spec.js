@@ -57,6 +57,7 @@ test('image placement overlays support canvas selection', async ({ page }) => {
   const details = JSON.parse(await page.locator('.inspector pre').innerText());
   const canvasHeight = await page.locator('.overlay').evaluate(canvas => canvas.getBoundingClientRect().height);
   const center = details.corners.reduce((sum, point) => ({ x: sum.x + point.x / 4, y: sum.y + point.y / 4 }), { x: 0, y: 0 });
+  await page.getByRole('button', { name: 'Clear selection' }).click();
   await page.locator('.overlay').click({ position: { x: center.x, y: canvasHeight - center.y } });
   await expect(page.locator('.inspector pre')).toContainText('pixelWidth');
 });
@@ -469,4 +470,108 @@ test('Markdown viewer retries errors and sanitizes rendered HTML', async ({ page
   expect(await page.evaluate(() => window.badMarkdown)).toBeUndefined();
   await page.getByText('Conversion notes (1)', { exact: true }).click();
   await expect(page.getByText('Example conversion note', { exact: true })).toBeVisible();
+});
+
+
+test('replace a selected image without changing other occurrences', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(path.resolve('../PdfObjectKit.SnapshotTests/Fixtures/images.pdf'));
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  const images = page.locator('.object').filter({ hasText: 'image' });
+  const count = await images.count();
+  await images.first().click();
+  const before = JSON.parse(await page.locator('.inspector pre').textContent());
+  await page.getByLabel('Image file').setInputFiles({ name: 'pixel.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
+  await expect(page.getByLabel('Image sizing')).toHaveValue('Fit');
+  await page.getByLabel('Image sizing').selectOption('Stretch');
+  await page.getByRole('button', { name: 'Replace image', exact: true }).click();
+  await expect(page.locator('.inspector .object-editor')).toHaveCount(0);
+  await expect(images).toHaveCount(count);
+  await images.first().click();
+  const after = JSON.parse(await page.locator('.inspector pre').textContent());
+  expect(after.corners).toEqual(before.corners);
+  expect(after.pixelWidth).toBe(1);
+  expect(after.pixelHeight).toBe(1);
+  expect(after.encodedDataSha256).not.toBe(before.encodedDataSha256);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+
+test('generate a QR image for insertion and replacement', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.getByRole('region', { name: 'Object toolbox' }).getByRole('button', { name: 'Image', exact: true }).click();
+  await page.getByRole('button', { name: 'Generate QR code', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Use QR code', exact: true })).toBeDisabled();
+  await page.getByLabel('QR content').fill('https://github.com/phongnguyend');
+  await expect(page.getByAltText('QR code preview')).toBeVisible();
+  await page.screenshot({ path: 'test-results/qr-dialog.png' });
+  await page.getByRole('button', { name: 'Use QR code', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByAltText('Selected image preview')).toBeVisible();
+  expect(await page.getByLabel('Width', { exact: true }).inputValue()).toBe(await page.getByLabel('Height', { exact: true }).inputValue());
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  await page.locator('.object').filter({ hasText: 'Image 1' }).click();
+  const original = JSON.parse(await page.locator('.inspector pre').textContent());
+  expect(original.pixelWidth).toBe(original.pixelHeight);
+  await page.getByRole('button', { name: 'Generate QR code', exact: true }).click();
+  await page.getByLabel('QR content').fill('x'.repeat(4000));
+  await expect(page.getByRole('alert')).toContainText('too long');
+  await expect(page.getByRole('button', { name: 'Use QR code', exact: true })).toBeDisabled();
+  await page.getByLabel('QR content').fill('Replacement QR text');
+  await expect(page.getByAltText('QR code preview')).toBeVisible();
+  await page.getByRole('button', { name: 'Use QR code', exact: true }).click();
+  await page.getByRole('button', { name: 'Replace image', exact: true }).click();
+  await expect(page.locator('.inspector .object-editor')).toHaveCount(0);
+  await page.locator('.object').filter({ hasText: 'Image 1' }).click();
+  const replaced = JSON.parse(await page.locator('.inspector pre').textContent());
+  expect(replaced.corners).toEqual(original.corners);
+  expect(replaced.encodedDataSha256).not.toBe(original.encodedDataSha256);
+  await page.getByRole('button', { name: 'Generate QR code', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.inspector .object-editor')).toHaveCount(1);
+});
+
+
+test('drag existing field and image saves on drop and Escape cancels', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.locator('.object').filter({ hasText: 'FullName' }).click();
+  const before = JSON.parse(await page.locator('.inspector pre').textContent());
+  async function drag(dx, dy, cancel = false) {
+    const box = await page.getByLabel('Move selected object').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy, { steps: 5 });
+    if (cancel) {
+      await page.keyboard.press('Escape');
+    }
+    await page.mouse.up();
+  }
+  const saved = page.waitForResponse(response => response.url().endsWith('/api/documents/inspect') && response.request().method() === 'POST');
+  await drag(20, 10);
+  await saved;
+  await expect.poll(async () => JSON.parse(await page.locator('.inspector pre').textContent()).widget.rectangle).toEqual(before.widget.rectangle.map((n, i) => n + (i % 2 === 0 ? 10 : 20)));
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  let edits = 0;
+  page.on('request', request => {
+    if (request.url().endsWith('/api/documents/edit')) {
+      edits++;
+    }
+  });
+  await drag(15, 15, true);
+  expect(edits).toBe(0);
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(path.resolve('../PdfObjectKit.SnapshotTests/Fixtures/images.pdf'));
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.locator('.object').filter({ hasText: 'image' }).first().click();
+  const original = JSON.parse(await page.locator('.inspector pre').textContent());
+  await drag(12, 8);
+  await expect.poll(async () => JSON.parse(await page.locator('.inspector pre').textContent()).corners[0].x).toBeCloseTo(original.corners[0].x + 12);
+  const updated = JSON.parse(await page.locator('.inspector pre').textContent());
+  expect(updated.corners[0].y).toBeCloseTo(original.corners[0].y - 8);
+  expect(updated.encodedDataSha256).toBe(original.encodedDataSha256);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });

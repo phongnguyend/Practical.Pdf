@@ -7,6 +7,46 @@ namespace PdfObjectKit.Editors;
 
 public static partial class PdfFormEditor
 {
+    /// <summary>Moves one widget, using its zero-based index in the extracted field. Preserves its appearance and field value.</summary>
+    public static void MoveWidget(PdfObjectDocument document, string fieldName, int widgetIndex, double deltaX, double deltaY)
+    {
+        if (!double.IsFinite(deltaX) || !double.IsFinite(deltaY))
+        {
+            throw new ArgumentOutOfRangeException(nameof(deltaX));
+        }
+
+        PdfPageEditor.Edit(document, working =>
+        {
+            var form = new PdfFormGraph(working);
+            var matches = form.Fields.Where(f => f.Model.Name == fieldName).ToList();
+            if (matches.Count != 1 || widgetIndex < 0 || widgetIndex >= matches[0].Widgets.Count)
+            {
+                throw new ArgumentException("Choose a valid field widget.");
+            }
+
+            var field = matches[0];
+            if (field.Model.IsReadOnly || form.Fields.Any(f => f.Model.Kind == PdfFormFieldKind.Signature && f.Inherited.ContainsKey("V")))
+            {
+                throw new NotSupportedException("Cannot move read-only fields or widgets in signed forms.");
+            }
+
+            var widget = field.Widgets[widgetIndex];
+            var rectangle = form.Graph.Get(widget, "Rect")?.Items?.Select(v => Number(form.Graph.Resolve(v))).ToArray();
+            if (rectangle is not { Length: 4 })
+            {
+                throw new InvalidDataException("Widget rectangle is missing.");
+            }
+
+            var moved = new[] { rectangle[0] + deltaX, rectangle[1] + deltaY, rectangle[2] + deltaX, rectangle[3] + deltaY };
+            if (moved.Any(v => !double.IsFinite(v)))
+            {
+                throw new ArgumentOutOfRangeException(nameof(deltaX));
+            }
+
+            widget.Entries!["Rect"] = Array(moved.Select(Num).ToArray());
+        });
+    }
+
     /// <summary>Renames a terminal field's partial name, preserving its parent, values and widgets.</summary>
     public static void RenameField(PdfObjectDocument document, string fieldName, string newName)
     {
