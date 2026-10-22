@@ -240,3 +240,28 @@ test('drag types from left toolbox, move the object body and resize its frame', 
   await page.getByRole('button', { name: 'Insert object', exact: true }).click();
   await expect(page.locator('.object').filter({ hasText: 'Toolbox text' })).toHaveCount(1);
 });
+
+test('image insertion converts mislabeled WebP bytes and reports invalid images locally', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  const webp = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 2;
+    canvas.getContext('2d').fillRect(0, 0, 2, 2);
+    return canvas.toDataURL('image/webp').split(',')[1];
+  });
+  expect(Buffer.from(webp, 'base64').subarray(0, 4).toString()).toBe('RIFF');
+  await page.getByRole('button', { name: 'Image', exact: true }).click();
+  await page.getByLabel('Image file', { exact: true }).setInputFiles({ name: 'actually-webp.png', mimeType: 'image/png', buffer: Buffer.from(webp, 'base64') });
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  await page.locator('.object').filter({ hasText: 'Image 1' }).click();
+  await expect(page.locator('.inspector pre')).toContainText('"pixelWidth": 2');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Image', exact: true }).click();
+  await page.getByLabel('Image file', { exact: true }).setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('not image bytes') });
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Cannot read "broken.png"');
+  await expect(page.locator('.object').filter({ hasText: 'Image 1' })).toHaveCount(1);
+});

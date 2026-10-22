@@ -270,6 +270,8 @@ internal sealed class PdfPageInterpreter
             var slot = new NativeSlot(operation, token, Text.Length, text, bytes, font, glyphs, state.Size, stream)
             {
                 FormOccurrenceId = formOccurrenceId,
+                CharacterSpacing = state.CharSpace,
+                WordSpacing = state.WordSpace,
                 BaselineStart = matrix.Point(0, state.Rise),
                 Height = Math.Abs(matrix.D * state.Size),
                 IsHorizontal = matrix.A > 0 && matrix.D > 0 && Math.Abs(matrix.B) < 0.000001 && Math.Abs(matrix.C) < 0.000001 && state.Scale > 0

@@ -24,7 +24,7 @@ export function AddObject({ kind, onKindChange, pageNumber, point, onBoundsChang
         onImageChange(undefined);
       }
     }}><option value="add-text">Text</option><option value="add-image">Image</option><option value="add-field">Text form field</option></select></label>
-    {kind === 'add-image' ? <label>PNG or JPEG<input aria-label="Image file" type="file" accept="image/png,image/jpeg" required={!image} onChange={event => onImageChange(event.target.files?.[0])} /></label> : <label>Text<input aria-label="Text to insert" maxLength={10000} value={value} onChange={event => setValue(event.target.value)} /></label>}
+    {kind === 'add-image' ? <label>Image file<input aria-label="Image file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif" required={!image} onChange={event => onImageChange(event.target.files?.[0])} /></label> : <label>Text<input aria-label="Text to insert" maxLength={10000} value={value} onChange={event => setValue(event.target.value)} /></label>}
     {kind === 'add-field' && <label>Field name<input aria-label="Field name" required value={fieldName} onChange={event => setFieldName(event.target.value)} /></label>}
     <p className="hint">Drag the placed object to move it. Drag its corner handles to resize its width and height. Coordinates stay editable below. Text uses a baseline; images and fields use their bottom-left corner.</p>
     <label>X<input aria-label="X" type="number" step="any" required value={x} onChange={event => onBoundsChange({ ...point, x: Number(event.target.value) })} /></label>
@@ -32,7 +32,7 @@ export function AddObject({ kind, onKindChange, pageNumber, point, onBoundsChang
     {kind === 'add-text' && <label>Font size<input aria-label="Font size" type="number" min="1" max="500" value={fontSize} onChange={event => setFontSize(Number(event.target.value))} /></label>}
       <label>Width<input aria-label="Width" type="number" min="1" value={width} onChange={event => onBoundsChange({ ...point, width: Number(event.target.value) })} /></label>
       <label>Height<input aria-label="Height" type="number" min="1" value={height} onChange={event => onBoundsChange({ ...point, height: Number(event.target.value) })} /></label>
-    {image && kind === 'add-image' && <p className="hint">{image.name}</p>}<button type="submit">Insert object</button><button type="button" onClick={onCancel}>Cancel</button>
+    {kind === 'add-image' && <p className="hint">Other supported raster formats are converted to PNG. Animated images use one frame.</p>}{image && kind === 'add-image' && <p className="hint">{image.name}</p>}<button type="submit">Insert object</button><button type="button" onClick={onCancel}>Cancel</button>
     <p className="hint">Text insertion uses black Helvetica and printable ASCII. Existing page content is preserved.</p>
   </fieldset></form>;
 }

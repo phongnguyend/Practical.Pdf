@@ -76,6 +76,7 @@ internal static class PdfPrimitives
         "name" => "/" + string.Concat(Encoding.Latin1.GetBytes(value.Name!).Select(b => b >= 33 && b <= 126 && !"()<>[]{}/%#".Contains((char)b) ? ((char)b).ToString() : "#" + b.ToString("X2"))),
         "string" => "<" + Convert.ToHexString(Convert.FromBase64String(value.Base64!)) + ">",
         "array" => "[" + string.Join(" ", value.Items!.Select(Syntax)) + "]",
+        "dictionary" => "<< " + string.Join(" ", value.Entries!.Select(entry => Syntax(Name(entry.Key)) + " " + Syntax(entry.Value))) + " >>",
         "boolean" => value.Boolean == true ? "true" : "false",
         "null" => "null",
         _ => throw new InvalidDataException("Unsupported content operand.")};

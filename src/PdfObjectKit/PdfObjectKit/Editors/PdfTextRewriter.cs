@@ -45,11 +45,6 @@ internal static class PdfTextRewriter
             Reject("quote operators and inline images are unsupported for editing.");
         }
 
-        if (page.Operations.Any(o => (o.Operator is "Tc" or "Tw") && PdfPrimitives.Number(o.Operands[0]) != 0))
-        {
-            Reject("nonzero character/word spacing is unsupported for editing.");
-        }
-
         var selected = page.Slots.Single(s => s.Stream == target.StreamObject
             && s.Operation == target.OperatorIndex && s.Token == target.OperandIndex);
         var replacements = new Dictionary<NativeSlot, string> { [selected] = replacementText };
@@ -66,6 +61,8 @@ internal static class PdfTextRewriter
             var alphabet = slot.Font.Alphabet().OrderByDescending(g => g.Text.Length).ToList();
             var encoded = new List<byte>();
             var width = 0d;
+            var glyphCount = 0;
+            var wordCount = 0;
             var missing = false;
             for (var p = 0; p < text.Length;)
             {
@@ -78,6 +75,11 @@ internal static class PdfTextRewriter
 
                 encoded.AddRange(glyph.Bytes);
                 width += glyph.Width;
+                glyphCount++;
+                if (glyph.Bytes.Length == 1 && glyph.Bytes[0] == 32)
+                {
+                    wordCount++;
+                }
                 p += glyph.Text.Length;
             }
 
@@ -93,9 +95,22 @@ internal static class PdfTextRewriter
                 encoded = fallback.Bytes.ToList();
                 width = fallback.Width;
                 font = fallback.ResourceName;
+                // The fallback font uses two-byte Identity-H codes; Tw does not apply.
+                glyphCount = encoded.Count / 2;
+                wordCount = 0;
             }
 
-            var adjustment = PdfPrimitives.Syntax(PdfPrimitives.Num((width - slot.Glyphs.Sum(g => g.Width)) * 1000));
+            var spacingDifference = (glyphCount - slot.Glyphs.Count) * slot.CharacterSpacing
+                + (wordCount - slot.Glyphs.Count(g => g.Bytes.Length == 1 && g.Bytes[0] == 32)) * slot.WordSpacing;
+            if (slot.FontSize == 0 && spacingDifference != 0)
+            {
+                Reject("cannot compensate changed spacing at zero font size.");
+            }
+
+            // Both glyph advance and TJ adjustment receive the same horizontal scale.
+            // Preserve the original endpoint so subsequent text does not move.
+            var adjustment = PdfPrimitives.Syntax(PdfPrimitives.Num(((width - slot.Glyphs.Sum(g => g.Width))
+                + (slot.FontSize == 0 ? 0 : spacingDifference / slot.FontSize)) * 1000));
             var data = PdfPrimitives.Syntax(PdfPrimitives.Str(encoded.ToArray()));
             changedOperations[(slot.Operation, slot.Token)] = font is null ? $"[{data} {adjustment}] TJ\n" : $"q\n/{font} {slot.FontSize.ToString("G17", CultureInfo.InvariantCulture)} Tf\n{data} Tj\nQ\n[{adjustment}] TJ\n";
         }

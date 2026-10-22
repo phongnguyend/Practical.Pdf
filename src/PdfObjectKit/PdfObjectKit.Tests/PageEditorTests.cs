@@ -4,6 +4,7 @@ using PdfObjectKit.Editors;
 using PdfObjectKit.Extractors;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Models;
+using PdfObjectKit.Parsers;
 using PdfObjectKit.Readers;
 using PdfObjectKit.Writers;
 using static PdfObjectKit.Primitives.PdfPrimitives;
@@ -63,19 +64,33 @@ internal static class PageEditorTests
         image.Entries["ColorSpace"] = Name("DeviceRGB");
         image.Entries["BitsPerComponent"] = Num(8);
         var imageRef = Add(image);
-        var form = Stream(Encoding.ASCII.GetBytes("q 20 0 0 20 0 0 cm /Im Do Q"));
+        const string properties = "<< /MCID 7 /ActualText <00FF> /Nested << /Key#20Name [(label) true null /A#23B] >> >>";
+        var form = Stream(Encoding.ASCII.GetBytes($"/Figure {properties} BDC q 20 0 0 20 0 0 cm /Im Do Q EMC"));
         form.Entries!["Subtype"] = Name("Form");
         form.Entries["BBox"] = Array(Num(0), Num(0), Num(100), Num(100));
         form.Entries["Resources"] = Dict(("XObject", Dict(("Im", imageRef))));
         var formRef = Add(form);
         page.Dictionary.Entries!["Resources"] = Dict(("XObject", Dict(("Fm", formRef))));
-        page.Dictionary.Entries["Contents"] = Add(Stream(Encoding.ASCII.GetBytes("q 1 0 0 1 30 30 cm /Fm Do Q q 1 0 0 1 150 150 cm /Fm Do Q")));
+        page.Dictionary.Entries["Contents"] = Add(Stream(Encoding.ASCII.GetBytes($"/Span {properties} BDC q 1 0 0 1 30 30 cm /Fm Do Q q 1 0 0 1 150 150 cm /Fm Do Q EMC")));
         var placements = PdfImageExtractor.Extract(document)[0].Images;
         Check(placements.Count == 2, "Shared form fixture");
         PdfPageEditor.DeleteImage(document, 1, 1);
         var remaining = PdfImageExtractor.Extract(PdfReader.Read(PdfWriter.Write(document)))[0];
         Check(remaining.Warning is null && remaining.Images.Count == 1 && remaining.Images[0].Corners.SequenceEqual(placements[1].Corners), "Deleting nested occurrence preserves other shared form placement");
         Check(document.Objects.Single(o => o.Id == formRef.Reference).Value.Base64 == form.Base64, "Shared source form unchanged");
+        var rebuilt = new PdfGraph(PdfReader.Read(PdfWriter.Write(document)));
+        var rebuiltPage = rebuilt.Pages()[0];
+        var clonedForm = rebuilt.Get(rebuiltPage.Resources, "XObject")!.Entries!.Values
+            .Select(rebuilt.Resolve).Single(v => v.Base64 != form.Base64);
+        foreach (var stream in new[] { rebuiltPage.Streams.Single().Value, clonedForm })
+        {
+            var operations = PdfContent.Parse(PdfStreamDecoder.Decode(stream));
+            var dictionary = operations.Single(o => o.Operator == "BDC").Operands[1];
+            Check(dictionary.Entries!["MCID"].Number == "7" && dictionary.Entries["ActualText"].Base64 == "AP8=", "Marked-content dictionary and binary string preserved");
+            var nested = dictionary.Entries["Nested"].Entries!["Key Name"].Items!;
+            Check(nested.Count == 4 && nested[1].Boolean == true && nested[2].Type == "null" && nested[3].Name == "A#B", "Nested dictionary, array and escaped names preserved");
+            Check(operations.Last().Operator == "EMC", "Marked-content boundaries preserved");
+        }
         Console.WriteLine($"Passed {checks} page editing checks.");
     }
 }

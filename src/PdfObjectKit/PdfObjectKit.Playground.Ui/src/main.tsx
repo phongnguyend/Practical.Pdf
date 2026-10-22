@@ -5,6 +5,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from './geometry.mjs';
 import './style.css';
 import { AddObject } from './AddObject';
+import { prepareImageForPdf } from './prepareImage';
 import { ObjectTypeIcon } from './ObjectTypeIcon';
 import { Placement } from './Placement';
 import { ObjectEditor, type Edit } from './ObjectEditor';
@@ -109,7 +110,7 @@ function App() {
       const { image, ...command } = edit;
       body.append('edit', JSON.stringify(command));
       if (image) {
-        body.append('image', image);
+        body.append('image', await prepareImageForPdf(image));
       }
       const response = await fetch('/api/documents/edit', { method: 'POST', body });
       if (!response.ok) {
@@ -260,7 +261,7 @@ function App() {
   return <div className="app" onDragOver={event => event.preventDefault()} onDrop={event => {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
-    if (file && pdf && /image\/(png|jpeg)/.test(file.type) && !saving && !busy) {
+    if (file && pdf && /^image\/(png|jpeg|webp|gif|bmp|avif)$/.test(file.type) && !saving && !busy) {
       setDroppedImage(file);
       setAdding(true);
       setSelected(null);

@@ -9,6 +9,10 @@ internal sealed record NativeSlot(int Operation, int Token, int Start, string Te
 {
     public int? FormOccurrenceId { get; init; }
 
+    public double CharacterSpacing { get; init; }
+
+    public double WordSpacing { get; init; }
+
     public PdfImagePoint BaselineStart { get; init; } = new(0, 0);
 
     public PdfImagePoint BaselineEnd { get; set; } = new(0, 0);

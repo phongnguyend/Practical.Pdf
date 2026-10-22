@@ -95,6 +95,44 @@ internal static class TextEditorTests
             Check(PdfTextExtractor.Extract(document)[0].Text == "X Việt", "fallback font replacement");
         }
 
+        void CheckSpacing(string spacing, string show, string replacement, PdfTextEditOptions? options = null)
+        {
+            var spaced = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Original")));
+            var contentId = PdfTextExtractor.Extract(spaced)[0].ContentStreams.Single();
+            var content = spaced.Objects.Single(o => o.Id == contentId).Value;
+            content.Base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes($"BT /F1 12 Tf 65 Tz 20 100 Td {spacing} {show} (tail) Tj ET"));
+            content.Entries!.Remove("Filter");
+            content.Entries.Remove("DecodeParms");
+            content.Entries.Remove("Length");
+            var beforeGraph = new PdfGraph(spaced);
+            var beforeSlots = new PdfPageInterpreter(beforeGraph, beforeGraph.Pages()[0]).Slots;
+            var tailPosition = beforeSlots.Last().BaselineStart;
+            var selectedRun = PdfTextExtractor.Extract(spaced)[0].Runs!.Single(r => r.Text == "A B");
+            PdfTextEditor.UpdateText(spaced, 1, selectedRun, replacement, options);
+            spaced = PdfReader.Read(PdfWriter.Write(spaced));
+            var afterGraph = new PdfGraph(spaced);
+            var afterSlots = new PdfPageInterpreter(afterGraph, afterGraph.Pages()[0]).Slots;
+            Check(string.Concat(afterSlots.Select(s => s.Text)) == string.Concat(beforeSlots.Select(s => s.Text == "A B" ? replacement : s.Text)), "spacing edit text round trip");
+            Check(Math.Abs(afterSlots.Last().BaselineStart.X - tailPosition.X) < .001
+                && Math.Abs(afterSlots.Last().BaselineStart.Y - tailPosition.Y) < .001, "spacing edit preserves following text position");
+            Check(afterSlots.Last().CharacterSpacing == beforeSlots.Last().CharacterSpacing
+                && afterSlots.Last().WordSpacing == beforeSlots.Last().WordSpacing, "spacing state preserved");
+        }
+
+        foreach (var spacing in new[] { "2 Tc 5 Tw", "-1 Tc -3 Tw", "2 Tc 5 Tw q 8 Tc 9 Tw (prefix) Tj Q", "2 Tc 5 Tw 0 Tc 0 Tw" })
+        {
+            foreach (var replacement in new[] { "Longer A B text", "A", "" })
+            {
+                CheckSpacing(spacing, "(A B) Tj", replacement);
+                CheckSpacing(spacing, "[(before) -120 (A B) 50 (after)] TJ", replacement);
+            }
+        }
+
+        if (fontPath is not null)
+        {
+            CheckSpacing("2 Tc 5 Tw", "(A B) Tj", "\u03a9 x", new() { FallbackFont = File.ReadAllBytes(fontPath) });
+        }
+
         Console.WriteLine($"Passed {checks} direct text editor checks.");
     }
 }

@@ -81,7 +81,8 @@ internal static class NativeFeatureTests
         page = Interpret(graph);
         Check(page.Text == "abc" && page.Letters[2].StartBaseLine.Y == 60, "quote operators and leading indexed");
         graph = Fixture("BT /F1 10 Tf 2 Tc (test) Tj ET");
-        Reject(() => PdfTextEditor.UpdateText(graph, 1, PdfTextExtractor.Extract(graph)[0].Runs![0], "edit"), "character spacing edit");
+        PdfTextEditor.UpdateText(graph, 1, PdfTextExtractor.Extract(graph)[0].Runs![0], "edit");
+        Check(Interpret(graph).Text == "edit", "character spacing edit");
         graph = Fixture("BT /F1 10 Tf <414243> Tj ET");
         var font = graph.Objects.Single(o => o.Value.Entries?.GetValueOrDefault("Type")?.Name == "Font").Value;
         var mapId = new PdfReference(graph.Objects.Max(o => o.Id.ObjectNumber) + 1);
