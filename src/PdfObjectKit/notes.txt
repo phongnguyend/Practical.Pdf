@@ -1,9 +1,9 @@
-release pdfobjectkit v0.1.0-preview.1
-releases/pdfobjectkit/v0.1.0-preview.1
+release pdfobjectkit v0.1.0-preview.2
+releases/pdfobjectkit/v0.1.0-preview.2
 
 git add -A
-git commit -m "release pdfobjectkit v0.1.0-preview.1"
+git commit -m "release pdfobjectkit v0.1.0-preview.2"
 git push
 
-git tag releases/pdfobjectkit/v0.1.0-preview.1
-git push origin releases/pdfobjectkit/v0.1.0-preview.1
+git tag releases/pdfobjectkit/v0.1.0-preview.2
+git push origin releases/pdfobjectkit/v0.1.0-preview.2
