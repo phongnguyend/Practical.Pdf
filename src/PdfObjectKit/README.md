@@ -2,6 +2,18 @@
 
 C# / .NET 10 library and CLI for reading, editing, and writing PDF object graphs. They load a PDF's current indirect objects into memory, serialize them to JSON, and rebuild a PDF from that JSON. Reconstruction operates at the PDF object level, without re-rendering pages or embedding the entire original file. The CLI writes derived text, image, and paragraph data to separate JSON files by default.
 
+## Markdown snapshot regression test
+
+`PdfObjectKit.SnapshotTests` uses Verify.Xunit to compare the full Markdown generated from `Fixtures/input.pdf` with `Snapshots/MarkdownSnapshotTests.InputPdf.verified.md`. The fixture is a copy of the original CLI `bin/input.pdf`, kept with the tests so a clean checkout can run them. The initial baseline captures current behavior; it protects against changes, not every possible extraction error.
+
+```powershell
+dotnet test src/PdfObjectKit/PdfObjectKit.SnapshotTests --configuration Release
+```
+
+On a mismatch, Verify fails the test and writes `MarkdownSnapshotTests.InputPdf.received.md` beside the approved snapshot. Compare it with the `.verified.md` file. For an intentional change, review the entire diff, replace the verified file with the received file, rerun the test, and commit the updated baseline. Do not automatically accept snapshots in CI. Received files are ignored by Git; the PDF fixture and verified Markdown belong in source control. Snapshot Markdown uses LF line endings across platforms.
+
+The GitHub workflow runs this test before uploading/publishing the NuGet package and uploads received files as `Markdown-snapshot-differences` on failure. The existing console regression tests remain separate. This fixture covers the invoice, bank statement, and loan form; other PDFs require additional fixtures to protect their behavior.
+
 ## Run
 
 The object graph is read by the handwritten C# parser in `PdfObjectKit/Parsers`, with **no NuGet dependencies**. It handles PDF values, byte strings, indirect references, length-delimited streams, classic cross-reference tables, cross-reference streams, compressed object streams, hybrid references, and incremental revisions. Stream bytes remain Base64 in the model; numeric tokens retain their original precision.

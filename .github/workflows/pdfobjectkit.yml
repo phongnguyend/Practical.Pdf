@@ -31,6 +31,17 @@ jobs:
     - name: Build
       run: dotnet build PdfObjectKit/PdfObjectKit.csproj --configuration Release
 
+    - name: Test Markdown snapshot
+      run: dotnet test PdfObjectKit.SnapshotTests/PdfObjectKit.SnapshotTests.csproj --configuration Release
+
+    - name: Upload snapshot differences
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Markdown-snapshot-differences
+        path: src/PdfObjectKit/PdfObjectKit.SnapshotTests/Snapshots/*.received.*
+        if-no-files-found: ignore
+
     - name: Upload PdfObjectKit
       uses: actions/upload-artifact@v4
       with:
