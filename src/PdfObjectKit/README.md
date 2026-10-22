@@ -471,6 +471,33 @@ Header identification uses a distinct bold style or a transition from text label
 
 Rectangular tables with zero or one initial header row use Markdown pipe tables, right-align numeric columns, escape cell text, and render cell line breaks with `<br>`. Headerless tables receive an empty Markdown header, preserving every source row as data. Multiple header rows, ragged rows, and explicit cell spans use escaped HTML `<table>` markup. Positive `RowSpan` and `ColumnSpan` values are supported when supplied by the caller; automatic span detection is not implemented. Table borders are not interpreted, and tables are not joined across page boundaries. Uncertain regions retain the spatial-order text fallback and warnings.
 
+## AcroForm fields
+
+Read existing interactive fields with `PdfFormExtractor` and fill them with `PdfFormEditor`. These are AcroForm fields, distinct from reusable Form XObjects.
+
+```csharp
+using PdfObjectKit.Editors;
+using PdfObjectKit.Extractors;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+
+var document = PdfReader.Read(File.ReadAllBytes("application.pdf"));
+var fields = PdfFormExtractor.Extract(document);
+
+PdfFormEditor.SetValue(document, "Applicant.FullName", "Jane Smith");
+PdfFormEditor.SetValue(document, "Country", "US"); // Dropdown export value.
+PdfFormEditor.SetChecked(document, "Accepted", true);
+PdfFormEditor.SetValue(document, "Plan", "Premium"); // Radio appearance-state name.
+
+File.WriteAllBytes("filled.pdf", PdfWriter.Write(document));
+```
+
+Extraction returns terminal fields with qualified names, types, inherited flags and values, default values, choice export/display pairs, and widget references, page numbers, rectangles and appearance-state names. Documents without an AcroForm return an empty list. XFA forms are unsupported.
+
+Editing updates the field value and every associated widget appearance. Checkboxes and radio buttons use their existing appearance streams; `SetValue` accepts an appearance-state name or `Off`. Single-line text and single-selection dropdowns generate plain black 12pt Helvetica appearances using printable ASCII display text. This replaces custom styling, borders and backgrounds, and clips text to the widget rectangle without fitting. Dropdowns store the export value and display the matching label. Fields remain interactive; they are not flattened.
+
+Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, multiline/password/comb/rich-text fields, list boxes, multiple selections, and unsupported display characters are rejected. Signature and pushbutton editing, script execution, font/style preservation and creating new fields are not implemented.
+
 ## Reconstruction
 
 Content is carried through as PDF objects: page trees, text operators, fonts and CMaps, images, vector commands, resources, annotations, form dictionaries and appearance streams, attachments, metadata, outlines and other dictionary entries. Features do not require separate rendering implementations because their original objects and stream bytes are retained. JSON edits to those objects are used during reconstruction.

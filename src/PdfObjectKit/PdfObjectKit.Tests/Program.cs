@@ -76,6 +76,7 @@ TextEditorTests.Run(args.Length == 1 ? args[0] : null);
 
 ParagraphTests.Run();
 FormParagraphTests.Run();
+FormTests.Run();
 
 MarkdownTests.Run();
 
