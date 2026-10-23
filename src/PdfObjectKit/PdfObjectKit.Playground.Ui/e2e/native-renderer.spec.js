@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
-function fixture(rotated = false, jpeg = null, gradient = false) {
+function fixture(rotated = false, jpeg = null, gradient = false, masked = true) {
   const content = gradient ? '/Pattern cs /P scn 10 10 180 30 re f BT /F1 16 Tf 1 0 0 1 20 120 Tm (Hello) Tj ET' : '1 0 0 rg 10 10 30 30 re f q 20 0 0 20 60 10 cm /Im Do Q 0 g BT /F1 16 Tf 1 0 0 1 20 120 Tm (Hello) Tj ET q 1 0 0 1 100 0 cm /Fm Do Q';
   const form = '0 0 1 rg 10 10 30 30 re f';
   const objects = [
@@ -10,7 +10,7 @@ function fixture(rotated = false, jpeg = null, gradient = false) {
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] ${rotated ? '/Rotate 90 /CropBox [0 0 180 180]' : ''} /Resources << ${gradient ? '/Pattern << /P << /PatternType 2 /Shading << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 200 0] /Extend [true true] /Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >> >> >>' : ''} /Font << /F1 5 0 R >> /XObject << /Im 6 0 R /Fm 7 0 R >> >> /Contents 4 0 R >>`,
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    jpeg ? `<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /SMask 8 0 R /Length ${jpeg.length} >>\nstream\n${jpeg}\nendstream` : '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode /Length 7 >>\nstream\n00FF00>\nendstream',
+    jpeg ? `<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode ${masked ? '/SMask 8 0 R' : ''} /Length ${jpeg.length} >>\nstream\n${jpeg}\nendstream` : '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode /Length 7 >>\nstream\n00FF00>\nendstream',
     `<< /Type /XObject /Subtype /Form /BBox [0 0 50 50] /Length ${form.length} >>\nstream\n${form}\nendstream`,
   ];
   if (jpeg) {
@@ -220,4 +220,54 @@ test('native renderer reports browser font rejection and falls back', async ({ p
   await expect(canvas).toHaveAttribute('data-renderer', 'native');
   await expect(page.locator('.renderer-notes')).toContainText('rejected by the browser');
   await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+
+test('selected image downloads source JPEG or transparent PNG at original dimensions', async ({ page }) => {
+  await page.goto('/');
+  const jpeg = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 3;
+    canvas.height = 1;
+    canvas.getContext('2d').fillRect(0, 0, 3, 1);
+    return canvas.toDataURL('image/jpeg').split(',')[1];
+  });
+  for (const kind of ['raw', 'jpeg', 'masked']) {
+    const bytes = fixture(false, kind === 'raw' ? null : Buffer.from(jpeg, 'base64').toString('latin1'), false, kind === 'masked');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'export.pdf', mimeType: 'application/pdf', buffer: bytes });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await page.locator('.object').filter({ hasText: 'Image 1' }).click();
+    const promise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download image', exact: true }).click();
+    const download = await promise;
+    const stream = await download.createReadStream();
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const output = Buffer.concat(chunks);
+    expect(download.suggestedFilename()).toBe(`export-page-1-image-1.${kind === 'jpeg' ? 'jpg' : 'png'}`);
+    if (kind === 'jpeg') {
+      expect(output.equals(Buffer.from(jpeg, 'base64'))).toBe(true);
+    } else {
+      const pixels = await page.evaluate(async base64 => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${base64}`;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        canvas.getContext('2d').drawImage(image, 0, 0);
+        return { width: image.width, height: image.height, data: [...canvas.getContext('2d').getImageData(0, 0, image.width, image.height).data] };
+      }, output.toString('base64'));
+      expect(pixels.height).toBe(1);
+      expect(pixels.width).toBe(kind === 'raw' ? 1 : 3);
+      if (kind === 'raw') {
+        expect(pixels.data).toEqual([0, 255, 0, 255]);
+      } else {
+        expect([pixels.data[3], pixels.data[7], pixels.data[11]]).toEqual([0, 128, 255]);
+      }
+    }
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  }
 });

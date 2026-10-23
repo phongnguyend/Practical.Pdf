@@ -17,6 +17,8 @@ internal sealed class PdfPageInterpreter
 
     public List<PdfImageOccurrence> Images { get; } = [];
 
+    internal List<PdfValue> ImageSources { get; } = [];
+
     public string Text => string.Concat(Letters.Select(l => l.Value));
 
     public string? TextWarning { get; private set; }
@@ -307,6 +309,7 @@ internal sealed class PdfPageInterpreter
         }
 
         Images.Add(new() { ImageNumber = Images.Count + 1, IsInline = id is null, PixelWidth = (int)graph.Number(image, "Width"), PixelHeight = (int)graph.Number(image, "Height"), BitsPerComponent = (int)graph.Number(image, "BitsPerComponent", mask ? 1 : 8), IsImageMask = mask, Corners = [matrix.Point(0, 0), matrix.Point(1, 0), matrix.Point(1, 1), matrix.Point(0, 1)], ImageObjects = id is null ? [] : [id], EncodedDataSha256 = Convert.ToHexString(SHA256.HashData(bytes)), InlineDataBase64 = id is null ? image.Base64 : null });
+        ImageSources.Add(image);
         Images[^1].ContentType = filter?.Name is "DCTDecode" or "DCT" ? "image/jpeg" : "application/octet-stream";
     }
 }

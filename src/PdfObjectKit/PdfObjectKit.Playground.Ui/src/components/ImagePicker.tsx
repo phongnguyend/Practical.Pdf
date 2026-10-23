@@ -68,7 +68,11 @@ export function ImagePicker({ image, width, height, onChange, onUseSize }: { ima
       <strong>{image ? 'Replace image' : 'Choose or drop an image'}</strong>
       <span>{image ? image.name : 'PNG, JPEG, WebP and more. Up to 5 MB.'}</span>
     </button>
-    <div className="image-picker-actions"><button type="button" onClick={() => setDrawing(true)}><Pencil size={15} />Draw image</button><button type="button" onClick={() => setQrOpen(true)}><QrCode size={15} aria-hidden="true" />Generate QR code</button>{image && <button type="button" onClick={() => onChange(undefined)}><Trash2 size={15} />Remove</button>}</div>
+    <div className="image-picker-actions" role="group" aria-label="Create an image">
+      <button type="button" aria-label="Draw image" onClick={() => setDrawing(true)}><Pencil size={16} aria-hidden="true" />Draw image</button>
+      <button type="button" aria-label="Generate QR code" onClick={() => setQrOpen(true)}><QrCode size={16} aria-hidden="true" />QR code</button>
+      {image && <button type="button" className="image-picker-remove" onClick={() => onChange(undefined)}><Trash2 size={14} aria-hidden="true" />Remove selected image</button>}
+    </div>
     {image && onUseSize && <div className="image-size-action"><button type="button" disabled={!size} onClick={() => {
       if (size) {
         onUseSize(size.width, size.height);

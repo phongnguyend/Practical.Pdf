@@ -65,6 +65,19 @@ internal static class CanvasRenderingTests
         {
             throw new Exception("Raw images must unblend matte before applying transparency.");
         }
+        if (PdfCanvasExporter.ExportImage(maskedDocument, 1, 1).Data != Convert.ToBase64String(pixels))
+        {
+            throw new Exception("Selected image export must match decoded source pixels.");
+        }
+        try
+        {
+            PdfCanvasExporter.ExportImage(maskedDocument, 1, 2);
+            throw new Exception("Missing image must be rejected.");
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // One-based occurrence selection must be validated.
+        }
         mask.Entries["Decode"] = Array(Num(1), Num(0));
         pixels = Convert.FromBase64String(PdfCanvasExporter.Export(maskedDocument, 1).Commands.Single(c => c.Kind == "rgba").Data!);
         if (pixels[3] != 127)

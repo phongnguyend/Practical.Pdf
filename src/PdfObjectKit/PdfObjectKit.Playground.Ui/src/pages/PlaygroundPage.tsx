@@ -1,3 +1,4 @@
+import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState } from 'react';
 import { Upload, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen } from 'lucide-react';
@@ -40,6 +41,7 @@ export function PlaygroundPage() {
   const [placement, setPlacement] = useState({ x: 40, y: 40, width: 150, height: 30 });
   const [droppedImage, setDroppedImage] = useState<File>();
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [pdfBytes, setPdfBytes] = useState<Blob | null>(null);
   const [error, setError] = useState('');
@@ -204,6 +206,21 @@ export function PlaygroundPage() {
       setError(cause instanceof Error ? cause.message : 'Edit failed.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function exportImage(pageNumber: number, imageNumber: number) {
+    if (!pdfBytes || exporting) {
+      return;
+    }
+    setExporting(true);
+    setError('');
+    try {
+      await downloadImage(pdfBytes, pageNumber, imageNumber, name);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Image export failed.');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -411,7 +428,7 @@ export function PlaygroundPage() {
       const details = selected.details as { imageNumber?: number; name?: string; widgetIndex?: number; runs?: unknown[] };
       return saveEdit({ kind: `move-${selected.kind}`, runs: details.runs, value: '', pageNumber: page, imageNumber: details.imageNumber, fieldName: details.name, widgetIndex: details.widgetIndex, deltaX, deltaY });
     }} />}</div></section>
-    <aside className="inspector"><div className="inspector-heading"><h2>Inspector</h2><span>{adding ? 'NEW OBJECT' : selected ? 'SELECTION' : 'PROPERTIES'}</span></div>{adding ? <AddObject alignment={draftAlignment} onAlignmentChange={setDraftAlignment} value={draftText} setValue={setDraftText} fontSize={draftFontSize} setFontSize={setDraftFontSize} key={creationId} kind={creationKind} pageNumber={page} point={placement} onBoundsChange={setPlacement} droppedImage={droppedImage} onImageChange={setDroppedImage} busy={saving || busy || rendering} onSave={saveEdit} onCancel={() => setAdding(false)} /> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} /><ObjectEditor item={selected} busy={saving || busy || rendering} onSave={saveEdit} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, null, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
+    <aside className="inspector"><div className="inspector-heading"><h2>Inspector</h2><span>{adding ? 'NEW OBJECT' : selected ? 'SELECTION' : 'PROPERTIES'}</span></div>{adding ? <AddObject alignment={draftAlignment} onAlignmentChange={setDraftAlignment} value={draftText} setValue={setDraftText} fontSize={draftFontSize} setFontSize={setDraftFontSize} key={creationId} kind={creationKind} pageNumber={page} point={placement} onBoundsChange={setPlacement} droppedImage={droppedImage} onImageChange={setDroppedImage} busy={saving || busy || rendering} onSave={saveEdit} onCancel={() => setAdding(false)} /> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} /><ObjectEditor item={selected} busy={saving || busy || rendering || exporting} onSave={saveEdit} onExportImage={exportImage} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, null, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
     <footer>PdfObjectKit extracts · {renderer === 'native' ? 'PdfObjectKit renders (experimental)' : 'PDF.js renders'}<span>Add, edit and delete · Files are not saved by the API</span></footer>
   </div>;

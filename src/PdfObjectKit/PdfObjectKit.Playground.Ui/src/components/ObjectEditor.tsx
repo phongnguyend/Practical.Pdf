@@ -1,13 +1,13 @@
 import { ImagePicker } from './ImagePicker';
 import { TextAlignment, type Alignment } from './TextAlignment';
 import { useState } from 'react';
-import { Check, Pencil, Save, Trash2, RefreshCw } from 'lucide-react';
+import { Check, Pencil, Save, Trash2, RefreshCw, Download } from 'lucide-react';
 
 export type Edit = { kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; runs?: unknown[]; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
 type Run = { text: string; fontName?: string | null; fontSize?: number; formOccurrenceId?: number | null };
 type Details = { corners?: { x: number; y: number }[]; textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
 
-export function ObjectEditor({ item, busy, onSave }: { item: { kind: string; pageNumber: number; details: unknown }; busy: boolean; onSave: (edit: Edit) => Promise<void> }) {
+export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { kind: string; pageNumber: number; details: unknown }; busy: boolean; onSave: (edit: Edit) => Promise<void>; onExportImage: (page: number, image: number) => Promise<void> }) {
   const details = item.details as Details;
   const runs = details.runs ?? [];
   const [replacementImage, setReplacementImage] = useState<File>();
@@ -33,6 +33,10 @@ export function ObjectEditor({ item, busy, onSave }: { item: { kind: string; pag
       run: item.kind === 'text' ? runs[runIndex] : undefined, fieldName: details.name, imageNumber: details.imageNumber });
   }
   return <div className="object-editor">
+    {item.kind === 'image' && <section className="editor inspector-section image-export-section">
+      <div className="section-heading"><h3>Current image</h3><button className="secondary-action" aria-label="Download image" title="Save the full image at original resolution, without page cropping or rotation" disabled={busy} onClick={() => void onExportImage(item.pageNumber, details.imageNumber!)}><Download size={15} aria-hidden="true" />Download</button></div>
+      <p className="control-help">Original resolution · JPEG or transparent PNG</p>
+    </section>}
     {item.kind === 'image' && <form className="editor" onSubmit={event => {
       event.preventDefault();
       if (replacementImage) {

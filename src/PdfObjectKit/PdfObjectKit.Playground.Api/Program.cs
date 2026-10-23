@@ -175,6 +175,14 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
         }
 
         var document = PdfReader.Read(bytes);
+        if (request.Path == "/api/documents/image")
+        {
+            if (!int.TryParse(request.Query["page"], out var imagePage) || !int.TryParse(request.Query["image"], out var imageNumber))
+            {
+                return Results.Problem("Provide page and image numbers.", statusCode: 400);
+            }
+            return Results.Ok(PdfCanvasExporter.ExportImage(document, imagePage, imageNumber));
+        }
         if (request.Path == "/api/documents/render")
         {
             if (!int.TryParse(request.Query["page"], out var pageNumber))
@@ -262,6 +270,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
 app.MapPost("/api/documents/inspect", inspectDocument);
 app.MapPost("/api/documents/markdown", inspectDocument);
 app.MapPost("/api/documents/render", inspectDocument);
+app.MapPost("/api/documents/image", inspectDocument);
 
 app.Run();
 
