@@ -617,3 +617,146 @@ test('moving a clipped Form image moves its border and preserves other copies', 
   expect(await pixel(25, 85)).toEqual([255, 0, 0, 255]);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+
+for (const clip of ['none', 'path', 'form']) {
+  for (const show of ['(Hello ) Tj (world) Tj', '[(Hello ) -50 (world)] TJ', '(Hello) Tj ( ) Tj (world) Tj', '[(Hello) 0 ( ) -50 (world)] TJ']) {
+    test(`dragging a text segment preserves rendered run spacing (${clip}): ${show}`, async ({ page }) => {
+      const text = `BT /F1 12 Tf 20 120 Td ${show} ET`;
+      const content = (clip === 'path' ? `q 15 115 80 20 re W n ${text} Q` : clip === 'form' ? '/TextForm Do' : text) + ' BT /F1 12 Tf 20 40 Td (Other text) Tj ET';
+      const objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Rotate 90 /Resources << /Font << /F1 5 0 R >> /XObject << /TextForm 6 0 R >> >> /Contents 4 0 R >>',
+        `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        `<< /Type /XObject /Subtype /Form /BBox [15 115 95 135] /Resources << /Font << /F1 5 0 R >> >> /Length ${text.length} >>\nstream\n${text}\nendstream`,
+      ];
+      let pdf = '%PDF-1.7\n';
+      const offsets = [0];
+      objects.forEach((value, i) => {
+        offsets.push(Buffer.byteLength(pdf));
+        pdf += `${i + 1} 0 obj\n${value}\nendobj\n`;
+      });
+      const xref = Buffer.byteLength(pdf);
+      pdf += `xref\n0 7\n0000000000 65535 f \n${offsets.slice(1).map(n => `${String(n).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+      await page.goto('/');
+      await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'text.pdf', mimeType: 'application/pdf', buffer: Buffer.from(pdf) });
+      await expect(page.getByRole('status')).toContainText('indirect objects');
+      await page.locator('.object').filter({ hasText: 'Hello world' }).click();
+      const before = JSON.parse(await page.locator('.inspector pre').textContent());
+      expect(before.runs).toHaveLength(2);
+      const box = await page.getByLabel('Move selected object').boundingBox();
+      async function ink(x, y, width, height) {
+        return page.locator('.page > div > canvas').evaluate((canvas, r) => {
+          const scale = canvas.width / 200;
+          const pixels = canvas.getContext('2d').getImageData(r.x * scale, r.y * scale, r.width * scale, r.height * scale).data;
+          let count = 0;
+          for (let i = 0; i < pixels.length; i += 4) {
+            if (pixels[i] < 150) {
+              count++;
+            }
+          }
+          return count;
+        }, { x, y, width, height });
+      }
+      async function pixels(x, y) {
+        return page.locator('.page > div > canvas').evaluate((canvas, r) => {
+          const scale = canvas.width / 200;
+          return [...canvas.getContext('2d').getImageData(r.x * scale, r.y * scale, 20 * scale, 75 * scale).data];
+        }, { x, y });
+      }
+      const originalPixels = await pixels(105, 15);
+      const originalInk = await ink(105, 15, 20, 75);
+      expect(originalInk).toBeGreaterThan(30);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 35, box.y + box.height / 2 + 15, { steps: 5 });
+      await page.mouse.up();
+      await expect.poll(async () => JSON.parse(await page.locator('.inspector pre').textContent()).left).toBeCloseTo(before.left + 15);
+      const after = JSON.parse(await page.locator('.inspector pre').textContent());
+      expect(after.baseline).toBeCloseTo(before.baseline + 35);
+      expect(after.runs.map(run => [run.text, run.fontName, run.fontSize])).toEqual(before.runs.map(run => [run.text, run.fontName, run.fontSize]));
+      expect(await ink(105, 15, 20, 75)).toBe(0);
+      expect(await pixels(140, 30)).toEqual(originalPixels);
+      for (const direction of [-1, 1, -1]) {
+        const bounds = await page.getByLabel('Move selected object').boundingBox();
+        await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(bounds.x + bounds.width / 2 + direction * 35, bounds.y + bounds.height / 2 + direction * 15, { steps: 5 });
+        await page.mouse.up();
+        const atOriginal = direction === -1;
+        await expect.poll(async () => JSON.parse(await page.locator('.inspector pre').textContent()).left).toBeCloseTo(before.left + (atOriginal ? 0 : 15));
+        expect(await pixels(atOriginal ? 105 : 140, atOriginal ? 15 : 30)).toEqual(originalPixels);
+      }
+      await page.getByRole('button', { name: 'Delete whole line', exact: true }).click();
+      await expect(page.locator('.object').filter({ hasText: 'Hello world' })).toHaveCount(0);
+      await expect(page.locator('.inspector pre')).toHaveCount(0);
+      expect(await ink(105, 15, 20, 75)).toBe(0);
+      await expect(page.locator('.object').filter({ hasText: 'Other text' })).toHaveCount(1);
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    });
+  }
+}
+
+
+test('move text from a local reproduction PDF beyond its original clipping edge', async ({ page }) => {
+  test.skip(!process.env.PLAYGROUND_REPRO_PDF || !process.env.PLAYGROUND_REPRO_TEXT, 'Optional local PDF and text; never commit personal fixtures.');
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(process.env.PLAYGROUND_REPRO_PDF);
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await expect(page.locator('.page > div > canvas')).toBeVisible();
+  await page.locator('.object').filter({ hasText: process.env.PLAYGROUND_REPRO_TEXT }).first().click();
+  const box = await page.getByLabel('Move selected object').boundingBox();
+  const canvas = await page.locator('.page > div > canvas').boundingBox();
+  const details = JSON.parse(await page.locator('.inspector pre').textContent());
+  const x = Math.floor(details.left);
+  const y = Math.floor(canvas.height - details.baseline - details.height);
+  const width = Math.ceil(details.right - x);
+  const height = Math.ceil(details.height * 1.2 + 1);
+  async function pixels(x, y) {
+    return page.locator('.page > div > canvas').evaluate((canvas, r) => {
+      const scale = canvas.width / canvas.getBoundingClientRect().width;
+      return [...canvas.getContext('2d').getImageData(r.x * scale, r.y * scale, r.width * scale, r.height * scale).data];
+    }, { x, y, width, height });
+  }
+  const before = await pixels(x, y);
+  for (const [left, baseline] of [[details.left, details.baseline + 20], [details.left, details.baseline + 40], [details.left, details.baseline]]) {
+    const current = JSON.parse(await page.locator('.inspector pre').textContent());
+    const bounds = await page.getByLabel('Move selected object').boundingBox();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width / 2 + left - current.left, bounds.y + bounds.height / 2 - baseline + current.baseline, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(async () => JSON.parse(await page.locator('.inspector pre').textContent()).baseline).toBeCloseTo(baseline);
+    const movedPixels = await pixels(x, y - baseline + details.baseline);
+    expect(movedPixels.filter((v, i) => i % 4 === 0 && v < 150).length).toBeGreaterThan(20);
+  }
+  await page.screenshot({ path: 'test-results/local-text-move.png' });
+  const after = await pixels(x, y);
+  // The destination can contain other artwork (this example crosses a table border).
+  // Check original dark glyph pixels remain visible without requiring blank background.
+  let ink = 0;
+  let retained = 0;
+  for (let i = 0; i < before.length; i += 4) {
+    if (before[i] < 100 && before[i + 1] < 100 && before[i + 2] < 100) {
+      ink++;
+      const pixel = i / 4;
+      const column = pixel % width;
+      const row = Math.floor(pixel / width);
+      let visible = false;
+      // Allow one pixel of font rasterization variation after translation.
+      for (let yy = Math.max(0, row - 1); yy <= Math.min(height - 1, row + 1); yy++) {
+        for (let xx = Math.max(0, column - 1); xx <= Math.min(width - 1, column + 1); xx++) {
+          const neighbor = (yy * width + xx) * 4;
+          visible ||= after[neighbor] < 150 && after[neighbor + 1] < 150 && after[neighbor + 2] < 150;
+        }
+      }
+      if (visible) {
+        retained++;
+      }
+    }
+  }
+  expect(ink).toBeGreaterThan(20);
+  expect(retained / ink).toBeGreaterThan(.98);
+});

@@ -45,7 +45,15 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, cancellation);
         var document = PdfReader.Read(buffer.ToArray());
-        if (edit.Kind == "move-image")
+        if (edit.Kind == "delete-text-line" && edit.Runs is { Count: > 0 })
+        {
+            PdfTextEditor.DeleteText(document, edit.PageNumber, edit.Runs);
+        }
+        else if (edit.Kind == "move-text" && edit.Runs is { Count: > 0 })
+        {
+            PdfTextEditor.MoveText(document, edit.PageNumber, edit.Runs, edit.DeltaX, edit.DeltaY);
+        }
+        else if (edit.Kind == "move-image")
         {
             PdfImageEditor.MoveImage(document, edit.PageNumber, edit.ImageNumber, edit.DeltaX, edit.DeltaY);
         }
@@ -255,4 +263,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null);

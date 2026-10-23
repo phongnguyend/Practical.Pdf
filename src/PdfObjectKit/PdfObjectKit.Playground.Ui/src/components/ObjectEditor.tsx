@@ -3,7 +3,7 @@ import { TextAlignment, type Alignment } from './TextAlignment';
 import { useState } from 'react';
 import { Check, Pencil, Save, Trash2, RefreshCw } from 'lucide-react';
 
-export type Edit = { kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
+export type Edit = { kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; runs?: unknown[]; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
 type Run = { text: string; fontName?: string | null; fontSize?: number; formOccurrenceId?: number | null };
 type Details = { corners?: { x: number; y: number }[]; textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
 
@@ -79,8 +79,9 @@ export function ObjectEditor({ item, busy, onSave }: { item: { kind: string; pag
       <p className="control-help">Rename only this part of the name. Parent groups and the value stay unchanged.</p>
       <button className="secondary-action" type="button" disabled={!newName.trim() || newName === partialName} onClick={() => void onSave({ kind: 'rename-field', value: newName, fieldName: details.name, pageNumber: item.pageNumber })}><Pencil size={14} aria-hidden="true" />Rename</button>
     </fieldset></section>}
-    {canDelete && <section className="remove-section"><h3>Remove object</h3><p className="control-help">{item.kind === 'field' ? 'Removes this field and all its widgets from every page.' : item.kind === 'image' ? 'Removes this placement. Other copies of the image stay in place.' : 'Removes only the selected text segment.'}</p>
-      <button className="danger-action" type="button" disabled={busy} onClick={remove}><Trash2 size={14} aria-hidden="true" />{item.kind === 'text' ? 'Delete text run' : item.kind === 'image' ? 'Delete image occurrence' : 'Delete field'}</button>
+    {(canDelete || (item.kind === 'text' && runs.length > 0)) && <section className="remove-section"><h3>Remove object</h3><p className="control-help">{item.kind === 'field' ? 'Removes this field and all its widgets from every page.' : item.kind === 'image' ? 'Removes this placement. Other copies of the image stay in place.' : 'Delete the selected segment or every segment in this line.'}</p>
+      {canDelete && <button className="danger-action" type="button" disabled={busy} onClick={remove}><Trash2 size={14} aria-hidden="true" />{item.kind === 'text' ? 'Delete text run' : item.kind === 'image' ? 'Delete image occurrence' : 'Delete field'}</button>}
+      {item.kind === 'text' && runs.length > 0 && <button className="danger-action" type="button" disabled={busy} onClick={() => void onSave({ kind: 'delete-text-line', value: '', pageNumber: item.pageNumber, runs })}><Trash2 size={14} aria-hidden="true" />Delete whole line</button>}
     </section>}
   </div>;
 }

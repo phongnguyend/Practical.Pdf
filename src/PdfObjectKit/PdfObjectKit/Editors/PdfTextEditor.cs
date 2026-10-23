@@ -9,6 +9,18 @@ namespace PdfObjectKit.Editors;
 /// <summary>Replaces individual text drawing operands in a PDF object graph.</summary>
 public static class PdfTextEditor
 {
+    /// <summary>Deletes the supplied runs atomically while preserving subsequent text positions. Reacquire runs after editing. This is not secure redaction.</summary>
+    public static void DeleteText(PdfObjectDocument document, int pageNumber, IReadOnlyList<PdfTextRun> runs)
+    {
+        PdfTextDeleter.Delete(document, pageNumber, runs);
+    }
+
+    /// <summary>Moves all supplied runs by a delta in unrotated PDF page coordinates. Reacquire runs after editing.</summary>
+    public static void MoveText(PdfObjectDocument document, int pageNumber, IReadOnlyList<PdfTextRun> runs, double deltaX, double deltaY)
+    {
+        PdfTextMover.Move(document, pageNumber, runs, deltaX, deltaY);
+    }
+
     /// <summary>
     /// Replaces the operand identified by an indexed run, validating its identity and
     /// stream checksum. Page numbers are one-based. An empty replacement deletes its text.

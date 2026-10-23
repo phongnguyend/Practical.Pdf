@@ -182,7 +182,14 @@ export function PlaygroundPage() {
       setPdfBytes(updated);
       setInspection(data);
       setAdding(false);
-      setSelected(edit.kind.startsWith('move-') ? data.objects.find(item => item.id === selected?.id) ?? null : null);
+      if (edit.kind === 'move-text' && selected) {
+        // Line IDs follow reading order, which can change after a move.
+        setSelected(data.objects.find(item => item.kind === 'text' && item.pageNumber === page && item.label === selected.label
+          && Math.abs(item.corners[0].x - selected.corners[0].x - (edit.deltaX ?? 0)) < .1
+          && Math.abs(item.corners[0].y - selected.corners[0].y - (edit.deltaY ?? 0)) < .1) ?? null);
+      } else {
+        setSelected(edit.kind.startsWith('move-') ? data.objects.find(item => item.id === selected?.id) ?? null : null);
+      }
     } catch (cause) {
       await task?.destroy();
       setError(cause instanceof Error ? cause.message : 'Edit failed.');
@@ -378,9 +385,9 @@ export function PlaygroundPage() {
         return;
       }
       selectObject(hitTest(objects, viewport, (event.clientX - bounds.left) * viewport.width / bounds.width, (event.clientY - bounds.top) * viewport.height / bounds.height) ?? null);
-    }} />}{viewport && adding && !rendering && <Placement alignment={draftAlignment} field={creationKind === 'add-field'} text={creationKind !== 'add-image' ? draftText : undefined} fontSize={draftFontSize} resizable={creationKind !== 'add-text'} viewport={viewport} bounds={placement} onChange={setPlacement} image={droppedImage} disabled={saving || busy} />}{viewport && selected && !adding && !rendering && (selected.kind === 'image' || selected.kind === 'field') && !(selected.details as { isReadOnly?: boolean }).isReadOnly && <ExistingObjectDrag key={`${selected.id}-${zoom}-${pdf?.fingerprints[0]}`} viewport={viewport} corners={selected.corners} disabled={saving || busy} onMove={(deltaX, deltaY) => {
-      const details = selected.details as { imageNumber?: number; name?: string; widgetIndex?: number };
-      return saveEdit({ kind: selected.kind === 'image' ? 'move-image' : 'move-field', value: '', pageNumber: page, imageNumber: details.imageNumber, fieldName: details.name, widgetIndex: details.widgetIndex, deltaX, deltaY });
+    }} />}{viewport && adding && !rendering && <Placement alignment={draftAlignment} field={creationKind === 'add-field'} text={creationKind !== 'add-image' ? draftText : undefined} fontSize={draftFontSize} resizable={creationKind !== 'add-text'} viewport={viewport} bounds={placement} onChange={setPlacement} image={droppedImage} disabled={saving || busy} />}{viewport && selected && !adding && !rendering && (['image', 'field', 'text'].includes(selected.kind)) && !(selected.details as { isReadOnly?: boolean }).isReadOnly && <ExistingObjectDrag key={`${selected.id}-${zoom}-${pdf?.fingerprints[0]}`} viewport={viewport} corners={selected.corners} disabled={saving || busy} onMove={(deltaX, deltaY) => {
+      const details = selected.details as { imageNumber?: number; name?: string; widgetIndex?: number; runs?: unknown[] };
+      return saveEdit({ kind: `move-${selected.kind}`, runs: details.runs, value: '', pageNumber: page, imageNumber: details.imageNumber, fieldName: details.name, widgetIndex: details.widgetIndex, deltaX, deltaY });
     }} />}</div></section>
     <aside className="inspector"><div className="inspector-heading"><h2>Inspector</h2><span>{adding ? 'NEW OBJECT' : selected ? 'SELECTION' : 'PROPERTIES'}</span></div>{adding ? <AddObject alignment={draftAlignment} onAlignmentChange={setDraftAlignment} value={draftText} setValue={setDraftText} fontSize={draftFontSize} setFontSize={setDraftFontSize} key={creationId} kind={creationKind} pageNumber={page} point={placement} onBoundsChange={setPlacement} droppedImage={droppedImage} onImageChange={setDroppedImage} busy={saving || busy || rendering} onSave={saveEdit} onCancel={() => setAdding(false)} /> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} /><ObjectEditor item={selected} busy={saving || busy || rendering} onSave={saveEdit} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, null, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
