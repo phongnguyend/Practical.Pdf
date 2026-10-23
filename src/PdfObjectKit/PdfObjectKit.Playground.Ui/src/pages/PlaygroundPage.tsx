@@ -1,3 +1,4 @@
+import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState } from 'react';
 import { Upload, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
@@ -20,6 +21,8 @@ type Inspection = { pdfVersion: string; pageCount: number; objectCount: number; 
 const colors: Record<Kind, string> = { text: '#2563eb', image: '#be6514', field: '#008577' };
 
 export function PlaygroundPage() {
+  const [renderer, setRenderer] = useState<'pdfjs' | 'native'>('pdfjs');
+  const [renderNotes, setRenderNotes] = useState<string[]>([]);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [name, setName] = useState('');
@@ -45,7 +48,7 @@ export function PlaygroundPage() {
   const [viewport, setViewport] = useState<PageViewport | null>(null);
   const [rendering, setRendering] = useState(false);
   const host = useRef<HTMLDivElement>(null);
-  const prepared = useRef<{ pdf: PDFDocumentProxy; canvas: HTMLCanvasElement; viewport: PageViewport } | null>(null);
+  const prepared = useRef<{ pdf: PDFDocumentProxy; canvas: HTMLCanvasElement; viewport: PageViewport; renderer: string; notes: string[] } | null>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
   const generation = useRef(0);
   const abort = useRef<AbortController | null>(null);
@@ -176,8 +179,14 @@ export function PlaygroundPage() {
       canvas.height = Math.ceil(view.height * ratio);
       canvas.style.width = `${view.width}px`;
       canvas.style.height = `${view.height}px`;
-      await preview.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] }).promise;
-      prepared.current = { pdf: loaded, canvas, viewport: view };
+      let notes: string[] = [];
+      if (renderer === 'native') {
+        notes = await renderNative(canvas, view, ratio, updated, page);
+      } else {
+        await preview.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] }).promise;
+      }
+      canvas.dataset.renderer = renderer;
+      prepared.current = { pdf: loaded, canvas, viewport: view, renderer, notes };
       setPdf(loaded);
       setPdfBytes(updated);
       setInspection(data);
@@ -211,20 +220,23 @@ export function PlaygroundPage() {
   }
 
   useEffect(() => {
-    if (!pdf || !host.current) {
+    if (!pdf || !pdfBytes || !host.current) {
       return;
     }
-    if (prepared.current?.pdf === pdf) {
+    if (prepared.current?.pdf === pdf && prepared.current.renderer === renderer) {
       host.current.replaceChildren(prepared.current.canvas);
       setViewport(prepared.current.viewport);
+      setRenderNotes(prepared.current.notes);
       prepared.current = null;
       setRendering(false);
       return;
     }
+    const controller = new AbortController();
     let cancelled = false;
     let task: RenderTask | undefined;
     const canvas = document.createElement('canvas');
     setRendering(true);
+    setRenderNotes([]);
     void (async () => {
       try {
         const pdfPage = await pdf.getPage(page);
@@ -238,14 +250,23 @@ export function PlaygroundPage() {
         canvas.height = Math.ceil(view.height * ratio);
         canvas.style.width = `${view.width}px`;
         canvas.style.height = `${view.height}px`;
-        task = pdfPage.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] });
-        await task.promise;
+        let notes: string[] = [];
+        if (renderer === 'native') {
+          notes = await renderNative(canvas, view, ratio, pdfBytes, page, controller.signal);
+        } else {
+          task = pdfPage.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] });
+          await task.promise;
+        }
         if (!cancelled) {
+          canvas.dataset.renderer = renderer;
           host.current?.replaceChildren(canvas);
           setViewport(view);
+          setRenderNotes(notes);
         }
       } catch (cause) {
         if (!cancelled) {
+          host.current?.replaceChildren();
+          setViewport(null);
           setError(cause instanceof Error ? cause.message : 'Page rendering failed.');
         }
       } finally {
@@ -256,9 +277,10 @@ export function PlaygroundPage() {
     })();
     return () => {
       cancelled = true;
+      controller.abort();
       task?.cancel();
     };
-  }, [pdf, page, zoom]);
+  }, [pdf, pdfBytes, page, zoom, renderer]);
 
   useEffect(() => {
     const canvas = overlay.current;
@@ -353,7 +375,7 @@ export function PlaygroundPage() {
     }
   }}>
     <header><div className="brand"><span className="logo">P</span><div><strong>PdfObjectKit</strong><span className="subtitle">OBJECT PLAYGROUND</span></div></div><label className="upload"><FolderOpen size={17} aria-hidden="true" />{busy ? 'Opening…' : 'Open PDF'}<input aria-label="Open PDF" disabled={saving} type="file" accept="application/pdf,.pdf" onChange={event => { void openFile(event.target.files?.[0]); event.target.value = ''; }} /></label></header>
-    <div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
+    <div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}><X size={15} aria-hidden="true" />Dismiss</button></div>}
     <main><aside className="objects"><section className="toolbox" aria-label="Object toolbox"><h2>Create objects</h2><p className="hint">Drag a type onto the page. Move and resize it, then insert.</p>{[['add-text', 'Text'], ['add-image', 'Image'], ['add-field', 'Form field']].map(([kind, label]) => <button key={kind} className="toolbox-item" disabled={!pdf || saving || busy || rendering} draggable={!!pdf && !saving && !busy && !rendering} onDragStart={event => {
       event.dataTransfer.setData('application/x-pdfobjectkit-type', kind);
@@ -389,9 +411,9 @@ export function PlaygroundPage() {
       const details = selected.details as { imageNumber?: number; name?: string; widgetIndex?: number; runs?: unknown[] };
       return saveEdit({ kind: `move-${selected.kind}`, runs: details.runs, value: '', pageNumber: page, imageNumber: details.imageNumber, fieldName: details.name, widgetIndex: details.widgetIndex, deltaX, deltaY });
     }} />}</div></section>
-    <aside className="inspector"><div className="inspector-heading"><h2>Inspector</h2><span>{adding ? 'NEW OBJECT' : selected ? 'SELECTION' : 'PROPERTIES'}</span></div>{adding ? <AddObject alignment={draftAlignment} onAlignmentChange={setDraftAlignment} value={draftText} setValue={setDraftText} fontSize={draftFontSize} setFontSize={setDraftFontSize} key={creationId} kind={creationKind} pageNumber={page} point={placement} onBoundsChange={setPlacement} droppedImage={droppedImage} onImageChange={setDroppedImage} busy={saving || busy || rendering} onSave={saveEdit} onCancel={() => setAdding(false)} /> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} /><ObjectEditor item={selected} busy={saving || busy || rendering} onSave={saveEdit} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, null, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
+    <aside className="inspector"><div className="inspector-heading"><h2>Inspector</h2><span>{adding ? 'NEW OBJECT' : selected ? 'SELECTION' : 'PROPERTIES'}</span></div>{adding ? <AddObject alignment={draftAlignment} onAlignmentChange={setDraftAlignment} value={draftText} setValue={setDraftText} fontSize={draftFontSize} setFontSize={setDraftFontSize} key={creationId} kind={creationKind} pageNumber={page} point={placement} onBoundsChange={setPlacement} droppedImage={droppedImage} onImageChange={setDroppedImage} busy={saving || busy || rendering} onSave={saveEdit} onCancel={() => setAdding(false)} /> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} /><ObjectEditor item={selected} busy={saving || busy || rendering} onSave={saveEdit} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, null, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
-    <footer>PdfObjectKit extracts · PDF.js renders<span>Add, edit and delete · Files are not saved by the API</span></footer>
+    <footer>PdfObjectKit extracts · {renderer === 'native' ? 'PdfObjectKit renders (experimental)' : 'PDF.js renders'}<span>Add, edit and delete · Files are not saved by the API</span></footer>
   </div>;
 }
 

@@ -269,6 +269,9 @@ internal sealed class PdfPageInterpreter
             var matrix = state.Matrix.Multiply(tm);
             var slot = new NativeSlot(operation, token, Text.Length, text, bytes, font, glyphs, state.Size, stream)
             {
+                TextMatrix = matrix,
+                HorizontalScale = state.Scale,
+                Rise = state.Rise,
                 FormOccurrenceId = formOccurrenceId,
                 CharacterSpacing = state.CharSpace,
                 WordSpacing = state.WordSpace,

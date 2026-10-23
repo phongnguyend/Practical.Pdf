@@ -6,6 +6,7 @@ using PdfObjectKit.Writers;
 using PdfObjectKit.Extractors;
 using PdfObjectKit.Models;
 using PdfObjectKit.Readers;
+using PdfObjectKit.Rendering;
 
 const int maxBytes = 20 * 1024 * 1024;
 var builder = WebApplication.CreateBuilder(args);
@@ -174,6 +175,14 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
         }
 
         var document = PdfReader.Read(bytes);
+        if (request.Path == "/api/documents/render")
+        {
+            if (!int.TryParse(request.Query["page"], out var pageNumber))
+            {
+                return Results.Problem("Provide a page number.", statusCode: 400);
+            }
+            return Results.Ok(PdfCanvasExporter.Export(document, pageNumber));
+        }
         var images = PdfImageExtractor.Extract(document);
         if (images.Count > 100)
         {
@@ -252,6 +261,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
 };
 app.MapPost("/api/documents/inspect", inspectDocument);
 app.MapPost("/api/documents/markdown", inspectDocument);
+app.MapPost("/api/documents/render", inspectDocument);
 
 app.Run();
 

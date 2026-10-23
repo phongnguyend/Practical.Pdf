@@ -79,6 +79,7 @@ FormParagraphTests.Run();
 FormTests.Run();
 PageEditorTests.Run();
 TextMovementTests.Run();
+CanvasRenderingTests.Run();
 
 MarkdownTests.Run();
 

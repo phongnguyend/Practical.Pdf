@@ -1,4 +1,9 @@
 :root { font-family: Inter, 'Segoe UI', sans-serif; color: #223348; background: #f4f6fa; font-synthesis: none; }
+.renderer-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid #d7deea; border-radius: 8px; background: #eef2f8; }
+.renderer-switch button { border-color: transparent; background: transparent; font-size: 12px; }
+.renderer-switch button[aria-pressed="true"] { background: white; color: #2358d3; border-color: #b7c9f0; }
+.renderer-notes { margin-top: 24px; padding: 10px; background: #fff7df; font-size: 12px; border: 1px solid #e8dcb9; border-radius: 6px; overflow-wrap: anywhere; }
+.renderer-notes p { margin: 6px 0; }
 .editor { margin: 16px 0; }
 .placement-surface { position: absolute; inset: 0; touch-action: none; cursor: crosshair; }
 .placement-box { position: absolute; outline: 2px dashed #2358d3; background: #2358d318; pointer-events: auto; cursor: move; }

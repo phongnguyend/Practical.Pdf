@@ -7,6 +7,12 @@ namespace PdfObjectKit.Interpreters;
 
 internal sealed record NativeSlot(int Operation, int Token, int Start, string Text, byte[] Bytes, PdfNativeFont Font, List<NativeGlyph> Glyphs, double FontSize, PdfReference Stream)
 {
+    public PdfMatrix TextMatrix { get; init; } = PdfMatrix.Identity;
+
+    public double HorizontalScale { get; init; } = 1;
+
+    public double Rise { get; init; }
+
     public int? FormOccurrenceId { get; init; }
 
     public double CharacterSpacing { get; init; }
