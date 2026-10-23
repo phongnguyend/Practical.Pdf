@@ -271,3 +271,43 @@ test('selected image downloads source JPEG or transparent PNG at original dimens
     await expect(page.getByRole('alert')).toHaveCount(0);
   }
 });
+
+
+test('Delete removes selected image and whole text line but ignores editing and dialogs', async ({ page }) => {
+  const edits = [];
+  page.on('request', request => {
+    if (request.url().endsWith('/api/documents/edit')) {
+      edits.push(request);
+    }
+  });
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'delete.pdf', mimeType: 'application/pdf', buffer: fixture() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.locator('.object').filter({ hasText: 'Hello' }).click();
+  await page.getByLabel('New value', { exact: true }).focus();
+  await page.keyboard.press('Delete');
+  expect(edits).toHaveLength(0);
+  await page.getByRole('button', { name: 'View Markdown', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Delete');
+  expect(edits).toHaveLength(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.locator('.object').filter({ hasText: 'Hello' }).click();
+  await page.keyboard.press('Control+Delete');
+  expect(edits).toHaveLength(0);
+  await page.keyboard.down('Delete');
+  await page.keyboard.down('Delete');
+  await page.keyboard.up('Delete');
+  await expect(page.locator('.object').filter({ hasText: 'Hello' })).toHaveCount(0);
+  expect(edits).toHaveLength(1);
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.locator('.object').filter({ hasText: 'Image 1' }).click();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.object').filter({ hasText: 'Image 1' })).toHaveCount(0);
+  expect(edits).toHaveLength(2);
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.keyboard.press('Delete');
+  expect(edits).toHaveLength(2);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});

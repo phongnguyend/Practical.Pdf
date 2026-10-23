@@ -760,3 +760,18 @@ test('move text from a local reproduction PDF beyond its original clipping edge'
   expect(ink).toBeGreaterThan(20);
   expect(retained / ink).toBeGreaterThan(.98);
 });
+
+
+test('Delete removes a selected form field but preserves keyboard editing in its input', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.locator('.object').filter({ hasText: 'FullName' }).click();
+  await page.getByLabel('New value', { exact: true }).focus();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.object').filter({ hasText: 'FullName' })).toHaveCount(1);
+  await page.locator('.object').filter({ hasText: 'FullName' }).click();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.object').filter({ hasText: 'FullName' })).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});

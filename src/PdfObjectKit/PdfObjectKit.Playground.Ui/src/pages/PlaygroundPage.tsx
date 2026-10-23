@@ -54,6 +54,7 @@ export function PlaygroundPage() {
   const overlay = useRef<HTMLCanvasElement>(null);
   const generation = useRef(0);
   const abort = useRef<AbortController | null>(null);
+  const deletingByKeyboard = useRef(false);
   const objects = (inspection?.objects ?? []).filter(item => item.pageNumber === page && layers[item.kind]);
 
   useEffect(() => () => { void pdf?.loadingTask.destroy(); }, [pdf]);
@@ -208,6 +209,42 @@ export function PlaygroundPage() {
       setSaving(false);
     }
   }
+
+  useEffect(() => {
+    function deleteSelection(event: KeyboardEvent) {
+      if (event.key !== 'Delete' || event.defaultPrevented || event.repeat || event.isComposing
+        || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
+        || !selected || adding || saving || busy || rendering || exporting || deletingByKeyboard.current) {
+        return;
+      }
+      const target = event.target instanceof Element ? event.target : document.activeElement;
+      if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')
+        || target?.closest('input, textarea, select, [contenteditable], [role="textbox"]')) {
+        return;
+      }
+      const details = selected.details as { isReadOnly?: boolean; imageNumber?: number; name?: string; runs?: unknown[] };
+      if (details.isReadOnly) {
+        return;
+      }
+      let edit: Edit;
+      if (selected.kind === 'text' && details.runs?.length) {
+        edit = { kind: 'delete-text-line', value: '', pageNumber: selected.pageNumber, runs: details.runs };
+      } else if (selected.kind === 'image' && details.imageNumber) {
+        edit = { kind: 'delete-image', value: '', pageNumber: selected.pageNumber, imageNumber: details.imageNumber };
+      } else if (selected.kind === 'field' && details.name) {
+        edit = { kind: 'delete-field', value: '', pageNumber: selected.pageNumber, fieldName: details.name };
+      } else {
+        return;
+      }
+      event.preventDefault();
+      deletingByKeyboard.current = true;
+      void saveEdit(edit).finally(() => {
+        deletingByKeyboard.current = false;
+      });
+    }
+    window.addEventListener('keydown', deleteSelection);
+    return () => window.removeEventListener('keydown', deleteSelection);
+  }, [selected, adding, saving, busy, rendering, exporting, saveEdit]);
 
   async function exportImage(pageNumber: number, imageNumber: number) {
     if (!pdfBytes || exporting) {
