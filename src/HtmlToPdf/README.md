@@ -4,9 +4,9 @@ This solution demonstrates three ways to convert HTML into PDF with .NET 10:
 
 | Implementation | Console project | HTTP API project | Browser |
 | --- | --- | --- | --- |
-| Chrome CLI | `ChromeCliConverter` | `ChromeCliConverter.Api` | Google Chrome Stable |
-| Playwright | `PlaywrightConverter` | `PlaywrightConverter.Api` | Playwright Chromium 1.61.0 |
-| PuppeteerSharp | `PuppeteerSharpConverter` | `PuppeteerSharpConverter.Api` | Google Chrome Stable |
+| Chrome CLI | `ChromeCliConverter.Cli` | `ChromeCliConverter.Api` | Google Chrome Stable |
+| Playwright | `PlaywrightConverter.Cli` | `PlaywrightConverter.Api` | Playwright Chromium 1.61.0 |
+| PuppeteerSharp | `PuppeteerSharpConverter.Cli` | `PuppeteerSharpConverter.Api` | Google Chrome Stable |
 
 `HtmlToPdf.Proxy` provides a single YARP reverse-proxy endpoint for all three
 HTTP APIs.
@@ -203,9 +203,9 @@ The solution also contains one-shot console converters. Their individual
 documentation includes image build commands, output volume mounting, and local
 browser setup:
 
-- [`ChromeCliConverter/README.md`](ChromeCliConverter/README.md)
-- [`PlaywrightConverter/README.md`](PlaywrightConverter/README.md)
-- [`PuppeteerSharpConverter/README.md`](PuppeteerSharpConverter/README.md)
+- [`ChromeCliConverter.Cli/README.md`](ChromeCliConverter.Cli/README.md)
+- [`PlaywrightConverter.Cli/README.md`](PlaywrightConverter.Cli/README.md)
+- [`PuppeteerSharpConverter.Cli/README.md`](PuppeteerSharpConverter.Cli/README.md)
 
 ## Security notes
 

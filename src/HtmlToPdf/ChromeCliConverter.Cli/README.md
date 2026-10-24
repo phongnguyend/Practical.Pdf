@@ -14,13 +14,13 @@ runtime and Google Chrome Stable.
 From the `HtmlToPdf` directory, run:
 
 ```powershell
-docker build -t chrome-cli-converter .\ChromeCliConverter
+docker build -t chrome-cli-converter .\ChromeCliConverter.Cli
 ```
 
 On Linux or macOS, the equivalent command is:
 
 ```bash
-docker build -t chrome-cli-converter ./ChromeCliConverter
+docker build -t chrome-cli-converter ./ChromeCliConverter.Cli
 ```
 
 The build installs Google Chrome Stable from Google's official Debian package

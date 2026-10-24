@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
-COPY PuppeteerSharpConverter.csproj ./
+COPY PuppeteerSharpConverter.Cli.csproj ./
 RUN dotnet restore
 
 COPY . ./
@@ -27,4 +27,4 @@ WORKDIR /app
 COPY --from=build /app/publish ./
 
 WORKDIR /output
-ENTRYPOINT ["dotnet", "/app/PuppeteerSharpConverter.dll"]
+ENTRYPOINT ["dotnet", "/app/PuppeteerSharpConverter.Cli.dll"]

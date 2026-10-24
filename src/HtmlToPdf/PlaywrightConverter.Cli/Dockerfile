@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
-COPY PlaywrightConverter.csproj ./
+COPY PlaywrightConverter.Cli.csproj ./
 RUN dotnet restore
 
 COPY . ./
@@ -17,4 +17,4 @@ WORKDIR /app
 COPY --from=build /app/publish ./
 
 WORKDIR /output
-ENTRYPOINT ["dotnet", "/app/PlaywrightConverter.dll"]
+ENTRYPOINT ["dotnet", "/app/PlaywrightConverter.Cli.dll"]
