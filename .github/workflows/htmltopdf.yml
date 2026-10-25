@@ -1,0 +1,96 @@
+name: HtmlToPdf Build
+
+on:
+  push:
+    paths:
+      - 'src/HtmlToPdf/**'
+      - '.github/workflows/htmltopdf.yml'
+  pull_request:
+    paths:
+      - 'src/HtmlToPdf/**'
+      - '.github/workflows/htmltopdf.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    name: .NET Release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/HtmlToPdf
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore HtmlToPdf.slnx
+      - name: Build
+        run: dotnet build HtmlToPdf.slnx --configuration Release --no-restore
+
+  docker:
+    name: Docker / ${{ matrix.image }}
+    needs: dotnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - image: html-to-pdf/chrome-cli-api
+            context: src/HtmlToPdf/HtmlToPdf.Chrome.Api
+            dockerfile: src/HtmlToPdf/HtmlToPdf.Chrome.Api/Dockerfile
+            cache-scope: htmltopdf-chrome-cli-api
+          - image: html-to-pdf/chrome-cli
+            context: src/HtmlToPdf/HtmlToPdf.Chrome.Cli
+            dockerfile: src/HtmlToPdf/HtmlToPdf.Chrome.Cli/Dockerfile
+            cache-scope: htmltopdf-chrome-cli
+          - image: html-to-pdf/playwright-api
+            context: src/HtmlToPdf/HtmlToPdf.Playwright.Api
+            dockerfile: src/HtmlToPdf/HtmlToPdf.Playwright.Api/Dockerfile
+            cache-scope: htmltopdf-playwright-api
+          - image: html-to-pdf/playwright-cli
+            context: src/HtmlToPdf/HtmlToPdf.Playwright.Cli
+            dockerfile: src/HtmlToPdf/HtmlToPdf.Playwright.Cli/Dockerfile
+            cache-scope: htmltopdf-playwright-cli
+          - image: html-to-pdf/puppeteer-sharp-api
+            context: src/HtmlToPdf/HtmlToPdf.PuppeteerSharp.Api
+            dockerfile: src/HtmlToPdf/HtmlToPdf.PuppeteerSharp.Api/Dockerfile
+            cache-scope: htmltopdf-puppeteer-sharp-api
+          - image: html-to-pdf/puppeteer-sharp-cli
+            context: src/HtmlToPdf/HtmlToPdf.PuppeteerSharp.Cli
+            dockerfile: src/HtmlToPdf/HtmlToPdf.PuppeteerSharp.Cli/Dockerfile
+            cache-scope: htmltopdf-puppeteer-sharp-cli
+          - image: html-to-pdf/proxy
+            context: src/HtmlToPdf/HtmlToPdf.Proxy
+            dockerfile: src/HtmlToPdf/HtmlToPdf.Proxy/Dockerfile
+            cache-scope: htmltopdf-proxy
+          - image: html-to-pdf/playground
+            context: src/HtmlToPdf/HtmlToPdf.Playground
+            dockerfile: src/HtmlToPdf/HtmlToPdf.Playground/Dockerfile
+            cache-scope: htmltopdf-playground
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.cache-scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache-scope }}
