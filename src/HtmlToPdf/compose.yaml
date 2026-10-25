@@ -1,6 +1,15 @@
 name: html-to-pdf
 
 services:
+  playground:
+    image: html-to-pdf/playground:local
+    build:
+      context: ./HtmlToPdf.Playground
+    depends_on:
+      - proxy
+    ports:
+      - "8084:80"
+
   proxy:
     image: html-to-pdf/proxy:local
     build:

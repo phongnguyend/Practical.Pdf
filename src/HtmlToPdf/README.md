@@ -11,6 +11,14 @@ This solution demonstrates three ways to convert HTML into PDF with .NET 10:
 `HtmlToPdf.Proxy` provides a single YARP reverse-proxy endpoint for all three
 HTTP APIs.
 
+## React playground
+
+[`HtmlToPdf.Playground`](HtmlToPdf.Playground/README.md) provides a React 19 UI
+for dragging or uploading HTML, selecting a rendering engine, and downloading
+a PDF through `HtmlToPdf.Proxy`. With Docker Compose, open http://localhost:8084.
+For local development, run `npm ci` and `npm run dev` in `HtmlToPdf.Playground`,
+then open http://localhost:5174 with the proxy and selected converter running.
+
 ## Prerequisites
 
 - .NET 10 SDK for local builds
