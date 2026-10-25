@@ -36,9 +36,38 @@ dotnet build .\HtmlToPdf.slnx
 
 ## Converter APIs
 
+### Convert a webpage URL
+
+All three APIs also expose `POST /convert-url` with JSON `{ "url": "https://example.com" }`.
+Through the proxy, use `/chrome/convert-url`, `/playwright/convert-url`, or
+`/puppeteer/convert-url`. Only absolute HTTP/HTTPS URLs without embedded
+credentials are accepted. The browser navigates to the address directly, so
+relative CSS, images, and scripts resolve against the webpage URL.
+
+The playground's **Website URL** option supports the same engine selection,
+individual results, PDF viewing, and downloads as file uploads. Pages open in
+a fresh server-side browser without the user's signed-in cookies. The address
+must be reachable from the converter (inside Docker, `localhost` means that container).
+URL conversion has a 90-second overall limit. Playwright and PuppeteerSharp
+wait for page load and reject HTTP error responses; Chrome CLI may print a
+browser or HTTP error page because it does not expose navigation status.
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:8080/playwright/convert-url -Method Post -ContentType application/json -Body '{"url":"https://example.com"}' -OutFile webpage.pdf
+```
+
+The CLIs also accept a URL as their second argument, preserving the first
+argument as the output path:
+
+```powershell
+dotnet run --project ./HtmlToPdf.Playwright.Cli -- webpage.pdf https://example.com
+```
+
+The same syntax works for `HtmlToPdf.Chrome.Cli` and `HtmlToPdf.PuppeteerSharp.Cli`.
+
 All three API projects expose the same contract:
 
-- `POST /convert` accepts `multipart/form-data` with an HTML file in the `file`
+- `POST /convert-file` accepts `multipart/form-data` with an HTML file in the `file`
   field.
 - The upload must have an `.html` or `.htm` extension.
 - The maximum HTML file size is 10 MB.
@@ -67,9 +96,9 @@ request is forwarded:
 
 | Proxy request | Converter request |
 | --- | --- |
-| `POST /chrome/convert` | Chrome CLI `POST /convert` |
-| `POST /playwright/convert` | Playwright `POST /convert` |
-| `POST /puppeteer/convert` | PuppeteerSharp `POST /convert` |
+| `POST /chrome/convert-file` | Chrome CLI `POST /convert-file` |
+| `POST /playwright/convert-file` | Playwright `POST /convert-file` |
+| `POST /puppeteer/convert-file` | PuppeteerSharp `POST /convert-file` |
 
 For example:
 
@@ -77,7 +106,7 @@ For example:
 curl.exe -X POST `
   -F "file=@sample.html;type=text/html" `
   -o result.pdf `
-  http://localhost:8080/playwright/convert
+  http://localhost:8080/playwright/convert-file
 ```
 
 The corresponding backend health endpoints are available at `/chrome/health`,
@@ -147,7 +176,7 @@ With an API mapped to `localhost:8080`, use `curl.exe` from PowerShell:
 curl.exe -X POST `
   -F "file=@sample.html;type=text/html" `
   -o result.pdf `
-  http://localhost:8080/convert
+  http://localhost:8080/convert-file
 ```
 
 Linux or macOS:
@@ -156,7 +185,7 @@ Linux or macOS:
 curl -X POST \
   -F "file=@sample.html;type=text/html" \
   -o result.pdf \
-  http://localhost:8080/convert
+  http://localhost:8080/convert-file
 ```
 
 For the simultaneous-container example, use ports `8081`, `8082`, and `8083`

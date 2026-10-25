@@ -20,6 +20,12 @@ h1 span { color: #6d8265; }
 .upload-panel, .settings-panel { padding: 30px; }
 .settings-panel { border-left: 1px solid #e8ece4; background: #fcfdf9; }
 .section-title { display: flex; gap: 10px; align-items: center; margin-bottom: 24px; }
+.source-options { display: flex; gap: 8px; margin-bottom: 12px; }
+.source-options button { padding: 7px 12px; }
+.source-options [aria-pressed="true"] { background: #eaf0df; border-color: #90a47d; }
+.url-source { padding: 20px; border: 1px solid #dce1d8; border-radius: 12px; background: #fafcf6; }
+.url-source label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.url-source input { width: 100%; min-width: 0; border: 1px solid #bccbb3; border-radius: 7px; padding: 12px; color: inherit; background: white; }
 .step { font-size: 10px; color: #7a8676; border: 1px solid #dce1d8; border-radius: 50%; padding: 5px; }
 h2 { font-size: 15px; margin: 0; font-weight: 600; }
 .dropzone { border: 1.5px dashed #bccbb3; border-radius: 12px; padding: 29px 18px 25px; text-align: center; background: #fafcf6; transition: background .2s; }
@@ -63,11 +69,11 @@ footer { display: flex; justify-content: space-between; padding: 24px 0 40px; fo
   .intro > p:last-child br { display: none; }
   .upload-panel, .settings-panel { padding: 20px; }
   .section-title { margin-bottom: 16px; }
-  .dropzone { padding: 18px; }
+  .dropzone { padding: 12px; }
   .file-icon { padding: 10px; font-size: 20px; }
   h3 { margin-top: 12px; }
   .dropzone p { margin-bottom: 12px; }
-  .dropzone small { margin-top: 16px; }
+  .dropzone small { margin-top: 10px; }
   .engine { padding: 12px; margin-bottom: 8px; }
   .primary { margin-top: 16px; }
   .download { margin-top: 0; }

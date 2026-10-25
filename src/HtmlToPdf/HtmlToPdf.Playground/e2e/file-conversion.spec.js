@@ -26,7 +26,7 @@ test('validates type, empty files, size, and multiple drops', async ({ page }) =
 
 for (const engine of ['chrome', 'playwright', 'puppeteer']) {
   test(`uploads through ${engine} and downloads the PDF`, async ({ page }) => {
-    await page.route(`**/api/${engine}/convert`, async (route) => {
+    await page.route(`**/api/${engine}/convert-file`, async (route) => {
       expect(route.request().method()).toBe('POST');
       expect(route.request().headers()['content-type']).toContain('multipart/form-data');
       expect(route.request().postDataBuffer().toString()).toContain('name="file"; filename="invoice.html"');
@@ -47,7 +47,7 @@ for (const engine of ['chrome', 'playwright', 'puppeteer']) {
 }
 
 test('accepts a dropped file and recovers from API errors', async ({ page }) => {
-  await page.route('**/api/chrome/convert', (route) => route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ detail: 'Chrome is unavailable.' }) }));
+  await page.route('**/api/chrome/convert-file', (route) => route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ detail: 'Chrome is unavailable.' }) }));
   await page.goto('/');
   const files = await page.evaluateHandle(() => {
     const transfer = new DataTransfer();
@@ -58,7 +58,7 @@ test('accepts a dropped file and recovers from API errors', async ({ page }) => 
   await page.getByRole('button', { name: 'Convert to PDF' }).click();
   await expect(page.getByRole('alert')).toContainText('Chrome is unavailable.');
   await expect(page.getByRole('button', { name: 'Convert to PDF' })).toBeEnabled();
-  await page.route('**/api/chrome/convert', (route) => route.fulfill({ contentType: 'text/html', body: '<html>Wrong service</html>' }));
+  await page.route('**/api/chrome/convert-file', (route) => route.fulfill({ contentType: 'text/html', body: '<html>Wrong service</html>' }));
   await page.getByRole('button', { name: 'Convert to PDF' }).click();
   await expect(page.getByRole('alert')).toContainText('did not return a PDF');
 });
@@ -68,12 +68,12 @@ test('multiple engines keep successful PDFs when another engine fails', async ({
   const pending = new Promise((resolve) => {
     finishPlaywright = resolve;
   });
-  await page.route('**/api/chrome/convert', (route) => route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\nChrome\n%%EOF' }));
-  await page.route('**/api/playwright/convert', async (route) => {
+  await page.route('**/api/chrome/convert-file', (route) => route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\nChrome\n%%EOF' }));
+  await page.route('**/api/playwright/convert-file', async (route) => {
     await pending;
     await route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\nPlaywright\n%%EOF' });
   });
-  await page.route('**/api/puppeteer/convert', (route) => route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ detail: 'Engine unavailable' }) }));
+  await page.route('**/api/puppeteer/convert-file', (route) => route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ detail: 'Engine unavailable' }) }));
   await page.goto('/');
   await page.getByLabel('HTML file').setInputFiles(html);
   await page.locator('input[value="chrome"]').uncheck();
@@ -112,7 +112,7 @@ test('real Chrome conversion through HtmlToPdf.Proxy', async ({ page }) => {
   test.skip(process.env.HTML_TO_PDF_LIVE_TEST !== '1', 'Requires proxy and Chrome API.');
   await page.goto('/');
   await page.getByLabel('HTML file').setInputFiles(html);
-  const responsePromise = page.waitForResponse('**/api/chrome/convert');
+  const responsePromise = page.waitForResponse('**/api/chrome/convert-file');
   await page.getByRole('button', { name: 'Convert to PDF' }).click();
   const response = await responsePromise;
   expect(response.ok()).toBeTruthy();

@@ -11,6 +11,8 @@ const maxSize = 10 * 1024 * 1024;
 
 function App() {
   const [file, setFile] = useState(null);
+  const [sourceType, setSourceType] = useState('file');
+  const [websiteUrl, setWebsiteUrl] = useState('');
   const [selectedEngines, setSelectedEngines] = useState(['chrome']);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -65,19 +67,32 @@ function App() {
 
   async function convert(event) {
     event.preventDefault();
-    if (!file || busy || selectedEngines.length === 0) {
+    if ((sourceType === 'file' && !file) || busy || selectedEngines.length === 0) {
       return;
+    }
+    let targetUrl = '';
+    if (sourceType === 'url') {
+      try {
+        const parsed = new URL(websiteUrl.trim());
+        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
+          throw new Error('Invalid URL');
+        }
+        targetUrl = parsed.href;
+      } catch {
+        setError('Enter an absolute HTTP or HTTPS URL without embedded credentials.');
+        return;
+      }
     }
     setBusy(true);
     setError('');
     clearResults();
     const selected = engines.filter((engine) => selectedEngines.includes(engine.id));
     setResults(selected.map((engine) => ({ engine, status: 'pending' })));
-    await Promise.all(selected.map((engine) => convertWithEngine(engine, selected.length > 1)));
+    await Promise.all(selected.map((engine) => convertWithEngine(engine, selected.length > 1, targetUrl)));
     setBusy(false);
   }
 
-  async function convertWithEngine(engine, multiple) {
+  async function convertWithEngine(engine, multiple, targetUrl) {
     function updateResult(update) {
       setResults((current) => current.map((result) => result.engine.id === engine.id ? { ...result, ...update } : result));
     }
@@ -85,9 +100,16 @@ function App() {
     requests.current.add(controller);
     const timeout = setTimeout(() => controller.abort(), 120000);
     try {
-      const body = new FormData();
-      body.append('file', file);
-      const response = await fetch(`/api/${engine.id}/convert`, { method: 'POST', body, signal: controller.signal });
+      let body;
+      let headers;
+      if (targetUrl) {
+        body = JSON.stringify({ url: targetUrl });
+        headers = { 'Content-Type': 'application/json' };
+      } else {
+        body = new FormData();
+        body.append('file', file);
+      }
+      const response = await fetch(`/api/${engine.id}/${targetUrl ? 'convert-url' : 'convert-file'}`, { method: 'POST', body, headers, signal: controller.signal });
       if (!response.ok) {
         const text = await response.text();
         let message = '';
@@ -111,7 +133,8 @@ function App() {
       controller.signal.throwIfAborted();
       const url = URL.createObjectURL(blob);
       urls.current.add(url);
-      updateResult({ status: 'success', url, name: file.name.replace(/\.html?$/i, multiple ? `.${engine.id}.pdf` : '.pdf'), size: blob.size });
+      const baseName = targetUrl ? new URL(targetUrl).hostname.replace(/[^a-z0-9.-]/gi, '_') : file.name.replace(/\.html?$/i, '');
+      updateResult({ status: 'success', url, name: `${baseName}${multiple ? `.${engine.id}` : ''}.pdf`, size: blob.size });
     } catch (failure) {
       updateResult({ status: 'error', error: failure.name === 'AbortError' ? 'Conversion timed out. Please try again.' : failure instanceof TypeError ? 'Could not reach the conversion service. Check that the proxy is running and try again.' : failure.message });
     } finally {
@@ -124,10 +147,30 @@ function App() {
     <div className="shell">
       <header className="topbar"><a href="/" className="brand"><span className="brand-icon">H</span> HTML to PDF</a><span className="badge">PLAYGROUND</span></header>
       <main>
-        <div className="intro"><p className="eyebrow">FROM BROWSER TO PAPER</p><h1>Your HTML.<br /><span>Ready for print.</span></h1><p>Turn an HTML file into a downloadable PDF.<br /> Choose one or more rendering engines to compare results.</p></div>
-        <form onSubmit={convert} className="workspace" aria-busy={busy}>
+        <div className="intro"><p className="eyebrow">FROM BROWSER TO PAPER</p><h1>Your HTML.<br /><span>Ready for print.</span></h1><p>Turn an HTML file or webpage into a downloadable PDF.<br /> Choose one or more rendering engines to compare results.</p></div>
+        <form onSubmit={convert} className="workspace" aria-busy={busy} noValidate>
           <section className="upload-panel" aria-labelledby="upload-heading">
             <div className="section-title"><span className="step">01</span><h2 id="upload-heading">Add your HTML</h2></div>
+            <div className="source-options" role="group" aria-label="HTML source">
+              {['file', 'url'].map((type) => (
+                <button key={type} type="button" className="secondary" aria-pressed={sourceType === type} disabled={busy} onClick={() => {
+                  setSourceType(type);
+                  clearResults();
+                  setError('');
+                }}>{type === 'file' ? 'Upload file' : 'Website URL'}</button>
+              ))}
+            </div>
+            {sourceType === 'url' ? (
+              <div className="url-source">
+                <label htmlFor="website-url">Website URL</label>
+                <input id="website-url" type="url" placeholder="https://example.com" value={websiteUrl} disabled={busy} onChange={(event) => {
+                  setWebsiteUrl(event.target.value);
+                  clearResults();
+                  setError('');
+                }} />
+                <p className="hint">Enter a full HTTP or HTTPS address. The page opens in a fresh browser on the converter, without your signed-in session.</p>
+              </div>
+            ) : <>
             <div className={`dropzone ${dragging ? 'dragging' : ''}`}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -156,6 +199,7 @@ function App() {
               <small>.HTML or .HTM · Up to 10 MB · One file at a time</small>
             </div>
             <p className="hint">For best results, embed styles and images in your HTML or use absolute URLs. Relative assets are not uploaded with the file.</p>
+            </>}
           </section>
           <section className="settings-panel" aria-labelledby="engine-heading">
             <div className="section-title"><span className="step">02</span><h2 id="engine-heading">Choose engines</h2></div>
@@ -169,7 +213,7 @@ function App() {
                 <span><strong>{item.name}</strong><small>{item.description}</small></span>
               </label>
             ))}</fieldset>
-            <button className="primary" type="submit" disabled={!file || busy || selectedEngines.length === 0}>{busy ? 'Converting…' : 'Convert to PDF'}<span aria-hidden="true">→</span></button>
+            <button className="primary" type="submit" disabled={(sourceType === 'file' ? !file : !websiteUrl.trim()) || busy || selectedEngines.length === 0}>{busy ? 'Converting…' : 'Convert to PDF'}<span aria-hidden="true">→</span></button>
             <p className="quiet">Select one or more engines. View or download each result below.</p>
           </section>
           <div className="feedback" aria-live="polite" role="status">
