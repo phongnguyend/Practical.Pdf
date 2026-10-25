@@ -1,0 +1,33 @@
+name: excel-to-pdf
+
+services:
+  playground:
+    image: excel-to-pdf/playground:local
+    build:
+      context: ./ExcelToPdf.Playground
+    depends_on:
+      - proxy
+    ports:
+      - "8094:80"
+
+  proxy:
+    image: excel-to-pdf/proxy:local
+    build:
+      context: .
+      dockerfile: ExcelToPdf.Proxy/Dockerfile
+    init: true
+    depends_on:
+      - libreoffice-api
+    environment:
+      ReverseProxy__Clusters__libreoffice-cluster__Destinations__destination1__Address: http://libreoffice-api:8080/
+    ports:
+      - "8090:8080"
+
+  libreoffice-api:
+    image: excel-to-pdf/libreoffice-api:local
+    build:
+      context: .
+      dockerfile: ExcelToPdf.LibreOffice.Api/Dockerfile
+    init: true
+    ports:
+      - "8091:8080"

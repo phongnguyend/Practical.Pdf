@@ -1,0 +1,33 @@
+name: word-to-pdf
+
+services:
+  playground:
+    image: word-to-pdf/playground:local
+    build:
+      context: ./WordToPdf.Playground
+    depends_on:
+      - proxy
+    ports:
+      - "8104:80"
+
+  proxy:
+    image: word-to-pdf/proxy:local
+    build:
+      context: .
+      dockerfile: WordToPdf.Proxy/Dockerfile
+    init: true
+    depends_on:
+      - libreoffice-api
+    environment:
+      ReverseProxy__Clusters__libreoffice-cluster__Destinations__destination1__Address: http://libreoffice-api:8080/
+    ports:
+      - "8100:8080"
+
+  libreoffice-api:
+    image: word-to-pdf/libreoffice-api:local
+    build:
+      context: .
+      dockerfile: WordToPdf.LibreOffice.Api/Dockerfile
+    init: true
+    ports:
+      - "8101:8080"

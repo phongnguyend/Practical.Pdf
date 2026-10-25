@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ExcelToPdf.LibreOffice.Api": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:62720",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

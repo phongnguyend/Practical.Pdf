@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ExcelToPdf.LibreOffice.Api/ExcelToPdf.LibreOffice.Api.csproj" />
+  <Project Path="ExcelToPdf.LibreOffice.Cli/ExcelToPdf.LibreOffice.Cli.csproj" />
+  <Project Path="ExcelToPdf.Proxy/ExcelToPdf.Proxy.csproj" />
+</Solution>

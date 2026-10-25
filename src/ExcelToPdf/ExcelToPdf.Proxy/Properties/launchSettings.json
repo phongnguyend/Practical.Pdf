@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ExcelToPdf.Proxy": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:62723",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
