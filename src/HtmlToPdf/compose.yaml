@@ -20,7 +20,7 @@ services:
   chrome-cli-api:
     image: html-to-pdf/chrome-cli-api:local
     build:
-      context: ./ChromeCliConverter.Api
+      context: ./HtmlToPdf.Chrome.Api
     init: true
     ports:
       - "8081:8080"
@@ -28,7 +28,7 @@ services:
   playwright-api:
     image: html-to-pdf/playwright-api:local
     build:
-      context: ./PlaywrightConverter.Api
+      context: ./HtmlToPdf.Playwright.Api
     init: true
     ipc: host
     ports:
@@ -37,7 +37,7 @@ services:
   puppeteer-sharp-api:
     image: html-to-pdf/puppeteer-sharp-api:local
     build:
-      context: ./PuppeteerSharpConverter.Api
+      context: ./HtmlToPdf.PuppeteerSharp.Api
     init: true
     ports:
       - "8083:8080"

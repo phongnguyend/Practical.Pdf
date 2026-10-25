@@ -1,9 +1,9 @@
 <Solution>
-  <Project Path="ChromeCliConverter.Api/ChromeCliConverter.Api.csproj" />
-  <Project Path="ChromeCliConverter.Cli/ChromeCliConverter.Cli.csproj" />
+  <Project Path="HtmlToPdf.Chrome.Api/HtmlToPdf.Chrome.Api.csproj" />
+  <Project Path="HtmlToPdf.Chrome.Cli/HtmlToPdf.Chrome.Cli.csproj" />
   <Project Path="HtmlToPdf.Proxy/HtmlToPdf.Proxy.csproj" />
-  <Project Path="PlaywrightConverter.Api/PlaywrightConverter.Api.csproj" />
-  <Project Path="PlaywrightConverter.Cli/PlaywrightConverter.Cli.csproj" />
-  <Project Path="PuppeteerSharpConverter.Api/PuppeteerSharpConverter.Api.csproj" />
-  <Project Path="PuppeteerSharpConverter.Cli/PuppeteerSharpConverter.Cli.csproj" />
+  <Project Path="HtmlToPdf.Playwright.Api/HtmlToPdf.Playwright.Api.csproj" />
+  <Project Path="HtmlToPdf.Playwright.Cli/HtmlToPdf.Playwright.Cli.csproj" />
+  <Project Path="HtmlToPdf.PuppeteerSharp.Api/HtmlToPdf.PuppeteerSharp.Api.csproj" />
+  <Project Path="HtmlToPdf.PuppeteerSharp.Cli/HtmlToPdf.PuppeteerSharp.Cli.csproj" />
 </Solution>

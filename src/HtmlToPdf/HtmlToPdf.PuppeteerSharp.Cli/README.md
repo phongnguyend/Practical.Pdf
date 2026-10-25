@@ -14,13 +14,13 @@ and Google Chrome Stable.
 From the `HtmlToPdf` directory, run:
 
 ```powershell
-docker build -t puppeteer-sharp-converter .\PuppeteerSharpConverter.Cli
+docker build -t puppeteer-sharp-converter .\HtmlToPdf.PuppeteerSharp.Cli
 ```
 
 Linux or macOS:
 
 ```bash
-docker build -t puppeteer-sharp-converter ./PuppeteerSharpConverter.Cli
+docker build -t puppeteer-sharp-converter ./HtmlToPdf.PuppeteerSharp.Cli
 ```
 
 The build installs Google Chrome Stable and verifies the installation by

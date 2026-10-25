@@ -1,12 +1,12 @@
 {
   "profiles": {
-    "ChromeCliConverter.Api": {
+    "HtmlToPdf.Playwright.Api": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "https://localhost:62616;http://localhost:62617"
+      "applicationUrl": "https://localhost:62619;http://localhost:62620"
     }
   }
 }

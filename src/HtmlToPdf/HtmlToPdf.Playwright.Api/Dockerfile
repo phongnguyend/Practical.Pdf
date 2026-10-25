@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
-COPY PlaywrightConverter.Api.csproj ./
+COPY HtmlToPdf.Playwright.Api.csproj ./
 RUN dotnet restore
 
 COPY . ./
@@ -15,4 +15,4 @@ WORKDIR /app
 COPY --from=build /app/publish ./
 
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "PlaywrightConverter.Api.dll"]
+ENTRYPOINT ["dotnet", "HtmlToPdf.Playwright.Api.dll"]

@@ -1,12 +1,12 @@
 {
   "profiles": {
-    "PuppeteerSharpConverter.Api": {
+    "HtmlToPdf.Chrome.Api": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "https://localhost:62618;http://localhost:62621"
+      "applicationUrl": "https://localhost:62616;http://localhost:62617"
     }
   }
 }

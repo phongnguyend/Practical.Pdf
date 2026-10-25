@@ -14,13 +14,13 @@ NuGet package used by the project and includes the .NET 10 runtime.
 From the `HtmlToPdf` directory, run:
 
 ```powershell
-docker build -t playwright-converter .\PlaywrightConverter.Cli
+docker build -t playwright-converter .\HtmlToPdf.Playwright.Cli
 ```
 
 Linux or macOS:
 
 ```bash
-docker build -t playwright-converter ./PlaywrightConverter.Cli
+docker build -t playwright-converter ./HtmlToPdf.Playwright.Cli
 ```
 
 ## Run the converter
@@ -59,20 +59,20 @@ page, update the URL in `Program.cs` and rebuild the image.
 Build the project so that Playwright generates its installation script:
 
 ```powershell
-dotnet build .\PlaywrightConverter.Cli\PlaywrightConverter.Cli.csproj
+dotnet build .\HtmlToPdf.Playwright.Cli\HtmlToPdf.Playwright.Cli.csproj
 ```
 
 Install the Chromium version matching the project's Playwright package:
 
 ```powershell
-pwsh .\PlaywrightConverter.Cli\bin\Debug\net10.0\playwright.ps1 install chromium
+pwsh .\HtmlToPdf.Playwright.Cli\bin\Debug\net10.0\playwright.ps1 install chromium
 ```
 
 Then run the converter:
 
 ```powershell
 New-Item -ItemType Directory -Force output
-dotnet run --project .\PlaywrightConverter.Cli -- .\output\playwright.pdf
+dotnet run --project .\HtmlToPdf.Playwright.Cli -- .\output\playwright.pdf
 ```
 
 Run the installation script again whenever the `Microsoft.Playwright` package

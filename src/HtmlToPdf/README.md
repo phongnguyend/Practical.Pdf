@@ -4,9 +4,9 @@ This solution demonstrates three ways to convert HTML into PDF with .NET 10:
 
 | Implementation | Console project | HTTP API project | Browser |
 | --- | --- | --- | --- |
-| Chrome CLI | `ChromeCliConverter.Cli` | `ChromeCliConverter.Api` | Google Chrome Stable |
-| Playwright | `PlaywrightConverter.Cli` | `PlaywrightConverter.Api` | Playwright Chromium 1.61.0 |
-| PuppeteerSharp | `PuppeteerSharpConverter.Cli` | `PuppeteerSharpConverter.Api` | Google Chrome Stable |
+| Chrome CLI | `HtmlToPdf.Chrome.Cli` | `HtmlToPdf.Chrome.Api` | Google Chrome Stable |
+| Playwright | `HtmlToPdf.Playwright.Cli` | `HtmlToPdf.Playwright.Api` | Playwright Chromium 1.61.0 |
+| PuppeteerSharp | `HtmlToPdf.PuppeteerSharp.Cli` | `HtmlToPdf.PuppeteerSharp.Api` | Google Chrome Stable |
 
 `HtmlToPdf.Proxy` provides a single YARP reverse-proxy endpoint for all three
 HTTP APIs.
@@ -89,18 +89,18 @@ Run these commands from `src/HtmlToPdf`:
 
 ```powershell
 docker build -t html-to-pdf-proxy .\HtmlToPdf.Proxy
-docker build -t chrome-cli-api .\ChromeCliConverter.Api
-docker build -t playwright-api .\PlaywrightConverter.Api
-docker build -t puppeteer-sharp-api .\PuppeteerSharpConverter.Api
+docker build -t chrome-cli-api .\HtmlToPdf.Chrome.Api
+docker build -t playwright-api .\HtmlToPdf.Playwright.Api
+docker build -t puppeteer-sharp-api .\HtmlToPdf.PuppeteerSharp.Api
 ```
 
 On Linux or macOS, replace `\` with `/`:
 
 ```bash
 docker build -t html-to-pdf-proxy ./HtmlToPdf.Proxy
-docker build -t chrome-cli-api ./ChromeCliConverter.Api
-docker build -t playwright-api ./PlaywrightConverter.Api
-docker build -t puppeteer-sharp-api ./PuppeteerSharpConverter.Api
+docker build -t chrome-cli-api ./HtmlToPdf.Chrome.Api
+docker build -t playwright-api ./HtmlToPdf.Playwright.Api
+docker build -t puppeteer-sharp-api ./HtmlToPdf.PuppeteerSharp.Api
 ```
 
 ### Run an API image
@@ -168,21 +168,21 @@ Expected response:
 
 ## Run an API locally
 
-Google Chrome must be installed to run `ChromeCliConverter.Api` or
-`PuppeteerSharpConverter.Api` locally:
+Google Chrome must be installed to run `HtmlToPdf.Chrome.Api` or
+`HtmlToPdf.PuppeteerSharp.Api` locally:
 
 ```powershell
-dotnet run --project .\ChromeCliConverter.Api
-dotnet run --project .\PuppeteerSharpConverter.Api
+dotnet run --project .\HtmlToPdf.Chrome.Api
+dotnet run --project .\HtmlToPdf.PuppeteerSharp.Api
 ```
 
-For `PlaywrightConverter.Api`, build the project and install its matching
+For `HtmlToPdf.Playwright.Api`, build the project and install its matching
 Chromium binary first:
 
 ```powershell
-dotnet build .\PlaywrightConverter.Api\PlaywrightConverter.Api.csproj
-pwsh .\PlaywrightConverter.Api\bin\Debug\net10.0\playwright.ps1 install chromium
-dotnet run --project .\PlaywrightConverter.Api
+dotnet build .\HtmlToPdf.Playwright.Api\HtmlToPdf.Playwright.Api.csproj
+pwsh .\HtmlToPdf.Playwright.Api\bin\Debug\net10.0\playwright.ps1 install chromium
+dotnet run --project .\HtmlToPdf.Playwright.Api
 ```
 
 The local development port is printed by ASP.NET Core when the project starts.
@@ -203,9 +203,9 @@ The solution also contains one-shot console converters. Their individual
 documentation includes image build commands, output volume mounting, and local
 browser setup:
 
-- [`ChromeCliConverter.Cli/README.md`](ChromeCliConverter.Cli/README.md)
-- [`PlaywrightConverter.Cli/README.md`](PlaywrightConverter.Cli/README.md)
-- [`PuppeteerSharpConverter.Cli/README.md`](PuppeteerSharpConverter.Cli/README.md)
+- [`HtmlToPdf.Chrome.Cli/README.md`](HtmlToPdf.Chrome.Cli/README.md)
+- [`HtmlToPdf.Playwright.Cli/README.md`](HtmlToPdf.Playwright.Cli/README.md)
+- [`HtmlToPdf.PuppeteerSharp.Cli/README.md`](HtmlToPdf.PuppeteerSharp.Cli/README.md)
 
 ## Security notes
 

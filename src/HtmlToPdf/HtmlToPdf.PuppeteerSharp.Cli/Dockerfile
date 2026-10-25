@@ -1,13 +1,13 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
-COPY PuppeteerSharpConverter.Api.csproj ./
+COPY HtmlToPdf.PuppeteerSharp.Cli.csproj ./
 RUN dotnet restore
 
 COPY . ./
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
@@ -21,11 +21,10 @@ RUN apt-get update \
     && google-chrome --version \
     && rm -rf /var/lib/apt/lists/*
 
-ENV CHROME_BIN=/usr/bin/google-chrome \
-    ASPNETCORE_HTTP_PORTS=8080
+ENV CHROME_BIN=/usr/bin/google-chrome
 
 WORKDIR /app
 COPY --from=build /app/publish ./
 
-EXPOSE 8080
-ENTRYPOINT ["dotnet", "PuppeteerSharpConverter.Api.dll"]
+WORKDIR /output
+ENTRYPOINT ["dotnet", "/app/HtmlToPdf.PuppeteerSharp.Cli.dll"]
