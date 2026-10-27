@@ -1,3 +1,8 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.Pkcs;
+using System.Security.Cryptography.X509Certificates;
+using System.Formats.Asn1;
+using PdfObjectKit.Signing;
 using System.Text;
 using PdfObjectKit.Converters;
 using PdfObjectKit.Editors;
@@ -156,14 +161,14 @@ internal static class FormTests
         PdfFormEditor.SetValue(repeated, "Applicant.FullName", "");
         Check(PdfFormExtractor.Extract(repeated)[0].Values.Single() == "", "empty text clears field");
 
-        foreach (var scenario in new[] { "password", "rotated", "xfa", "cycle" })
+        foreach (var scenario in new[] { "richText", "rotated", "xfa", "cycle" })
         {
             var unsupported = PdfConverter.FromJson(PdfConverter.ToJson(doc));
             var unsupportedGraph = new PdfGraph(unsupported);
             switch (scenario)
             {
-                case "password":
-                    unsupportedGraph.Resolve(field).Entries!["Ff"] = Num(1 << 13);
+                case "richText":
+                    unsupportedGraph.Resolve(field).Entries!["Ff"] = Num(1 << 25);
                     break;
                 case "rotated":
                     unsupportedGraph.Resolve(textWidget).Entries!["MK"] = Dict(("R", Num(90)));
@@ -291,7 +296,180 @@ internal static class FormTests
         TestMultilineAndLists();
         TestMultiSelectLists();
         TestPushButtonsAndSignatures();
+        TestPasswordAndComb();
+        TestRemainingFeatures();
         Console.WriteLine($"Passed {checks} AcroForm checks.");
+    }
+
+    private static void TestRemainingFeatures()
+    {
+        var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage()));
+        PdfFormEditor.InsertTextField(document, 1, "File", "report.txt", 10, 10, 180, 30, fileSelect: true);
+        const string rich = "<body><p>Normal <b>bold</b> <span style=\"color:#ff0000;font-size:18pt\"><i>red</i></span><br/><u>under</u></p></body>";
+        PdfFormEditor.InsertRichTextField(document, 1, "Rich", rich, 10, 50, 250, 90);
+        var fields = PdfFormExtractor.Extract(PdfReader.Read(PdfWriter.Write(document)));
+        if ((fields.Single(f => f.Name == "File").Flags & (1 << 20)) == 0
+            || fields.Single(f => f.Name == "Rich").Values.Single() != "Normal bold red\nunder"
+            || !fields.Single(f => f.Name == "Rich").RichText!.Contains("font-size:18pt"))
+        {
+            throw new Exception("File-select and rich-text metadata must round-trip.");
+        }
+        var rendered = PdfObjectKit.Rendering.PdfCanvasExporter.Export(document, 1);
+        if (!rendered.Commands.Any(c => c.FontName == "Helvetica-Bold") || !rendered.Commands.Any(c => c.Kind == "rg" && c.Numbers.SequenceEqual(new double[] { 1, 0, 0 })))
+        {
+            throw new Exception("Rich appearances must preserve fonts and colors.");
+        }
+        void Reject(Action action)
+        {
+            var before = PdfConverter.ToJson(document);
+            try
+            {
+                action();
+                throw new Exception("Invalid remaining-feature operation accepted.");
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or System.Xml.XmlException)
+            {
+                if (before != PdfConverter.ToJson(document))
+                {
+                    throw new Exception("Rejected feature operation must be atomic.");
+                }
+            }
+        }
+        Reject(() => PdfFormEditor.SetRichText(document, "Rich", "<!DOCTYPE body [<!ENTITY x SYSTEM 'file:///missing'>]><body>&x;</body>"));
+        Reject(() => PdfFormEditor.SetRichText(document, "Rich", "<body><script>bad</script></body>"));
+        Reject(() => PdfFormEditor.SetRichText(document, "Rich", "<body style='background:url(test)'>bad</body>"));
+        PdfFormEditor.SetRichText(document, "Rich", "<body><p><b>Updated</b></p></body>");
+        PdfFormEditor.InsertPushButton(document, 1, "Button", "Action", 10, 150, 150, 30);
+        foreach (var action in new[] {
+            new PdfButtonAction(PdfButtonActionKind.OpenUrl) { Url = "https://example.com/" },
+            new PdfButtonAction(PdfButtonActionKind.GoToPage) { PageNumber = 1 },
+            new PdfButtonAction(PdfButtonActionKind.ResetForm) { FieldNames = ["File"] },
+            new PdfButtonAction(PdfButtonActionKind.SubmitForm) { Url = "https://example.com/submit", FieldNames = ["Rich"] } })
+        {
+            PdfFormEditor.SetButtonAction(document, "Button", action);
+            if (PdfFormExtractor.Extract(PdfReader.Read(PdfWriter.Write(document))).Single(f => f.Name == "Button").Widgets[0].Action?.Kind != action.Kind)
+            {
+                throw new Exception("Button action must round-trip.");
+            }
+        }
+        Reject(() => PdfFormEditor.SetButtonAction(document, "Button", new(PdfButtonActionKind.OpenUrl) { Url = "javascript:bad()" }));
+        Reject(() => PdfFormEditor.SetButtonAction(document, "Button", new(PdfButtonActionKind.GoToPage) { PageNumber = 99 }));
+        PdfFormEditor.SetButtonAction(document, "Button", null);
+        PdfFormEditor.InsertSignatureField(document, 1, "Sign", 10, 190, 180, 40);
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest("CN=PdfObjectKit test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        if (Environment.GetEnvironmentVariable("PDFOBJECTKIT_TEST_CERTIFICATE_PATH") is { Length: > 0 } certificatePath)
+        {
+            // Only a freshly generated self-signed test identity is exported for the browser signing test.
+            File.WriteAllBytes(certificatePath, certificate.Export(X509ContentType.Pkcs12, "test-only"));
+        }
+        var beforeSigning = PdfConverter.ToJson(document);
+        var signed = PdfSigner.Sign(document, "Sign", certificate, "Test signature");
+        if (PdfConverter.ToJson(document) != beforeSigning)
+        {
+            throw new Exception("Signing must not mutate the input document.");
+        }
+        var signedDocument = PdfReader.Read(signed);
+        var form = new PdfFormGraph(signedDocument);
+        var signature = form.Graph.Get(form.Fields.Single(f => f.Model.Name == "Sign").Node, "V")!;
+        var range = form.Graph.Get(signature, "ByteRange")!.Items!.Select(v => checked((int)Number(v))).ToArray();
+        var data = signed.AsSpan(range[0], range[1]).ToArray().Concat(signed.AsSpan(range[2], range[3]).ToArray()).ToArray();
+        var padded = Convert.FromBase64String(form.Graph.Get(signature, "Contents")!.Base64!);
+        var cmsBytes = new AsnReader(padded, AsnEncodingRules.DER).ReadEncodedValue().ToArray();
+        var cms = new SignedCms(new ContentInfo(data), detached: true);
+        cms.Decode(cmsBytes);
+        cms.CheckSignature(verifySignatureOnly: true);
+        if (range[0] != 0 || range[2] + range[3] != signed.Length || cms.SignerInfos.Count != 1
+            || !form.Fields.Single(f => f.Model.Name == "Sign").Model.IsSigned)
+        {
+            throw new Exception("Signature must cover the entire PDF except its Contents and be extractable.");
+        }
+        data[0] ^= 1;
+        var tampered = new SignedCms(new ContentInfo(data), detached: true);
+        tampered.Decode(cmsBytes);
+        try
+        {
+            tampered.CheckSignature(verifySignatureOnly: true);
+            throw new Exception("Tampered PDF signature was accepted.");
+        }
+        catch (CryptographicException)
+        {
+            // Independent CMS verification must detect a changed signed byte.
+        }
+        try
+        {
+            PdfSigner.Sign(signedDocument, "Sign", certificate);
+            throw new Exception("A second signature was accepted without incremental writing.");
+        }
+        catch (NotSupportedException)
+        {
+            // Existing signatures must not be invalidated by a rewrite.
+        }
+        Console.WriteLine("Rich-text, file-select, button action and cryptographic signature checks passed.");
+    }
+
+    private static void TestPasswordAndComb()
+    {
+        var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage()));
+        PdfFormEditor.InsertTextField(document, 1, "Password", "Secret", 40, 40, 150, 30, maxLength: 8, password: true);
+        PdfFormEditor.InsertTextField(document, 1, "Code", "AB", 40, 80, 120, 30, maxLength: 6, comb: true);
+        document = PdfReader.Read(PdfWriter.Write(document));
+        var form = new PdfFormGraph(document);
+        var password = form.Fields.Single(f => f.Model.Name == "Password");
+        string Appearance(PdfFormGraph graph, PdfFormGraph.Field field) => Encoding.ASCII.GetString(Convert.FromBase64String(graph.Graph.Get(graph.Graph.Get(field.Widgets[0], "AP")!, "N")!.Base64!));
+        if (password.Model.MaxLength != 8 || password.Model.Values.Single() != "Secret" || (password.Model.Flags & (1 << 13)) == 0
+            || Appearance(form, password).Contains("Secret") || !Appearance(form, password).Contains(Syntax(Str(Encoding.ASCII.GetBytes("******")))))
+        {
+            throw new Exception("Password appearance must be masked while preserving the stored value and character limit.");
+        }
+        var rendered = string.Concat(PdfObjectKit.Rendering.PdfCanvasExporter.Export(document, 1).Commands.SelectMany(c => c.Glyphs ?? []).Select(g => g.Text));
+        if (rendered.Contains("Secret") || !rendered.Contains("******"))
+        {
+            throw new Exception("Native rendering must use the masked password appearance.");
+        }
+        foreach (var alignment in Enum.GetValues<PdfTextAlignment>())
+        {
+            PdfFormEditor.SetValue(document, "Code", "AB", alignment);
+            var commands = PdfObjectKit.Rendering.PdfCanvasExporter.Export(document, 1).Commands.Where(c => c.Kind == "text" && c.Glyphs!.Count == 1 && c.Glyphs[0].Text is "A" or "B").ToList();
+            var firstCell = alignment == PdfTextAlignment.Right ? 4 : alignment == PdfTextAlignment.Center ? 2 : 0;
+            if (commands.Count != 2 || Math.Abs(commands[0].Numbers[4] - (40 + firstCell * 20 + (20 - 8.004) / 2)) > .001
+                || Math.Abs(commands[1].Numbers[4] - commands[0].Numbers[4] - 20) > .001)
+            {
+                throw new Exception("Comb glyphs must be centered in separate cells with the selected alignment.");
+            }
+        }
+        void Reject(Action action)
+        {
+            var before = PdfConverter.ToJson(document);
+            try
+            {
+                action();
+                throw new Exception("Invalid text mode accepted.");
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or InvalidDataException)
+            {
+                if (before != PdfConverter.ToJson(document))
+                {
+                    throw new Exception("Invalid text mode operations must be atomic.");
+                }
+            }
+        }
+        Reject(() => PdfFormEditor.SetValue(document, "Code", "1234567"));
+        Reject(() => PdfFormEditor.SetValue(document, "Password", "123456789"));
+        Reject(() => PdfFormEditor.SetValue(document, "Password", "a\nb"));
+        Reject(() => PdfFormEditor.InsertTextField(document, 1, "Invalid", "", 0, 0, 100, 30, comb: true));
+        Reject(() => PdfFormEditor.InsertTextField(document, 1, "Invalid", "", 0, 0, 100, 30, maxLength: 0));
+        Reject(() => PdfFormEditor.InsertTextField(document, 1, "Invalid", "", 0, 0, 100, 30, maxLength: 6, password: true, comb: true));
+        Reject(() => PdfFormEditor.InsertTextField(document, 1, "Invalid", "", 0, 0, 100, 30, multiline: true, maxLength: 6, comb: true));
+        PdfFormEditor.SetValue(document, "Password", "");
+        PdfFormEditor.SetValue(document, "Code", "");
+        form = new PdfFormGraph(PdfReader.Read(PdfWriter.Write(document)));
+        if (form.Fields.Any(f => f.Model.Values.Single() != ""))
+        {
+            throw new Exception("Password and comb fields must support clearing.");
+        }
+        Console.WriteLine("Password and comb checks passed.");
     }
 
     private static void TestPushButtonsAndSignatures()

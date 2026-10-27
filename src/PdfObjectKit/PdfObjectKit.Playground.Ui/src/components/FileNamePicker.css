@@ -1,0 +1,8 @@
+.file-name-picker { display: grid; gap: 8px; min-width: 0; }
+.file-name-picker input[hidden] { display: none; }
+.file-name-picker .file-name-choose { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border: 1px dashed #9bb6e7; border-radius: 8px; background: #f6f9ff; color: #2358d3; font-weight: 600; }
+.file-name-picker .file-name-choose:hover:not(:disabled) { background: #eaf1ff; border-color: #2358d3; }
+.file-name-selected { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border-radius: 6px; background: #f2f5fa; color: #405675; font-size: 12px; }
+.file-name-selected svg { flex-shrink: 0; }
+.file-name-selected span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-name-picker .control-help { margin: 0; }

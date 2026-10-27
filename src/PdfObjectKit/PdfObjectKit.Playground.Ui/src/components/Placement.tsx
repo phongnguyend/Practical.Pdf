@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
 import type { Alignment } from './TextAlignment';
 import type { PageViewport } from 'pdfjs-dist';
 
-export type FieldPreview = { type: string; value: string; values?: string[]; choices: { exportValue: string; displayValue: string }[] };
+export type FieldPreview = { type: string; value: string; maxLength?: number; values?: string[]; choices: { exportValue: string; displayValue: string }[] };
 
 export type Bounds = { x: number; y: number; width: number; height: number };
 
@@ -28,10 +28,11 @@ export function Placement({ viewport, bounds, onChange, image, text, fontSize = 
   const [a, b, c, d] = viewport.transform;
   const [fieldX, fieldY] = viewport.convertToViewportPoint(bounds.x, bounds.y + bounds.height);
   const buttonField = field && (fieldPreview?.type === 'CheckBox' || fieldPreview?.type === 'RadioButton');
-  const previewText = field && fieldPreview?.type === 'Choice' ? fieldPreview.choices.find(choice => choice.exportValue === fieldPreview.value)?.displayValue ?? '' : text;
+  const previewText = field && fieldPreview?.type === 'Choice' ? fieldPreview.choices.find(choice => choice.exportValue === fieldPreview.value)?.displayValue ?? '' : field && fieldPreview?.type === 'RichText' ? new DOMParser().parseFromString(text ?? '<body/>', 'application/xml').documentElement.textContent ?? '' : field && fieldPreview?.type === 'Password' ? '*'.repeat((text ?? '').length) : text;
   const [baselineX, baselineY] = viewport.convertToViewportPoint(
     bounds.x + (field ? alignment === 'Center' ? bounds.width / 2 : alignment === 'Right' ? bounds.width - 2 : 2 : 0),
     bounds.y + (field ? Math.max(2, (bounds.height - 12) / 2 + 2) : 0));
+  const comb = field && fieldPreview?.type === 'Comb' && (fieldPreview.maxLength ?? 0) > 0;
   const appearanceField = field && (fieldPreview?.type === 'PushButton' || fieldPreview?.type === 'Signature');
   const multiline = field && fieldPreview?.type === 'MultilineText';
   const listBox = field && (fieldPreview?.type === 'ListBox' || fieldPreview?.type === 'MultiSelectListBox');
@@ -97,7 +98,14 @@ export function Placement({ viewport, bounds, onChange, image, text, fontSize = 
     }} onPointerMove={update} onPointerUp={event => { update(event); drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
     {text !== undefined && <svg className="text-placement-preview" aria-label="Text placement preview" width={viewport.width} height={viewport.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
       {field && <defs><clipPath id={clipId}><rect x={left} y={top} width={width} height={height} /></clipPath></defs>}
-      <g clipPath={field ? `url(#${clipId})` : undefined}>{appearanceField ? <g transform={`matrix(${a} ${b} ${-c} ${-d} ${fieldX} ${fieldY})`}>
+      <g clipPath={field ? `url(#${clipId})` : undefined}>{comb ? <g transform={`matrix(${a} ${b} ${-c} ${-d} ${fieldX} ${fieldY})`}>
+        {[...(text ?? '').slice(0, fieldPreview!.maxLength)].map((character, index, characters) => {
+          const cells = fieldPreview!.maxLength!;
+          const cellWidth = bounds.width / cells;
+          const first = alignment === 'Right' ? cells - characters.length : alignment === 'Center' ? Math.floor((cells - characters.length) / 2) : 0;
+          return <svg key={index} x={(first + index) * cellWidth} y={0} width={cellWidth} height={bounds.height} overflow="hidden"><text x={cellWidth / 2} y={bounds.height - Math.max(2, (bounds.height - 12) / 2 + 2)} textAnchor="middle" fontFamily="Helvetica, Arial, sans-serif" fontSize={12} fill="black" xmlSpace="preserve">{character}</text></svg>;
+        })}
+      </g> : appearanceField ? <g transform={`matrix(${a} ${b} ${-c} ${-d} ${fieldX} ${fieldY})`}>
         <rect x={.5} y={.5} width={Math.max(0, bounds.width - 1)} height={Math.max(0, bounds.height - 1)} fill={fieldPreview!.type === 'PushButton' ? '#f0f0f0' : 'white'} stroke="#808080" />
         <text x={bounds.width / 2} y={bounds.height - Math.max(2, (bounds.height - 12) / 2 + 2)} textAnchor="middle" fontFamily="Helvetica, Arial, sans-serif" fontSize={12} fill="black">{fieldPreview!.type === 'Signature' ? 'Unsigned signature' : fieldPreview!.value}</text>
       </g> : buttonField ? <g transform={`matrix(${a} ${b} ${-c} ${-d} ${fieldX} ${fieldY})`}>

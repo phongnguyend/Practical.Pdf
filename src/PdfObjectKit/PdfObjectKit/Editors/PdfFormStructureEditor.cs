@@ -153,10 +153,14 @@ public static partial class PdfFormEditor
     }
 
     /// <summary>Adds a top-level text field (optionally multiline) and its widget, using the default field appearance.</summary>
-    public static void InsertTextField(PdfObjectDocument document, int pageNumber, string fieldName, string value, double x, double y, double width, double height, PdfTextAlignment textAlignment = PdfTextAlignment.Left, bool multiline = false)
+    public static void InsertTextField(PdfObjectDocument document, int pageNumber, string fieldName, string value, double x, double y, double width, double height, PdfTextAlignment textAlignment = PdfTextAlignment.Left, bool multiline = false, int? maxLength = null, bool password = false, bool comb = false, bool fileSelect = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
-        if (fieldName.Contains('.') || !double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(width) || !double.IsFinite(height)
+        if (fileSelect && (multiline || password || comb) || maxLength is <= 0 || comb && (maxLength is null || multiline || password) || password && multiline)
+        {
+            throw new ArgumentException("Use a positive character limit. Comb requires a limit and cannot combine with multiline or password; password must be single-line.");
+        }
+        if (fieldName.Contains('.') || fieldName.Any(char.IsControl) || !double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(width) || !double.IsFinite(height)
             || width <= 0 || height <= 0 || !double.IsFinite(x + width) || !double.IsFinite(y + height))
         {
             throw new ArgumentException("Use a top-level field name without dots and finite positive dimensions.");
@@ -171,12 +175,21 @@ public static partial class PdfFormEditor
             }
 
             var graph = form.Graph;
-            var page = graph.Pages()[pageNumber - 1];
+            var pages = graph.Pages();
+            if (pageNumber < 1 || pageNumber > pages.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(pageNumber));
+            }
+            var page = pages[pageNumber - 1];
             var acro = form.AcroForm ?? Dict(("Fields", Array()));
             graph.Resolve(working.Trailer.Entries!["Root"]).Entries!["AcroForm"] = acro;
             var widget = Dict(("Type", Name("Annot")), ("Subtype", Name("Widget")), ("FT", Name("Tx")),
                 ("T", Str(new byte[] { 0xFE, 0xFF }.Concat(Encoding.BigEndianUnicode.GetBytes(fieldName)).ToArray())),
-                ("Ff", Num(multiline ? 1 << 12 : 0)), ("F", Num(4)), ("Rect", Array(Num(x), Num(y), Num(x + width), Num(y + height))));
+                ("Ff", Num((multiline ? 1 << 12 : 0) | (password ? 1 << 13 : 0) | (comb ? 1 << 24 : 0) | (fileSelect ? 1 << 20 : 0))), ("F", Num(4)), ("Rect", Array(Num(x), Num(y), Num(x + width), Num(y + height))));
+            if (maxLength.HasValue)
+            {
+                widget.Entries!["MaxLen"] = Num(maxLength.Value);
+            }
             var id = new PdfReference(checked(working.Objects.Max(o => o.Id.ObjectNumber) + 1));
             working.Objects.Add(new(id, widget));
             acro.Entries!["Fields"] = new() { Type = "array", Items = [.. graph.Get(acro, "Fields")?.Items ?? [], Ref(id)] };

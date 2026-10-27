@@ -22,6 +22,12 @@ public sealed class PdfFormField
 
     public PdfTextAlignment TextAlignment { get; init; }
 
+    public string? RichText { get; init; }
+
+    public bool IsSigned { get; init; }
+
+    public int? MaxLength { get; init; }
+
     public int Flags { get; init; }
 
     public bool IsReadOnly => (Flags & 1) != 0;
@@ -46,6 +52,8 @@ public sealed class PdfFormWidget
     public int? PageNumber { get; init; }
 
     public List<double> Rectangle { get; init; } = [];
+
+    public PdfButtonAction? Action { get; init; }
 
     public string? Caption { get; init; }
 

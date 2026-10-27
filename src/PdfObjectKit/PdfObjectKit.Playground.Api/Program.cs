@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using PdfObjectKit.Signing;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using PdfObjectKit.Editors;
@@ -51,7 +54,40 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, cancellation);
         var document = PdfReader.Read(buffer.ToArray());
-        if (edit.Kind == "delete-text-line" && edit.Runs is { Count: > 0 })
+        if (PdfFormExtractor.Extract(document).Any(field => field.IsSigned))
+        {
+            throw new NotSupportedException("This PDF contains a signature. Editing would invalidate it; signed-document editing is disabled.");
+        }
+        byte[]? signedBytes = null;
+        if (edit.Kind == "sign-field" && edit.FieldName is not null)
+        {
+            var certificateFile = form.Files.GetFile("certificate");
+            if (certificateFile is null || certificateFile.Length is <= 0 or > 1048576)
+            {
+                throw new ArgumentException("Choose a PFX/P12 certificate up to 1 MB.");
+            }
+            using var certificateBuffer = new MemoryStream();
+            await certificateFile.CopyToAsync(certificateBuffer, cancellation);
+            var certificateBytes = certificateBuffer.ToArray();
+            try
+            {
+                using var certificate = X509CertificateLoader.LoadPkcs12(certificateBytes, edit.CertificatePassword, X509KeyStorageFlags.EphemeralKeySet);
+                signedBytes = PdfSigner.Sign(document, edit.FieldName, certificate, edit.Value);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(certificateBytes);
+            }
+        }
+        else if (edit.Kind == "button-action" && edit.FieldName is not null)
+        {
+            PdfFormEditor.SetButtonAction(document, edit.FieldName, edit.Action);
+        }
+        else if (edit.Kind == "rich-text" && edit.FieldName is not null)
+        {
+            PdfFormEditor.SetRichText(document, edit.FieldName, edit.Value, edit.TextAlignment);
+        }
+        else if (edit.Kind == "delete-text-line" && edit.Runs is { Count: > 0 })
         {
             PdfTextEditor.DeleteText(document, edit.PageNumber, edit.Runs);
         }
@@ -100,7 +136,14 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             switch (edit.FieldType)
             {
                 case PdfFormFieldKind.Text:
-                    PdfFormEditor.InsertTextField(document, edit.PageNumber, edit.FieldName, edit.Value, edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left, edit.Multiline);
+                    if (edit.RichText)
+                    {
+                        PdfFormEditor.InsertRichTextField(document, edit.PageNumber, edit.FieldName, edit.Value, edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left);
+                    }
+                    else
+                    {
+                        PdfFormEditor.InsertTextField(document, edit.PageNumber, edit.FieldName, edit.Value, edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left, edit.Multiline, edit.MaxLength, edit.Password, edit.Comb, edit.FileSelect);
+                    }
                     break;
                 case PdfFormFieldKind.PushButton:
                     PdfFormEditor.InsertPushButton(document, edit.PageNumber, edit.FieldName, edit.Value, edit.X, edit.Y, edit.Width, edit.Height);
@@ -168,7 +211,7 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             return Results.Problem("Choose a text run or form field to edit.", statusCode: 400);
         }
 
-        var bytes = PdfWriter.Write(document);
+        var bytes = signedBytes ?? PdfWriter.Write(document);
         if (bytes.Length > maxBytes)
         {
             return Results.Problem("The edited PDF exceeds the playground's 20 MB limit.", statusCode: 422);
@@ -180,7 +223,7 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
     {
         return Results.Problem("The edit request could not be read.", statusCode: ex.StatusCode);
     }
-    catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or ArgumentException or InvalidOperationException or JsonException or FormatException or OverflowException)
+    catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or ArgumentException or InvalidOperationException or JsonException or FormatException or OverflowException or CryptographicException or System.Xml.XmlException)
     {
         return Results.Problem($"Edit rejected: {ex.Message}", statusCode: 422);
     }
@@ -295,7 +338,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
                 {
                     if (widget.PageNumber is { } page && widget.Rectangle is { Count: 4 } r)
                     {
-                        items.Add(new($"widget{++widgetNumber}", page, "field", field.Name, Rectangle(r[0], r[1], r[2], r[3]), new { field.Name, field.Kind, field.Values, field.TextAlignment, field.IsReadOnly, field.Flags, field.Choices, widgetIndex = field.Widgets.IndexOf(widget), states = field.Widgets.SelectMany(w => w.AppearanceStates).Distinct(), widget }));
+                        items.Add(new($"widget{++widgetNumber}", page, "field", field.Name, Rectangle(r[0], r[1], r[2], r[3]), new { field.Name, field.Kind, field.Values, field.TextAlignment, field.IsReadOnly, field.Flags, field.MaxLength, field.RichText, field.IsSigned, field.Choices, widgetIndex = field.Widgets.IndexOf(widget), states = field.Widgets.SelectMany(w => w.AppearanceStates).Distinct(), widget }));
                     }
                 }
             }
@@ -335,4 +378,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null);

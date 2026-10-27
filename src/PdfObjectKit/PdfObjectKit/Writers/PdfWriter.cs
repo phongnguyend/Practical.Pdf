@@ -12,7 +12,7 @@ public static class PdfWriter
 
     public static byte[] Write(PdfObjectDocument document) => WriteObjects(document);
 
-    internal static byte[] WriteObjects(PdfObjectDocument document)
+    internal static byte[] WriteObjects(PdfObjectDocument document, Action<PdfValue, long, long>? valueWritten = null)
     {
         PdfDocumentValidator.Validate(document);
         using var output = new MemoryStream();
@@ -52,6 +52,7 @@ public static class PdfWriter
 
         void Value(PdfValue value)
         {
+            var start = output.Position;
             switch (value.Type)
             {
                 case "null":
@@ -93,6 +94,7 @@ public static class PdfWriter
                     Write("\nendstream");
                     break;
             }
+            valueWritten?.Invoke(value, start, output.Position - start);
         }
 
         Write($"%PDF-{document.PdfVersion}\n");

@@ -915,10 +915,140 @@ for (const type of ['PushButton', 'Signature']) {
       await expect(page.getByLabel('New value', { exact: true })).toHaveValue('Next step');
     } else {
       await expect(page.getByLabel('New value', { exact: true })).toHaveCount(0);
-      await expect(page.locator('.inspector-notice')).toContainText('Signing is not available');
+      await expect(page.locator('.inspector-notice')).toContainText('digital signature controls');
     }
     await page.getByRole('button', { name: 'Delete field', exact: true }).click();
     await expect(widget).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
   });
 }
+
+for (const type of ['Password', 'Comb']) {
+  test(`create and edit ${type} text field with character limit`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await page.getByRole('button', { name: 'Form field', exact: true }).click();
+    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await page.getByLabel('Field name', { exact: true }).fill('TextMode');
+    await page.getByLabel('Maximum characters', { exact: true }).fill('6');
+    await page.getByLabel('Text to insert', { exact: true }).fill(type === 'Password' ? 'Secret' : 'ABC');
+    await expect(page.getByLabel('Text to insert', { exact: true })).toHaveAttribute('maxlength', '6');
+    const preview = page.getByLabel('Text placement preview');
+    if (type === 'Password') {
+      await expect(page.getByLabel('Text to insert', { exact: true })).toHaveAttribute('type', 'password');
+      await expect(preview).toContainText('******');
+      await expect(preview).not.toContainText('Secret');
+    } else {
+      await expect(preview.locator('text')).toHaveCount(3);
+    }
+    await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+    const widget = page.locator('.object').filter({ hasText: 'TextMode' });
+    await expect(widget).toHaveCount(1);
+    await widget.click();
+    await expect(page.getByLabel('New value', { exact: true })).toHaveAttribute('maxlength', '6');
+    if (type === 'Password') {
+      await expect(page.getByLabel('New value', { exact: true })).toHaveAttribute('type', 'password');
+      await expect(page.locator('.inspector pre')).not.toContainText('Secret');
+    }
+    await page.getByLabel('New value', { exact: true }).fill('XYZ');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.locator('.inspector pre')).toHaveCount(0);
+    await widget.click();
+    await expect(page.getByLabel('New value', { exact: true })).toHaveValue('XYZ');
+    await page.getByRole('button', { name: 'PdfObjectKit (experimental)', exact: true }).click();
+    await expect(page.locator('.page > div > canvas')).toHaveAttribute('data-renderer', 'native');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+}
+
+for (const type of ['RichText', 'FileSelect']) {
+  test(`create and edit ${type} advanced field`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await page.getByRole('button', { name: 'Form field', exact: true }).click();
+    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await page.getByLabel('Field name', { exact: true }).fill('Advanced');
+    if (type === 'RichText') {
+      await page.getByLabel('Rich text XHTML', { exact: true }).fill('<body><p>Hello <b>bold</b></p></body>');
+    } else {
+      await page.getByLabel('Choose file name', { exact: true }).setInputFiles({ name: 'report.txt', mimeType: 'text/plain', buffer: Buffer.from('not uploaded') });
+    }
+    await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+    const widget = page.locator('.object').filter({ hasText: 'Advanced' });
+    await expect(widget).toHaveCount(1);
+    await widget.click();
+    const value = type === 'RichText' ? '<body><p><i>Updated</i></p></body>' : 'updated.txt';
+    await page.getByLabel('New value', { exact: true }).fill(value);
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.locator('.inspector pre')).toHaveCount(0);
+    await widget.click();
+    if (type === 'RichText') {
+      await expect(page.getByLabel('New value', { exact: true })).toHaveValue(/<i>Updated<\/i>/);
+    } else {
+      await expect(page.getByLabel('New value', { exact: true })).toHaveValue(value);
+    }
+    await page.getByRole('button', { name: 'PdfObjectKit (experimental)', exact: true }).click();
+    await expect(page.locator('.page > div > canvas')).toHaveAttribute('data-renderer', 'native');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+}
+
+test('configure and remove a pushbutton action', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.getByRole('button', { name: 'Form field', exact: true }).click();
+  await page.getByLabel('Field type', { exact: true }).selectOption('PushButton');
+  await page.getByLabel('Field name', { exact: true }).fill('ActionButton');
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  const widget = page.locator('.object').filter({ hasText: 'ActionButton' });
+  await widget.click();
+  await page.getByLabel('Button action', { exact: true }).selectOption('OpenUrl');
+  await page.getByLabel('Action URL', { exact: true }).fill('https://example.com/');
+  await page.getByRole('button', { name: 'Save action', exact: true }).click();
+  await expect(page.locator('.inspector pre')).toHaveCount(0);
+  await widget.click();
+  await expect(page.getByLabel('Button action', { exact: true })).toHaveValue('OpenUrl');
+  await page.getByLabel('Button action', { exact: true }).selectOption('None');
+  await page.getByRole('button', { name: 'Save action', exact: true }).click();
+  await expect(page.locator('.inspector pre')).toHaveCount(0);
+  await widget.click();
+  await expect(page.getByLabel('Button action', { exact: true })).toHaveValue('None');
+});
+
+test('sign a PDF with an ephemeral test certificate and reject later edits', async ({ page }) => {
+  test.setTimeout(120000);
+  const { mkdtemp, readFile, rm, rmdir } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join, resolve } = await import('node:path');
+  const { execFileSync } = await import('node:child_process');
+  const directory = await mkdtemp(join(tmpdir(), 'pdfobjectkit-signing-test-'));
+  const path = join(directory, 'test.pfx');
+  try {
+    execFileSync('dotnet', ['run', '--project', resolve('../PdfObjectKit.Tests'), '-c', 'SigningBrowserFixture', '--no-restore'], { env: { ...process.env, PDFOBJECTKIT_TEST_CERTIFICATE_PATH: path }, timeout: 60000, stdio: 'pipe' });
+    const certificate = await readFile(path);
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await page.getByRole('button', { name: 'Form field', exact: true }).click();
+    await page.getByLabel('Field type', { exact: true }).selectOption('Signature');
+    await page.getByLabel('Field name', { exact: true }).fill('Signature');
+    await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+    const widget = page.locator('.object').filter({ hasText: 'Signature' });
+    await widget.click();
+    await page.getByLabel('Signing certificate', { exact: true }).setInputFiles({ name: 'test.pfx', mimeType: 'application/x-pkcs12', buffer: certificate });
+    await page.getByLabel('Certificate password', { exact: true }).fill('test-only');
+    await page.getByRole('button', { name: 'Sign PDF', exact: true }).click();
+    await expect(page.locator('.inspector pre')).toHaveCount(0);
+    await widget.click();
+    await expect(page.locator('.inspector pre')).toContainText('"isSigned": true');
+    await expect(page.getByRole('button', { name: 'Sign PDF', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Delete field', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Editing would invalidate');
+  } finally {
+    await rm(path, { force: true });
+    await rmdir(directory);
+  }
+});

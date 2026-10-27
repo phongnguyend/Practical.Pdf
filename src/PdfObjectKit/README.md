@@ -569,13 +569,13 @@ PdfFormEditor.InsertRadioGroup(document, 1, "ContactMethod",
     [new("Email", "By email"), new("Phone", "By phone")], "Email", 40, 470, 180, 48);
 ```
 
-In the playground, place **Form field**, then select **Text field**, **Multiline text**, **Checkbox**, **Dropdown**, **List box**, **Multi-select list box**, **Radio group**, **Pushbutton**, or **Signature field** in the Inspector. Dropdowns, list boxes and radio groups accept one option label per line and an initial selection. Radio options occupy equal-height rows; allow at least 16 PDF points per option. Radio export states in the playground are `Choice1`, `Choice2`, etc.; the library accepts custom export states. `Off` is reserved for an unchecked/cleared button. Names must be unique top-level names. New dropdowns are noneditable and single-select. Labels currently use printable ASCII; checkbox/radio appearances are generated as vector graphics. Placement previews update live. Both renderers display saved normal widget appearances. The native renderer reports widgets with missing appearances instead of synthesizing their appearance from values.
+In the playground, place **Form field**, then select **Text field**, **Rich text**, **File select**, **Password**, **Comb**, **Multiline text**, **Checkbox**, **Dropdown**, **List box**, **Multi-select list box**, **Radio group**, **Pushbutton**, or **Signature field** in the Inspector. Dropdowns, list boxes and radio groups accept one option label per line and an initial selection. Radio options occupy equal-height rows; allow at least 16 PDF points per option. Radio export states in the playground are `Choice1`, `Choice2`, etc.; the library accepts custom export states. `Off` is reserved for an unchecked/cleared button. Names must be unique top-level names. New dropdowns are noneditable and single-select. Labels currently use printable ASCII; checkbox/radio appearances are generated as vector graphics. Placement previews update live. Both renderers display saved normal widget appearances. The native renderer reports widgets with missing appearances instead of synthesizing their appearance from values.
 
 Extraction returns terminal fields with qualified names, types, inherited flags and values, default values, choice export/display pairs, and widget references, page numbers, rectangles and appearance-state names. Documents without an AcroForm return an empty list. XFA forms are unsupported.
 
 Editing updates the field value and every associated widget appearance. Checkboxes and radio buttons use their existing appearance streams; `SetValue` accepts an appearance-state name or `Off`. Single-line/multiline text, single-selection dropdowns, and single/multi-select list boxes generate plain black 12pt Helvetica appearances using printable ASCII display text. This replaces custom styling, borders and backgrounds, and clips text to the widget rectangle without fitting. Text and dropdown fields support `PdfTextAlignment.Left`, `Center`, and `Right`. Pass the optional `textAlignment` argument to `SetValue` or `InsertTextField`; value edits preserve the inherited alignment when it is omitted. `PdfFormExtractor` exposes `TextAlignment`. The playground provides alignment buttons for new and existing fields, with live alignment previews when creating fields. Dropdowns store the export value and display the matching label. Fields remain interactive; they are not flattened.
 
-Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, password/comb/rich-text fields, and unsupported display characters are rejected. Digital signing, button action creation, script execution and font/style preservation are not implemented. Pushbutton captions can be edited using `SetPushButtonCaption`. `PdfFormEditor.InsertTextField` creates a top-level text field (`multiline: true` enables line breaks and wrapping); `DeleteField` removes a terminal field and all its widgets from the field tree and page annotations.
+Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, unsupported rich-text markup and unsupported display characters are rejected. First RSA approval signatures and common button actions are supported as described below. Script execution and arbitrary font/style preservation are not implemented. Pushbutton captions can be edited using `SetPushButtonCaption`. `PdfFormEditor.InsertTextField` creates a top-level text field (`multiline: true` enables line breaks and wrapping); `DeleteField` removes a terminal field and all its widgets from the field tree and page annotations.
 
 ## Browser playground
 
@@ -692,7 +692,7 @@ PdfFormEditor.SetValue(document, "Notes", "Updated\nnotes");
 PdfFormEditor.SetValue(document, "Country", "US");
 ```
 
-Multiline fields preserve the complete value, wrap at spaces (or characters for long words), and draw top-down with 14pt line spacing. Overflow is clipped to the widget; font size is not reduced. CR, LF and CRLF line endings are accepted. List boxes store the export value and selection index, highlight the selected label, and scroll the saved appearance to that option. An empty value clears the selection. Both support left/center/right alignment. The playground offers live approximate previews and editing for these modes. Password/comb/rich-text fields, digital signing and button action creation remain unsupported.
+Multiline fields preserve the complete value, wrap at spaces (or characters for long words), and draw top-down with 14pt line spacing. Overflow is clipped to the widget; font size is not reduced. CR, LF and CRLF line endings are accepted. List boxes store the export value and selection index, highlight the selected label, and scroll the saved appearance to that option. An empty value clears the selection. Both support left/center/right alignment. The playground offers live approximate previews and editing for these modes. Rich-text and file-select modes use the dedicated APIs described below.
 
 
 Multi-select list boxes use an array of export values:
@@ -718,7 +718,72 @@ PdfFormEditor.InsertSignatureField(document, 1, "ApproverSignature", 40, 60, 240
 
 Pushbuttons have a centered printable-ASCII caption and a generated 12pt Helvetica appearance. `SetPushButtonCaption` updates all widgets and replaces custom appearance styling; it does not set a field value or execute actions. The extractor exposes the normal caption as `PdfFormWidget.Caption`. Newly created buttons have no actions attached.
 
-Signature fields are unsigned placeholders with no `/V` signature dictionary. Their appearance reads ?Unsigned signature?; this is not a digital signature or a drawn signature image. Sign them using a separate signing tool. Creation and caption editing reject already signed forms. The playground supports placement previews, caption editing, and the existing move/rename/delete actions for these fields. Digital signing and button action configuration are not included. `Unknown` is an extraction fallback, not a creatable field type.
+Signature fields are unsigned placeholders with no `/V` signature dictionary. Their appearance reads ?Unsigned signature?; this is not a digital signature or a drawn signature image. Sign them using `PdfSigner.Sign` or another signing tool. Creation and caption editing reject already signed forms. The playground supports placement previews, caption editing, and the existing move/rename/delete actions for these fields. Use `PdfSigner.Sign` or the playground signing controls to create a first digital signature, and `SetButtonAction` to configure an action. `Unknown` is an extraction fallback, not a creatable field type.
 
 
 The native renderer draws visible widgets after page content using their saved normal `/AP /N` appearances. Checkbox/radio state dictionaries use `/AS`. Appearance matrices and bounding boxes map into each widget rectangle; hidden, invisible and NoView widgets are skipped. Rendering does not modify the PDF or add widget text to the text extractor. Widgets without usable appearances produce a rendering note; regenerate appearances by editing the field or use a PDF viewer that synthesizes them. NoZoom/NoRotate annotation flags and other advanced annotation behavior remain unsupported.
+
+
+### Password and comb text fields
+
+```csharp
+PdfFormEditor.InsertTextField(document, 1, "Password", "sample", 40, 400, 180, 30,
+    maxLength: 12, password: true);
+PdfFormEditor.InsertTextField(document, 1, "Code", "AB12", 40, 350, 180, 30,
+    maxLength: 6, comb: true);
+PdfFormEditor.SetValue(document, "Code", "CD34", PdfTextAlignment.Center);
+```
+
+`maxLength` is optional for regular, multiline and password text fields, and required for comb fields. It must be a positive integer; creation and edits reject values exceeding it without changing the document. `PdfFormField.MaxLength` exposes the inherited limit. Comb appearances place one character in each equal-width cell, with left/center/right cell alignment and clipping per cell. Comb cannot combine with password or multiline. Password fields are single-line and display asterisks in saved appearances, the placement preview, and masked inspector controls. **Masking is not encryption:** the actual value is stored in the PDF and remains available to extraction clients. These modes currently accept printable ASCII. The playground provides the two modes and character-limit controls; both PDF.js and the native renderer use their saved appearances. See below for rich text, file-select fields, digital signing and button actions.
+
+
+### Rich text and file-select fields
+
+```csharp
+PdfFormEditor.InsertRichTextField(document, 1, "Message",
+    "<body><p>Hello <b>world</b></p></body>", 40, 400, 240, 80);
+PdfFormEditor.SetRichText(document, "Message",
+    "<body><p><span style=\"font-size:18pt;color:#ff0000\">Updated</span></p></body>");
+PdfFormEditor.InsertTextField(document, 1, "AttachmentPath", "report.txt",
+    40, 350, 240, 30, fileSelect: true);
+```
+
+Rich text normalizes the XHTML namespace and stores synchronized XHTML (`RV`) and plain text (`V`) and generates styled appearances for both renderers. Supported elements: `body`, `p`, `span`, `b`/`strong`, `i`/`em`, `u`, `br`. Supported styles: Helvetica/sans-serif, 1-200pt sizes, bold/normal weight, italic/normal style, underline/none, and `#RRGGBB` colors. Text is ASCII, wraps at character boundaries and clips overflow. Unsupported elements/styles, DTDs and external entities are rejected; this is not an HTML/CSS browser. Use `SetRichText`, not `SetValue`, for rich fields. `PdfFormField.RichText` exposes stored markup. The playground offers an XHTML source editor and an approximate plain-text placement preview; saved appearances carry styling.
+
+File-select fields set the PDF FileSelect flag and store a path/name as a single-line string. The playground file picker supplies only a file name: it does not upload, attach, or read the file contents. File-select cannot combine with password, comb or multiline flags. Supporting PDF viewers decide how their own file picker behaves.
+
+### Pushbutton actions
+
+```csharp
+PdfFormEditor.SetButtonAction(document, "ContinueButton",
+    new(PdfButtonActionKind.OpenUrl) { Url = "https://example.com/" });
+PdfFormEditor.SetButtonAction(document, "ContinueButton",
+    new(PdfButtonActionKind.GoToPage) { PageNumber = 2 });
+PdfFormEditor.SetButtonAction(document, "ContinueButton",
+    new(PdfButtonActionKind.ResetForm) { FieldNames = ["Message"] });
+PdfFormEditor.SetButtonAction(document, "ContinueButton",
+    new(PdfButtonActionKind.SubmitForm) { Url = "https://example.com/submit" });
+PdfFormEditor.SetButtonAction(document, "ContinueButton", null); // Remove the primary action.
+```
+
+Actions are stored in widget `A` dictionaries and exposed through `PdfFormWidget.Action`. Reset/submit can target named fields; omit `FieldNames` for all fields. Submit uses XFDF. URLs must be HTTP(S) without embedded credentials. Actions are never executed by the library or playground; use a supporting PDF viewer. JavaScript, launch actions and action chains are not generated. Viewer support and security settings determine behavior.
+
+### Digital signatures
+
+```csharp
+using PdfObjectKit.Signing;
+using System.Security.Cryptography.X509Certificates;
+
+using var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+    "signer.pfx", certificatePassword, X509KeyStorageFlags.EphemeralKeySet);
+byte[] signedPdf = PdfSigner.Sign(document, "ApproverSignature", certificate, "Approved");
+File.WriteAllBytes("signed.pdf", signedPdf);
+```
+
+Signing creates a first approval signature using RSA (2048+ bits), SHA-256 and detached CMS (`adbe.pkcs7.detached`). The core library remains dependency-free; tests independently verify the CMS using .NET `SignedCms`, including tamper detection. The signer requires a writable unsigned signature field, a current certificate and an accessible RSA private key. It returns final bytes without modifying the source graph. **Save these exact bytes:** rebuilding or editing them invalidates the signature.
+
+The playground accepts a PFX/P12 up to 1 MB and its password for the current local API operation, loads the key ephemerally, and does not persist the certificate. Finish edits before choosing **Sign PDF**. The API rejects further editing of signed PDFs. `PdfFormField.IsSigned` means a signature value is present; it is not a trust or integrity verdict. Validate the output with a PDF signature validator. A self-signed test certificate will not automatically be trusted by viewers.
+
+Limitations: one signature on a rewritten unsigned document; no incremental/countersigning, certification/DocMDP, seed-value constraints, ECDSA, timestamps, revocation evidence, long-term validation, or PAdES conformance claim. Only the signer certificate is included. Signing does not establish certificate-chain trust. These unsupported cases are not silently represented as completed signing workflows.
+
+Format references: [Adobe signature formats](https://www.adobe.com/devnet-docs/acrobatetk/tools/DigSigDC/standards.html), [.NET detached CMS](https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.pkcs.signedcms.computesignature).

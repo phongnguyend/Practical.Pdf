@@ -47,7 +47,7 @@ internal sealed class PdfFormGraph
             }
 
             var values = new Dictionary<string, PdfValue>(inherited);
-            foreach (var key in new[] { "FT", "Ff", "V", "DV", "DA", "Q", "MaxLen", "Opt" })
+            foreach (var key in new[] { "FT", "Ff", "V", "DV", "DA", "Q", "MaxLen", "Opt", "RV" })
             {
                 if (Graph.Get(node, key) is { } value)
                 {
@@ -85,6 +85,7 @@ internal sealed class PdfFormGraph
                     ObjectReference = widgetRaw.Reference,
                     PageNumber = pages.TryGetValue(widget, out var number) ? number : null,
                     Rectangle = Graph.Get(widget, "Rect")?.Items?.Select(v => Number(Graph.Resolve(v))).ToList() ?? [],
+                    Action = ReadAction(Graph.Get(widget, "A") ?? Graph.Get(node, "A")),
                     Caption = Graph.Get(widget, "MK") is { } mk && Graph.Get(mk, "CA") is { } caption ? Text(caption) : null,
                     AppearanceStates = Graph.Get(widget, "AP") is { } ap && Graph.Get(ap, "N") is { Type: "dictionary" } states
                         ? states.Entries!.Keys.ToList() : []
@@ -122,6 +123,10 @@ internal sealed class PdfFormGraph
             Fields.Add(new(new PdfFormField
             {
                 Name = name, ObjectReference = raw.Reference, Kind = kind, Flags = flags,
+                RichText = values.GetValueOrDefault("RV") is { Type: "string" } rich ? Text(rich) : null,
+                IsSigned = kind == PdfFormFieldKind.Signature && values.ContainsKey("V"),
+                MaxLength = values.TryGetValue("MaxLen", out var maxLength) && Number(maxLength) is > 0 and <= int.MaxValue
+                    && Number(maxLength) == Math.Truncate(Number(maxLength)) ? (int)Number(maxLength) : null,
                 Values = ReadValues(values.GetValueOrDefault("V")), DefaultValues = ReadValues(values.GetValueOrDefault("DV")),
                 TextAlignment = values.TryGetValue("Q", out var alignment) && Number(alignment) is 1 or 2
                     ? (PdfTextAlignment)(int)Number(alignment) : PdfTextAlignment.Left,
@@ -142,6 +147,39 @@ internal sealed class PdfFormGraph
         {
             Walk(root, "", defaults, 0);
         }
+    }
+
+    private PdfButtonAction? ReadAction(PdfValue? action)
+    {
+        if (action is null)
+        {
+            return null;
+        }
+        var names = Graph.Get(action, "Fields")?.Items?.Select(v => Text(Graph.Resolve(v))).ToList();
+        switch (Graph.Get(action, "S")?.Name)
+        {
+            case "URI":
+                return new(PdfButtonActionKind.OpenUrl) { Url = Graph.Get(action, "URI") is { } uri ? Text(uri) : null };
+            case "ResetForm":
+                return new(PdfButtonActionKind.ResetForm) { FieldNames = names };
+            case "SubmitForm":
+                var file = Graph.Get(action, "F");
+                var url = file?.Type == "dictionary" ? Graph.Get(file, "F") : file;
+                return new(PdfButtonActionKind.SubmitForm) { Url = url is null ? null : Text(url), FieldNames = names };
+            case "GoTo":
+                var destination = Graph.Get(action, "D")?.Items;
+                if (destination is { Count: > 0 })
+                {
+                    var page = Graph.Resolve(destination[0]);
+                    var match = Graph.Pages().FindIndex(p => ReferenceEquals(p.Dictionary, page));
+                    if (match >= 0)
+                    {
+                        return new(PdfButtonActionKind.GoToPage) { PageNumber = match + 1 };
+                    }
+                }
+                break;
+        }
+        return null;
     }
 
     private List<string> ReadValues(PdfValue? value)

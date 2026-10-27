@@ -23,6 +23,9 @@ internal sealed class PdfNativeFont
 
     internal Dictionary<string, string> EncodingUnicode { get; } = [];
 
+    // Standard Helvetica-Bold ASCII advances (1/1000 em); oblique variants share the upright advances.
+    // Reference: https://github.com/mozilla/pdf.js/blob/master/src/core/metrics.js
+    private static readonly int[] HelveticaBoldWidths = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
     private static readonly int[] HelveticaWidths = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
     public PdfNativeFont(PdfGraph graph, PdfValue font)
     {
@@ -89,12 +92,13 @@ internal sealed class PdfNativeFont
                 var descriptor = graph.Get(font, "FontDescriptor");
                 defaultWidth = descriptor is null ? 0 : graph.Number(descriptor, "MissingWidth") / 1000;
             }
-            else if (Name == "Helvetica")
+            else if (Name is "Helvetica" or "Helvetica-Oblique" or "Helvetica-Bold" or "Helvetica-BoldOblique")
             {
                 requireExplicitWidth = true;
-                for (var i = 0; i < HelveticaWidths.Length; i++)
+                var advances = Name.Contains("Bold", StringComparison.Ordinal) ? HelveticaBoldWidths : HelveticaWidths;
+                for (var i = 0; i < advances.Length; i++)
                 {
-                    widths[i + 32] = HelveticaWidths[i] / 1000d;
+                    widths[i + 32] = advances[i] / 1000d;
                 }
             }
             else if (Name.StartsWith("Courier", StringComparison.Ordinal))

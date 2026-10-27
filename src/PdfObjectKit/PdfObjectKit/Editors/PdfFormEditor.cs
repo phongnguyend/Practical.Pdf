@@ -169,19 +169,35 @@ public static partial class PdfFormEditor
         var flags = field.Model.Flags;
         var display = value;
         var multiline = field.Model.Kind == PdfFormFieldKind.Text && (flags & (1 << 12)) != 0;
+        var password = field.Model.Kind == PdfFormFieldKind.Text && (flags & (1 << 13)) != 0;
+        var comb = field.Model.Kind == PdfFormFieldKind.Text && (flags & (1 << 24)) != 0;
+        var maxLength = 0;
         var listBox = field.Model.Kind == PdfFormFieldKind.Choice && (flags & (1 << 17)) == 0;
         var selectedIndex = -1;
         var selectedIndices = new HashSet<int>();
         if (field.Model.Kind == PdfFormFieldKind.Text)
         {
-            if ((flags & ((1 << 13) | (1 << 20) | (1 << 24) | (1 << 25))) != 0)
+            if ((flags & (1 << 25)) != 0)
             {
-                throw new NotSupportedException("Password, file-select, comb, and rich-text fields are not supported.");
+                throw new NotSupportedException("Use SetRichText to edit rich-text fields.");
             }
 
-            if (field.Inherited.TryGetValue("MaxLen", out var limit) && value.Length > Number(limit))
+            if (field.Inherited.TryGetValue("MaxLen", out var limit))
             {
-                throw new ArgumentException("Value exceeds MaxLen.", nameof(value));
+                var number = Number(limit);
+                if (!double.IsFinite(number) || number <= 0 || number > int.MaxValue || number != Math.Truncate(number))
+                {
+                    throw new InvalidDataException("MaxLen must be a positive integer.");
+                }
+                maxLength = (int)number;
+                if (value.Length > maxLength)
+                {
+                    throw new ArgumentException("Value exceeds MaxLen.", nameof(value));
+                }
+            }
+            if ((flags & (1 << 20)) != 0 && (comb || multiline || password) || comb && (maxLength == 0 || multiline || password) || password && multiline)
+            {
+                throw new NotSupportedException("Comb requires MaxLen and cannot combine with multiline or password; multiline passwords are unsupported.");
             }
         }
         else
@@ -227,6 +243,11 @@ public static partial class PdfFormEditor
         if (display.Any(c => (c < 32 || c > 126) && !(multiline && c is '\r' or '\n')))
         {
             throw new NotSupportedException("Appearance generation currently supports printable ASCII only.");
+        }
+
+        if (password)
+        {
+            display = new string('*', value.Length);
         }
 
         PdfValue Add(PdfValue item)
@@ -304,6 +325,26 @@ public static partial class PdfFormEditor
                     };
                     var color = listBox && selectedIndices.Contains(Math.Max(0, selectedIndex) + i) ? "1 g" : "0 g";
                     content.Append($"BT /{fontName} 12 Tf {color} 1 0 0 1 {Syntax(Num(lineX))} {Syntax(Num(baseline))} Tm {Syntax(Str(Encoding.ASCII.GetBytes(lines[i])))} Tj ET ");
+                }
+                content.Append("EMC Q");
+                appearance = Stream(Encoding.ASCII.GetBytes(content.ToString()));
+            }
+            if (comb)
+            {
+                var cellWidth = (rect[2] - rect[0]) / maxLength;
+                var firstCell = textAlignment switch
+                {
+                    PdfTextAlignment.Right => maxLength - display.Length,
+                    PdfTextAlignment.Center => (maxLength - display.Length) / 2,
+                    _ => 0
+                };
+                var content = new StringBuilder($"q 0 0 {width} {height} re W n /Tx BMC ");
+                for (var i = 0; i < display.Length; i++)
+                {
+                    var character = display[i].ToString();
+                    var cellX = (firstCell + i) * cellWidth;
+                    var textX = cellX + (cellWidth - Measure(character)) / 2;
+                    content.Append($"q {Syntax(Num(cellX))} 0 {Syntax(Num(cellWidth))} {height} re W n BT /{fontName} 12 Tf 0 g 1 0 0 1 {Syntax(Num(textX))} {y} Tm {Syntax(Str(Encoding.ASCII.GetBytes(character)))} Tj ET Q ");
                 }
                 content.Append("EMC Q");
                 appearance = Stream(Encoding.ASCII.GetBytes(content.ToString()));
@@ -488,7 +529,7 @@ public static partial class PdfFormEditor
         });
     }
 
-    private static void SetSimpleFieldAppearance(PdfObjectDocument document, PdfFormGraph form, PdfValue widget,
+    internal static void SetSimpleFieldAppearance(PdfObjectDocument document, PdfFormGraph form, PdfValue widget,
         string caption, double width, double height, bool pushButton)
     {
         if (caption.Any(c => c < 32 || c > 126))
