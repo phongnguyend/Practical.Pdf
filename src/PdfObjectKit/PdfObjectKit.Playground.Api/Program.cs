@@ -59,7 +59,37 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             throw new NotSupportedException("This PDF contains a signature. Editing would invalidate it; signed-document editing is disabled.");
         }
         byte[]? signedBytes = null;
-        if (edit.Kind == "sign-field" && edit.FieldName is not null)
+        if (edit.Kind == "delete-objects")
+        {
+            if (edit.Deletions is not { Count: > 0 and <= 1000 } deletions
+                || deletions.Any(item => item.PageNumber != edit.PageNumber
+                    || item.Kind is not ("delete-text-line" or "delete-image" or "delete-field")
+                    || (item.Kind == "delete-text-line" && item.Runs is not { Count: > 0 })
+                    || (item.Kind == "delete-image" && item.ImageNumber <= 0)
+                    || (item.Kind == "delete-field" && string.IsNullOrEmpty(item.FieldName))))
+            {
+                throw new ArgumentException("Choose between 1 and 1000 valid objects on the same page to delete.");
+            }
+
+            // One text rewrite validates every source hash against the original streams.
+            // Text removal retains image invocation order; remove images from last to first.
+            // The request owns this document: any failure discards every change.
+            var runs = deletions.Where(item => item.Kind == "delete-text-line").SelectMany(item => item.Runs!)
+                .DistinctBy(run => (run.StreamObject, run.FormOccurrenceId, run.OperatorIndex, run.OperandIndex)).ToList();
+            if (runs.Count > 0)
+            {
+                PdfTextEditor.DeleteText(document, edit.PageNumber, runs);
+            }
+            foreach (var number in deletions.Where(item => item.Kind == "delete-image").Select(item => item.ImageNumber).Distinct().OrderDescending())
+            {
+                PdfPageEditor.DeleteImage(document, edit.PageNumber, number);
+            }
+            foreach (var fieldName in deletions.Where(item => item.Kind == "delete-field").Select(item => item.FieldName!).Distinct())
+            {
+                PdfFormEditor.DeleteField(document, fieldName);
+            }
+        }
+        else if (edit.Kind == "sign-field" && edit.FieldName is not null)
         {
             var certificateFile = form.Files.GetFile("certificate");
             if (certificateFile is null || certificateFile.Length is <= 0 or > 1048576)
@@ -378,4 +408,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null);

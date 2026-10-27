@@ -1052,3 +1052,111 @@ test('sign a PDF with an ephemeral test certificate and reject later edits', asy
     await rmdir(directory);
   }
 });
+
+
+function multiSelectionPdf() {
+  const content = 'BT /F1 12 Tf 20 260 Td (First line) Tj 0 -30 Td (Second line) Tj 0 -30 Td (Keep me) Tj ET q 30 0 0 30 20 100 cm /Im1 Do Q q 30 0 0 30 70 100 cm /Im1 Do Q';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [7 0 R] >> >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << /Font << /F1 4 0 R >> /XObject << /Im1 6 0 R >> >> /Contents 5 0 R /Annots [8 0 R 9 0 R] >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /ASCIIHexDecode /Length 7 >>\nstream\nFF0000>\nendstream',
+    '<< /FT /Tx /T (SharedField) /Kids [8 0 R 9 0 R] >>',
+    '<< /Type /Annot /Subtype /Widget /Parent 7 0 R /P 3 0 R /Rect [20 30 100 50] >>',
+    '<< /Type /Annot /Subtype /Widget /Parent 7 0 R /P 3 0 R /Rect [150 30 230 50] >>',
+  ];
+  let pdf = '%PDF-1.7\n';
+  const offsets = [0];
+  objects.forEach((value, index) => {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${index + 1} 0 obj\n${value}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf);
+}
+
+for (const useKeyboard of [false, true]) {
+  test(`bulk selection toggles and deletes mixed objects using ${useKeyboard ? 'Delete key' : 'button'}`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'multi.pdf', mimeType: 'application/pdf', buffer: multiSelectionPdf() });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await expect(page.locator('.object')).toHaveCount(7);
+    const first = page.locator('.object').filter({ hasText: 'First line' });
+    const second = page.locator('.object').filter({ hasText: 'Second line' });
+    await first.click();
+    // Ctrl+click on the selected drag overlay must deselect, not start a move.
+    await page.getByLabel('Move selected object').click({ modifiers: ['Control'] });
+    await expect(page.locator('.object.selected')).toHaveCount(0);
+    await page.locator('.overlay').click({ position: { x: 35, y: 40 } });
+    await expect(first).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('.overlay').click({ position: { x: 35, y: 70 }, modifiers: ['Control'] });
+    await expect(page.locator('.object.selected')).toHaveCount(2);
+    await second.click({ modifiers: ['Control'] });
+    await expect(page.locator('.object.selected')).toHaveCount(1);
+    await second.click({ modifiers: ['Control'] });
+    for (const item of await page.locator('.object').all()) {
+      if (!(await item.innerText()).includes('line') && !(await item.innerText()).includes('Keep me')) {
+        await item.click({ modifiers: ['Control'] });
+      }
+    }
+    await expect(page.locator('.object.selected')).toHaveCount(6);
+    await expect(page.getByRole('heading', { name: '6 objects selected' })).toBeVisible();
+    if (useKeyboard) {
+      await page.keyboard.press('Delete');
+    } else {
+      await page.getByRole('button', { name: 'Delete selected objects' }).click();
+    }
+    await expect(page.locator('.object')).toHaveCount(1);
+    await expect(page.locator('.object')).toContainText('Keep me');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+}
+
+test('failed bulk deletion preserves PDF and selection', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'multi.pdf', mimeType: 'application/pdf', buffer: multiSelectionPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.locator('.object').filter({ hasText: 'First line' }).click();
+  await page.locator('.object').filter({ hasText: 'Second line' }).click({ modifiers: ['Control'] });
+  await page.route('**/api/documents/edit', route => route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ detail: 'Cannot delete selection.' }) }));
+  await page.getByRole('button', { name: 'Delete selected objects' }).click();
+  await expect(page.getByRole('alert')).toContainText('Cannot delete selection');
+  await expect(page.locator('.object')).toHaveCount(7);
+  await expect(page.locator('.object.selected')).toHaveCount(2);
+});
+
+test('rectangle selection supports reverse drag, additive selection, cancel and delete', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'multi.pdf', mimeType: 'application/pdf', buffer: multiSelectionPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  const overlay = page.locator('.overlay');
+  const box = await overlay.boundingBox();
+  async function drag(from, to, cancel = false) {
+    await page.mouse.move(box.x + from[0], box.y + from[1]);
+    await page.mouse.down();
+    await page.mouse.move(box.x + to[0], box.y + to[1], { steps: 8 });
+    await expect(page.locator('.selection-rectangle')).toBeVisible();
+    if (cancel) {
+      await page.keyboard.press('Escape');
+    }
+    await page.mouse.up();
+    await expect(page.locator('.selection-rectangle')).toHaveCount(0);
+  }
+  await drag([130, 85], [10, 20]);
+  await expect(page.locator('.object.selected')).toHaveCount(2);
+  await page.keyboard.down('Control');
+  await drag([10, 160], [110, 210]);
+  await page.keyboard.up('Control');
+  await expect(page.locator('.object.selected')).toHaveCount(4);
+  await drag([5, 5], [295, 295], true);
+  await expect(page.locator('.object.selected')).toHaveCount(4);
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.object')).toHaveCount(3);
+  await expect(page.locator('.object').filter({ hasText: 'Keep me' })).toHaveCount(1);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});

@@ -1,0 +1,15 @@
+.multi-selection { padding: 20px 0; }
+.multi-selection-heading { display: flex; align-items: center; gap: 10px; }
+.multi-selection-icon { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; color: #2358d3; background: #edf3ff; }
+.multi-selection-heading > div { flex: 1; min-width: 0; }
+.multi-selection-heading h3 { margin: 0 0 4px; font-size: 13px; line-height: 1.4; }
+.multi-selection-heading > div > span { color: #74839a; font-size: 11px; }
+.multi-selection-counts { display: grid; gap: 10px; margin: 18px 0 12px; padding: 12px; background: #f7f9fc; border: 1px solid #edf0f5; border-radius: 8px; }
+.multi-selection-counts > div { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #526581; }
+.multi-selection-counts svg { width: 15px; height: 15px; flex-shrink: 0; }
+.multi-selection-counts strong { margin-left: auto; color: #253858; }
+.multi-selection kbd { padding: 1px 4px; border: 1px solid #dce3ed; border-radius: 4px; background: #f7f9fc; font: inherit; font-size: 10px; color: #526581; }
+.multi-selection-actions { margin-top: 20px; padding-top: 16px; border-top: 1px solid #edf0f5; }
+.multi-selection-actions .danger-action { min-height: 38px; }
+.multi-selection-actions > p { margin: 10px 0 0; }
+.multi-selection-field-note { display: block; margin-top: 8px; }

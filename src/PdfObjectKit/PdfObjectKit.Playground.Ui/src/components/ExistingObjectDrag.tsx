@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PageViewport } from 'pdfjs-dist';
 
-export function ExistingObjectDrag({ viewport, corners, disabled, onMove }: {
+export function ExistingObjectDrag({ viewport, corners, disabled, onMove, onToggle }: {
+  onToggle?: () => void;
   viewport: PageViewport;
   corners: { x: number; y: number }[];
   disabled: boolean;
@@ -30,9 +31,14 @@ export function ExistingObjectDrag({ viewport, corners, disabled, onMove }: {
   return <svg className="existing-object-drag" width={viewport.width} height={viewport.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
     <polygon aria-label="Move selected object" points={points} fill="#2563eb18" stroke="#2563eb" strokeWidth={2} strokeDasharray="5 3"
       style={{ pointerEvents: disabled ? 'none' : 'all', cursor: gesture.current ? 'grabbing' : 'grab', touchAction: 'none' }}
-      onClick={event => event.stopPropagation()}
+      onClick={event => {
+        event.stopPropagation();
+        if (!disabled && (event.ctrlKey || event.metaKey)) {
+          onToggle?.();
+        }
+      }}
       onPointerDown={event => {
-        if (disabled || event.button !== 0) {
+        if (disabled || event.button !== 0 || event.ctrlKey || event.metaKey) {
           return;
         }
         event.preventDefault();

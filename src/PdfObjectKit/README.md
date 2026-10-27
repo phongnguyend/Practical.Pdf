@@ -787,3 +787,9 @@ The playground accepts a PFX/P12 up to 1 MB and its password for the current loc
 Limitations: one signature on a rewritten unsigned document; no incremental/countersigning, certification/DocMDP, seed-value constraints, ECDSA, timestamps, revocation evidence, long-term validation, or PAdES conformance claim. Only the signer certificate is included. Signing does not establish certificate-chain trust. These unsupported cases are not silently represented as completed signing workflows.
 
 Format references: [Adobe signature formats](https://www.adobe.com/devnet-docs/acrobatetk/tools/DigSigDC/standards.html), [.NET detached CMS](https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.pkcs.signedcms.computesignature).
+
+### Selecting and deleting multiple playground objects
+
+Click an outline or object-list entry to select one object. Hold Ctrl (Cmd on macOS) while clicking to add or remove objects from the selection. Use **Delete selected objects** in the inspector or press **Delete** outside an input to delete the selection in one operation. A normal click selects just that object; changing pages, layers, or starting object creation clears the selection. Multiple objects can be selected on the current page.
+
+Bulk deletion supports text lines, image occurrences, and form fields. Selecting several widgets of one field deletes that field once, including its other widgets. Read-only fields cannot be deleted. If any operation fails, the original PDF and selection are preserved. Editing and dragging remain single-object operations.

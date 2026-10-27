@@ -144,3 +144,6 @@ footer { padding: 9px 20px; background: white; border-top: 1px solid #dfe5ee; fo
 .inspector .editor .field-selections { max-height: 220px; overflow-y: auto; margin-bottom: 12px; }
 .inspector .editor .field-selections label { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 2px; cursor: pointer; overflow-wrap: anywhere; }
 .inspector .editor .field-selections input[type="checkbox"] { width: 16px; height: 16px; flex: 0 0 16px; padding: 0; accent-color: #3366cc; }
+
+.selection-rectangle { position: absolute; pointer-events: none; box-sizing: border-box; border: 1px solid #2563eb; background: #2563eb20; z-index: 4; }
+.overlay { touch-action: none; }
