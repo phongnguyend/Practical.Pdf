@@ -2,6 +2,67 @@
 
 C# / .NET 10 library and CLI for reading, editing, and writing PDF object graphs. They load a PDF's current indirect objects into memory, serialize them to JSON, and rebuild a PDF from that JSON. Reconstruction operates at the PDF object level, without re-rendering pages or embedding the entire original file. The CLI writes derived text, image, and paragraph data to separate JSON files by default.
 
+## Docker Compose
+
+From `src/PdfObjectKit`, build and start the playground:
+
+```powershell
+docker compose up --build -d
+```
+
+Open http://localhost:8074. The UI forwards `/api` requests to the playground
+API, which is also available at http://localhost:8070/api/health.
+The API and CLI images run as the .NET non-root user. Docker build contexts
+exclude local build output and environment files.
+
+To use published images, copy `.env.sample` to `.env` if needed and edit:
+
+```dotenv
+DOCKERHUB_NAMESPACE=your-dockerhub-account-or-organization
+IMAGE_TAG=latest
+```
+
+```powershell
+docker compose -f compose.published.yaml up -d
+```
+
+Compose loads `.env` automatically. Set `IMAGE_TAG` to a version such as
+`1.2.3` to pin a release. Published images target Linux AMD64 and are pulled
+on each `up`. Both Compose files use the same project and ports, so switching
+between them replaces the existing deployment. Stop it with `docker compose
+down` or `docker compose -f compose.published.yaml down`, respectively.
+
+The CLI is optional and does not start with the playground. Put input files in
+the `data` folder beside the Compose file; it is mounted at `/data` and ignored
+by Git. On Linux, ensure this folder is writable by container UID 1654 when
+writing output files.
+
+```powershell
+New-Item -ItemType Directory -Force data
+# Place input.pdf in data, then use either local or published images:
+docker compose run --build --rm cli to-json input.pdf document.json
+docker compose -f compose.published.yaml run --rm cli to-pdf document.json rebuilt.pdf
+```
+
+### Docker Hub releases
+
+The [PdfObjectKit workflow](../../.github/workflows/pdfobjectkit.yml) builds
+the API, CLI, and UI images after the existing library build and snapshot tests.
+Branch and pull-request runs build only. Release tags such as
+`releases/pdfobjectkit/v1.2.3` also publish:
+
+- `<namespace>/pdfobjectkit-playground-api:1.2.3`
+- `<namespace>/pdfobjectkit-cli:1.2.3`
+- `<namespace>/pdfobjectkit-playground:1.2.3`
+
+Stable releases publish `latest` from the same images; prereleases publish only
+their version tag. Rerunning a stable release republishes both tags, so use the
+newest stable release when backfilling `latest`. Configure the repository
+Actions secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, and optionally the
+Actions variable `DOCKERHUB_NAMESPACE`, as described in the
+[release setup](../../README.md#release-docker-images). Existing NuGet publishing
+continues to use `NUGET_API_KEY` on the same release tags.
+
 ## Markdown snapshot regression test
 
 The snapshot suite also includes independent extractor tests:

@@ -1,0 +1,32 @@
+name: pdfobjectkit
+
+services:
+  playground:
+    image: pdfobjectkit/playground:local
+    build:
+      context: ./PdfObjectKit.Playground.Ui
+    depends_on:
+      - api
+    ports:
+      - "8074:80"
+
+  api:
+    image: pdfobjectkit/playground-api:local
+    build:
+      context: .
+      dockerfile: PdfObjectKit.Playground.Api/Dockerfile
+    init: true
+    ports:
+      - "8070:8080"
+
+  cli:
+    image: pdfobjectkit/cli:local
+    build:
+      context: .
+      dockerfile: PdfObjectKit.Cli/Dockerfile
+    profiles:
+      - cli
+    init: true
+    working_dir: /data
+    volumes:
+      - ./data:/data

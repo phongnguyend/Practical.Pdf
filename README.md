@@ -21,6 +21,12 @@ Release-tag runs publish the same built images to Docker Hub.
 
 ### Release Docker images
 
+The [PdfObjectKit workflow](.github/workflows/pdfobjectkit.yml) also builds and
+publishes its playground API, UI, and CLI images using the same credentials and
+version/latest tagging policy. Its existing snapshot tests and NuGet release
+remain enabled. See [PdfObjectKit Docker Compose](src/PdfObjectKit/README.md#docker-compose)
+for local builds, published deployments, and CLI usage.
+
 Configure these repository **Actions secrets**:
 
 - `DOCKERHUB_USERNAME`: the Docker Hub account used to sign in.
@@ -37,6 +43,7 @@ Following the release-tag convention in `pdfobjectkit.yml`, push one of:
 | HtmlToPdf | `releases/htmltopdf/v1.2.3` | `<namespace>/html-to-pdf-playwright-api:1.2.3` |
 | ExcelToPdf | `releases/exceltopdf/v1.2.3` | `<namespace>/excel-to-pdf-libreoffice-api:1.2.3` |
 | WordToPdf | `releases/wordtopdf/v1.2.3` | `<namespace>/word-to-pdf-libreoffice-api:1.2.3` |
+| PdfObjectKit | `releases/pdfobjectkit/v1.2.3` | `<namespace>/pdfobjectkit-playground-api:1.2.3` |
 
 ```powershell
 git tag releases/htmltopdf/v1.2.3

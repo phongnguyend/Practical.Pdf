@@ -1,0 +1,15 @@
+**/bin
+**/obj
+**/nupkg
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/test-results
+**/playwright-report
+.git
+data
+PdfObjectKit.Playground.Ui
+PdfObjectKit.Tests
+PdfObjectKit.SnapshotTests
+PdfObjectKit.Demo

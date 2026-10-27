@@ -1,0 +1,30 @@
+name: pdfobjectkit
+
+services:
+  playground:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/pdfobjectkit-playground:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    depends_on:
+      - api
+    ports:
+      - "8074:80"
+
+  api:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/pdfobjectkit-playground-api:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    ports:
+      - "8070:8080"
+
+  cli:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/pdfobjectkit-cli:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    profiles:
+      - cli
+    init: true
+    working_dir: /data
+    volumes:
+      - ./data:/data
