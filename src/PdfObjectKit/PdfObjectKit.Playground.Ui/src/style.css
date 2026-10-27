@@ -147,3 +147,7 @@ footer { padding: 9px 20px; background: white; border-top: 1px solid #dfe5ee; fo
 
 .selection-rectangle { position: absolute; pointer-events: none; box-sizing: border-box; border: 1px solid #2563eb; background: #2563eb20; z-index: 4; }
 .overlay { touch-action: none; }
+
+.document-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.document-panel > .toolbar { flex-wrap: wrap; }
+.document-panel > .toolbar button { display: inline-flex; align-items: center; gap: 6px; }

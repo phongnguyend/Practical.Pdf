@@ -1,8 +1,10 @@
 import { useRectangleSelection } from '../components/useRectangleSelection';
+import { PageAssemblyDialog } from '../components/PageAssemblyDialog';
+import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
-import { useEffect, useRef, useState } from 'react';
-import { Upload, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Upload, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from '../geometry.mjs';
@@ -23,14 +25,23 @@ type CanvasObject = { id: string; pageNumber: number; kind: Kind; label: string;
 type Inspection = { pdfVersion: string; pageCount: number; objectCount: number; objects: CanvasObject[]; warnings: string[] };
 const colors: Record<Kind, string> = { text: '#2563eb', image: '#be6514', field: '#008577' };
 
-export function PlaygroundPage() {
-  const [renderer, setRenderer] = useState<'pdfjs' | 'native'>('pdfjs');
+export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOpenFiles, onSaved, onViewChange, onBusyChange }: {
+  initialFile?: File;
+  initialView: DocumentView;
+  tabStrip: ReactNode;
+  tabId: string;
+  onOpenFiles: (files: File[]) => void;
+  onSaved: (file: File) => void;
+  onViewChange: (view: DocumentView) => void;
+  onBusyChange: (busy: boolean) => void;
+}) {
+  const [renderer, setRenderer] = useState<'pdfjs' | 'native'>(initialView.renderer);
   const [renderNotes, setRenderNotes] = useState<string[]>([]);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [name, setName] = useState('');
-  const [page, setPage] = useState(1);
-  const [zoom, setZoom] = useState(1);
+  const [page, setPage] = useState(initialView.page);
+  const [zoom, setZoom] = useState(initialView.zoom);
   const [busy, setBusy] = useState(false);
   const [fileDrag, setFileDrag] = useState<'pdf' | 'image' | null>(null);
   const fileDragDepth = useRef(0);
@@ -46,6 +57,7 @@ export function PlaygroundPage() {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showMarkdown, setShowMarkdown] = useState(false);
+  const [assembly, setAssembly] = useState<'split' | 'extract' | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Blob | null>(null);
   const [error, setError] = useState('');
   const [selection, setSelection] = useState<CanvasObject[]>([]);
@@ -86,7 +98,7 @@ export function PlaygroundPage() {
   });
 
   useEffect(() => () => { void pdf?.loadingTask.destroy(); }, [pdf]);
-  useEffect(() => () => { abort.current?.abort(); }, []);
+  useEffect(() => () => { generation.current++; abort.current?.abort(); }, []);
   useEffect(() => {
     function clearFileDrag() {
       fileDragDepth.current = 0;
@@ -122,8 +134,35 @@ export function PlaygroundPage() {
     return () => window.removeEventListener('keydown', cancelOnEscape);
   }, [adding, saving, busy]);
 
-  async function openFile(file?: File) {
+  useEffect(() => {
+    if (initialFile) {
+      void openFile(initialFile, true);
+    }
+  }, []);
+  useEffect(() => {
+    onViewChange({ page, zoom, renderer });
+  }, [page, zoom, renderer]);
+  useEffect(() => {
+    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || assembly !== null);
+  }, [busy, saving, rendering, exporting, adding, showMarkdown, assembly]);
+
+  function openFiles(files: File[]) {
+    if (saving || busy) {
+      return;
+    }
+    try {
+      onOpenFiles(files);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not open tabs.');
+    }
+  }
+
+  async function openFile(file?: File, fromTab = false) {
     if (!file || saving) {
+      return;
+    }
+    if (!fromTab) {
+      openFiles([file]);
       return;
     }
     const version = ++generation.current;
@@ -158,10 +197,10 @@ export function PlaygroundPage() {
       setInspection(data);
       setAdding(false);
       setName(file.name);
-      setPage(1);
+      setPage(Math.min(initialView.page, loaded.numPages));
       setSelected(null);
       setViewport(null);
-      setZoom(1);
+      setZoom(initialView.zoom);
     } catch (cause) {
       await task?.destroy();
       if (version === generation.current && !controller.signal.aborted) {
@@ -223,6 +262,7 @@ export function PlaygroundPage() {
       prepared.current = { pdf: loaded, canvas, viewport: view, renderer, notes };
       setPdf(loaded);
       setPdfBytes(updated);
+      onSaved(new File([updated], name, { type: 'application/pdf' }));
       setInspection(data);
       setAdding(false);
       if (edit.kind === 'move-text' && selected) {
@@ -471,11 +511,11 @@ export function PlaygroundPage() {
       startCreation('add-image');
       setDroppedImage(file);
     } else {
-      void openFile(file);
+      openFiles(Array.from(event.dataTransfer.files));
     }
   }}>
-    <header><div className="brand"><span className="logo">P</span><div><strong>PdfObjectKit</strong><span className="subtitle">OBJECT PLAYGROUND</span></div></div><label className="upload"><FolderOpen size={17} aria-hidden="true" />{busy ? 'Opening…' : 'Open PDF'}<input aria-label="Open PDF" disabled={saving} type="file" accept="application/pdf,.pdf" onChange={event => { void openFile(event.target.files?.[0]); event.target.value = ''; }} /></label></header>
-    <div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
+    <header><div className="brand"><span className="logo">P</span><div><strong>PdfObjectKit</strong><span className="subtitle">OBJECT PLAYGROUND</span></div></div><label className="upload"><FolderOpen size={17} aria-hidden="true" />{busy ? 'Opening…' : 'Open PDF'}<input aria-label="Open PDF" disabled={saving || busy} type="file" multiple accept="application/pdf,.pdf" onChange={event => { openFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} /></label></header>{tabStrip}
+    <div id="document-panel" role="tabpanel" aria-labelledby={"tab-" + tabId} className="document-panel"><div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}><X size={15} aria-hidden="true" />Dismiss</button></div>}
     <main><aside className="objects"><section className="toolbox" aria-label="Object toolbox"><h2>Create objects</h2><p className="hint">Drag a type onto the page. Move and resize it, then insert.</p>{[['add-text', 'Text'], ['add-image', 'Image'], ['add-field', 'Form field']].map(([kind, label]) => <button key={kind} className="toolbox-item" disabled={!pdf || saving || busy || rendering} draggable={!!pdf && !saving && !busy && !rendering} onDragStart={event => {
       event.dataTransfer.setData('application/x-pdfobjectkit-type', kind);
@@ -520,6 +560,7 @@ export function PlaygroundPage() {
         void saveEdit(edit);
       }
     }} /> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} /><ObjectEditor item={selected} busy={saving || busy || rendering || exporting} onSave={saveEdit} onExportImage={exportImage} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, (key, value) => key === 'values' && selected.kind === 'field' && (((selected.details as { flags?: number }).flags ?? 0) & (1 << 13)) !== 0 ? (value as string[]).map(text => '*'.repeat(text.length)) : value, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
+    </div>{assembly && pdfBytes && pdf && <PageAssemblyDialog mode={assembly} pdf={pdfBytes} name={name} pageCount={pdf.numPages} onClose={() => setAssembly(null)} onOpenFiles={onOpenFiles} />}
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
     <footer>PdfObjectKit extracts · {renderer === 'native' ? 'PdfObjectKit renders (experimental)' : 'PDF.js renders'}<span>Add, edit and delete · Files are not saved by the API</span></footer>
   </div>;

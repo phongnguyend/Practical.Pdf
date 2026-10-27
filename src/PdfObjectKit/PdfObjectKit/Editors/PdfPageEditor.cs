@@ -3,6 +3,7 @@ using PdfObjectKit.Converters;
 using PdfObjectKit.Extractors;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Models;
+using PdfObjectKit.Options;
 using PdfObjectKit.Parsers;
 using PdfObjectKit.Validators;
 using static PdfObjectKit.Primitives.PdfPrimitives;
@@ -12,6 +13,38 @@ namespace PdfObjectKit.Editors;
 /// <summary>Atomic page content edits. Re-extract selections after every change.</summary>
 public static class PdfPageEditor
 {
+    /// <summary>Copies distinct one-based pages in the requested order into an independent document.
+    /// Unsupported document-level features are rejected; inputs are never modified.</summary>
+    public static PdfObjectDocument ExtractPages(PdfObjectDocument document, IReadOnlyList<int> pageNumbers, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(pageNumbers);
+        var copier = new PdfPageCopier(options, cancellationToken);
+        copier.Append(document, pageNumbers);
+        return copier.Finish();
+    }
+
+    /// <summary>Creates one independent document per page, in source order.</summary>
+    public static IReadOnlyList<PdfObjectDocument> Split(PdfObjectDocument document, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return SplitPages(document, options, cancellationToken).ToList();
+    }
+
+    /// <summary>Lazily yields one independent page document at a time. Limits apply to each returned document.</summary>
+    public static IEnumerable<PdfObjectDocument> SplitPages(PdfObjectDocument document, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        cancellationToken.ThrowIfCancellationRequested();
+        (options ?? new()).Validate();
+        var count = new PdfGraph(document).Pages().Count;
+        for (var number = 1; number <= count; number++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return ExtractPages(document, [number], options, cancellationToken);
+        }
+    }
+
     /// <summary>Inserts black, single-line ASCII Helvetica text at a PDF-space baseline.</summary>
     public static void InsertText(PdfObjectDocument document, int pageNumber, string text, double x, double y, double fontSize = 12)
     {

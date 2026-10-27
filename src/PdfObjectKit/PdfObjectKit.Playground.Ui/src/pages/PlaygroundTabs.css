@@ -1,0 +1,13 @@
+.browser-tabs-bar { display: flex; align-items: end; gap: 6px; padding: 8px 14px 0; background: #e8edf5; border-bottom: 1px solid #cfd8e6; flex-shrink: 0; }
+.browser-tabs { display: flex; gap: 4px; overflow-x: auto; min-width: 0; scrollbar-width: thin; }
+.browser-tab { display: flex; align-items: center; width: 210px; min-width: 130px; max-width: 240px; border: 1px solid transparent; border-bottom: 0; border-radius: 10px 10px 0 0; padding: 4px 5px 4px 6px; background: #dfe6f0; }
+.browser-tab:hover { background: #edf2f9; }
+.browser-tab.active { background: #fff; border-color: #cfd8e6; box-shadow: 0 -2px 0 #386cdc; }
+.browser-tab > [role="tab"] { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; border: 0; border-radius: 5px; background: transparent; padding: 7px 5px; text-align: left; font-size: 12px; }
+.browser-tab > [role="tab"] > span:first-of-type { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.browser-tab svg { flex-shrink: 0; color: #647994; }
+.browser-tab.active > [role="tab"] { color: #1f4fba; font-weight: 600; }
+.browser-tab .tab-close, .tab-add { display: grid; place-items: center; padding: 5px; border: 0; background: transparent; border-radius: 6px; flex-shrink: 0; }
+.browser-tab .tab-close:hover, .tab-add:hover { background: #ccd8eb; }
+.tab-add { margin-bottom: 6px; }
+.tab-modified { width: 6px; height: 6px; border-radius: 50%; background: #386cdc; flex-shrink: 0; }

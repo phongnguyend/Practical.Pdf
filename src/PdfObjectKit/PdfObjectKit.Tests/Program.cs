@@ -78,6 +78,8 @@ ParagraphTests.Run();
 FormParagraphTests.Run();
 FormTests.Run();
 PageEditorTests.Run();
+PageAssemblyTests.Run();
+TaggedAssemblyTests.Run();
 TextMovementTests.Run();
 CanvasRenderingTests.Run();
 

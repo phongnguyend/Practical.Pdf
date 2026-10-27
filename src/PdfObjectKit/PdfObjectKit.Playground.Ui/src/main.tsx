@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { PlaygroundPage } from './pages/PlaygroundPage';
+import { PlaygroundTabs } from './pages/PlaygroundTabs';
 import './style.css';
 
-createRoot(document.getElementById('root')!).render(<PlaygroundPage />);
+createRoot(document.getElementById('root')!).render(<PlaygroundTabs />);

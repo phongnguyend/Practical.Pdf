@@ -301,6 +301,49 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
         }
 
         var document = PdfReader.Read(bytes);
+        if (request.Path == "/api/documents/split" || request.Path == "/api/documents/extract")
+        {
+            var options = new PdfObjectKit.Options.PdfPageAssemblyOptions
+            {
+                MaxPages = 100,
+                MaxObjects = 250000,
+                MaxNodes = 1000000,
+                MaxEncodedStreamBytes = 64L * 1024 * 1024
+            };
+            IEnumerable<PdfObjectKit.Models.PdfObjectDocument> outputs;
+            if (request.Path == "/api/documents/extract")
+            {
+                var text = request.Query["pages"].ToString();
+                var parts = text.Split(',');
+                if (parts.Length > 100 || parts.Any(part => !int.TryParse(part, out var number) || number < 1))
+                {
+                    return Results.Problem("Provide up to 100 positive page numbers separated by commas.", statusCode: 400);
+                }
+                outputs = [PdfPageEditor.ExtractPages(document, parts.Select(int.Parse).ToArray(), options, cancellation)];
+            }
+            else
+            {
+                outputs = PdfPageEditor.SplitPages(document, options, cancellation);
+            }
+            var results = new List<object>();
+            long total = 0;
+            foreach (var output in outputs)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (results.Count == 100)
+                {
+                    return Results.Problem("The playground can split at most 100 pages at once.", statusCode: 422);
+                }
+                var outputBytes = PdfWriter.Write(output);
+                total += outputBytes.Length;
+                if (outputBytes.Length > maxBytes || total > 64L * 1024 * 1024)
+                {
+                    return Results.Problem("Split/extract output exceeds 20 MB per document or 64 MB total.", statusCode: 422);
+                }
+                results.Add(new { pageNumber = results.Count + 1, base64 = Convert.ToBase64String(outputBytes) });
+            }
+            return Results.Ok(new { documents = results });
+        }
         if (request.Path == "/api/documents/image")
         {
             if (!int.TryParse(request.Query["page"], out var imagePage) || !int.TryParse(request.Query["image"], out var imageNumber))
@@ -386,7 +429,8 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
     }
     catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or FormatException or ArgumentException or OverflowException)
     {
-        return Results.Problem($"Cannot inspect this PDF: {ex.Message}", statusCode: 422);
+        var operation = request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
+        return Results.Problem($"Cannot {operation} this PDF: {ex.Message}", statusCode: 422);
     }
     finally
     {
@@ -394,6 +438,8 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
     }
 };
 app.MapPost("/api/documents/inspect", inspectDocument);
+app.MapPost("/api/documents/split", inspectDocument);
+app.MapPost("/api/documents/extract", inspectDocument);
 app.MapPost("/api/documents/markdown", inspectDocument);
 app.MapPost("/api/documents/render", inspectDocument);
 app.MapPost("/api/documents/image", inspectDocument);

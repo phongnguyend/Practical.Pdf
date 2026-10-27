@@ -1,0 +1,11 @@
+.page-assembly-dialog { width: min(500px, calc(100vw - 32px)); padding: 24px; }
+.assembly-heading, .assembly-heading > div { display: flex; align-items: center; gap: 10px; }
+.assembly-heading { justify-content: space-between; }
+.assembly-heading h2 { margin: 0; font-size: 17px; }
+.assembly-heading svg { color: #386cdc; flex-shrink: 0; }
+.assembly-document { color: #74839a; font-size: 12px; overflow-wrap: anywhere; margin: 12px 0 24px; }
+.assembly-pages { display: grid; gap: 8px; font-size: 13px; font-weight: 600; }
+.assembly-pages input { padding: 10px; width: 100%; }
+.assembly-pages span { font-weight: 400; color: #74839a; font-size: 12px; }
+.assembly-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.assembly-error { background: #fff0f0; color: #a33131; padding: 12px; border-radius: 6px; font-size: 13px; }

@@ -793,3 +793,157 @@ Format references: [Adobe signature formats](https://www.adobe.com/devnet-docs/a
 Click an outline or object-list entry to select one object. Hold Ctrl (Cmd on macOS) while clicking to add or remove objects from the selection. Use **Delete selected objects** in the inspector or press **Delete** outside an input to delete the selection in one operation. A normal click selects just that object; changing pages, layers, or starting object creation clears the selection. Multiple objects can be selected on the current page.
 
 Bulk deletion supports text lines, image occurrences, and form fields. Selecting several widgets of one field deletes that field once, including its other widgets. Read-only fields cannot be deleted. If any operation fails, the original PDF and selection are preserved. Editing and dragging remain single-object operations.
+
+### Extracting, splitting and merging pages
+
+These library APIs return new object graphs and do not modify their inputs:
+
+```csharp
+using PdfObjectKit.Editors;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+
+var source = PdfReader.Read(File.ReadAllBytes("input.pdf"));
+
+// One-based, distinct page numbers; output follows the requested order.
+var extracted = PdfPageEditor.ExtractPages(source, [3, 1]);
+File.WriteAllBytes("selected.pdf", PdfWriter.Write(extracted));
+
+// One independent PDF per page.
+var split = PdfPageEditor.Split(source);
+for (var index = 0; index < split.Count; index++)
+{
+    File.WriteAllBytes($"page-{index + 1}.pdf", PdfWriter.Write(split[index]));
+}
+
+// Input order is preserved. Object numbers are remapped per source.
+var second = PdfReader.Read(File.ReadAllBytes("second.pdf"));
+var merged = PdfDocumentMerger.Merge([source, second]);
+File.WriteAllBytes("merged.pdf", PdfWriter.Write(merged));
+```
+
+The copier retains reachable page content, fonts, images, nested Form XObjects,
+ordinary annotations, and inherited Resources, MediaBox, CropBox and Rotate.
+Streams are copied without decoding/recompressing. Explicit links between retained
+pages are remapped. A link to an excluded page is rejected rather than left broken.
+Duplicate page numbers within one extraction and empty selections are rejected.
+
+Page assembly also supports:
+- AcroForm fields and widget appearances, filtered to retained pages. Fields remain editable; default appearance resources are renamed per source to avoid font-resource collisions.
+- Bookmarks, with excluded-page bookmarks pruned and surviving children retained. Named destinations used by links/bookmarks are resolved to explicit page destinations. Retained named destinations are also exported in a sorted name tree.
+- Page labels, including reordered pages and source-relative numbering.
+- Optional-content groups with default visibility, automatic usage applications scoped to their source groups, ordering, radio groups and locked groups (View intent).
+- Embedded-file name trees, associated files and file-attachment annotations.
+- First-input metadata, document information, language, viewer preferences, page presentation settings and opening destination/action. Output intents are retained when all merged inputs have identical resolved intent dictionaries and profile bytes.
+
+The first input supplies document-wide metadata/settings; later inputs do not overwrite them. Duplicate root field names, named destinations and attachment names are rejected by default. Explicit options below support namespacing/renaming; names are never silently overwritten. Links/actions targeting excluded pages are rejected, while bookmarks targeting those pages are pruned.
+
+**This is not full PDF-specification coverage.** Signed/certified documents, encryption, XFA forms, incompatible output intents, article threads, portfolios, catalog additional actions, JavaScript/other unsupported name trees, and alternate/Unchanged-state/non-View layer configurations remain explicitly unsupported. Signatures cannot remain valid across rewritten document bytes. Supported copying does not certify PDF/A, PDF/UA, or signature trust. Annotation and field actions are copied as data and are not executed.
+
+The APIs load graphs into memory; Split creates all single-page graphs at once.
+For large documents, call ExtractPages one page at a time and write each result
+before continuing.
+
+### Assembly limits, cancellation and conflict policies
+
+```csharp
+using PdfObjectKit.Options;
+
+var options = new PdfPageAssemblyOptions
+{
+    MaxPages = 2000,
+    MaxObjects = 250000,
+    MaxNodes = 1000000,
+    MaxEncodedStreamBytes = 256L * 1024 * 1024,
+    NamespaceFormFields = true,
+    RenameConflictingAttachments = true,
+    RenameConflictingDestinations = true
+};
+
+var combined = PdfDocumentMerger.Merge(documents, options, cancellationToken);
+
+// Lazy splitting avoids keeping all output graphs in memory at once.
+foreach (var page in PdfPageEditor.SplitPages(source, options, cancellationToken))
+{
+    // Write/process this page before requesting the next one.
+    var bytes = PdfWriter.Write(page);
+}
+```
+
+All ExtractPages, Split, SplitPages and Merge APIs accept optional options and a
+CancellationToken. MaxPages limits the result. Object, node and encoded-stream-byte
+limits check each input and the assembled output; split limits apply separately
+to each returned single-page document. They are not a process-memory ceiling or
+limits on the separate PDF parsing step. Cancellation is cooperative.
+
+NamespaceFormFields prefixes every root name with Document1_, Document2_, etc.,
+and rewrites string field references in action /Fields arrays. It rejects inputs
+containing JavaScript because script field references cannot safely be rewritten.
+Partial extraction that removes form fields also rejects JavaScript dependencies.
+Attachment/destination collision renaming adds a source and collision-counter
+prefix. File specifications and embedded file bytes remain unchanged.
+
+The copier validates malformed name/number trees and rejects catalog entries
+without an explicit preservation policy instead of silently dropping them.
+Later input opening actions and document-wide metadata do not replace those of
+the first input. Output-intent compatibility is deliberately conservative: it
+compares resolved objects and encoded profile bytes, not colorimetric equivalence.
+A missing intent on one input conflicts with an intent on another.
+
+Regression checks cover conflict resolution, editable fields, action references,
+named destinations, output intents, automatic layer scoping, cancellation, limits,
+source immutability and independent PDFsharp reads. This is progress toward
+production readiness, not a blanket PDF/A, PDF/UA, rendering-fidelity or security
+certification. XFA, portfolios and signatures remain explicit
+limits; a broader real-world corpus and external conformance validation are still
+needed before declaring unrestricted production support.
+
+### Playground document tabs
+
+The playground uses browser-style document tabs with titles, close controls and a
+new-tab button. Open PDF accepts multiple files; PDF drops also open new tabs.
+Each tab retains its latest saved PDF and its page, zoom and renderer settings.
+Inactive PDF renderers are released and rebuilt when their tab is activated.
+Unsaved inspector drafts are not persisted across tab switches.
+
+**Split PDF** opens one new tab per page. **Extract pages** accepts ordered
+selections such as `1, 3, 5-7` or `3-1` and opens one new tab containing the selected
+pages. Duplicate or out-of-range pages are rejected. Both operations use the
+current saved PDF and leave the original tab open. Unsupported assembly features
+produce an error with no partial tabs.
+
+Documents live in browser memory: download results before closing their tabs or
+reloading the page. The playground permits 128 tabs, up to 100 split/extracted
+pages per operation, 20 MB per input/output document and 64 MB total output per
+assembly request. Tab switching is disabled while an edit, render, dialog or
+object-creation operation is active.
+
+### Tagged PDF page assembly
+
+Split, ExtractPages, SplitPages and Merge preserve supported accessibility
+structure automatically. No tag-removal option is needed or exposed.
+
+The copier prunes structure content belonging to excluded pages, retains
+semantic containers and attributes (including Alt and ActualText), and keeps
+page MCIDs unchanged. It rebuilds the ParentTree and renumbers StructParents/
+StructParent keys for pages, tagged Form XObjects and annotations. Parent links,
+page links, custom roles/classes, structure IDs and IDTree entries are remapped.
+Custom role/class names and structure IDs receive source prefixes when copied
+to avoid collisions. Table-header ID references are updated accordingly.
+
+Original logical structure order is retained within each input, even when the
+requested physical page order differs. Merged document structures follow input
+order. MarkInfo and XMP metadata are retained; mixing untagged and tagged pages
+marks the result as Suspects rather than claiming that new content was tagged.
+
+Malformed/cyclic structure, inconsistent parent-tree back references, unsupported
+root extensions, and table-header dependencies on excluded structure elements
+are rejected explicitly. This is structural preservation, not automatic
+accessibility repair or a guarantee of PDF/UA conformance. Review accessibility
+after significant page rearrangements.
+
+Regression coverage includes page pruning/reordering, custom roles/classes,
+ActualText/Alt, annotation OBJR references, Form XObject MCR references, ID trees,
+merged parent-key collisions, source immutability, and independent PDFsharp
+reads. Set PDFOBJECTKIT_TAGGED_TEST_PDF to a local PDF path when running the
+backend console tests to additionally verify splitting that document.
