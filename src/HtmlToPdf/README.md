@@ -76,6 +76,12 @@ All three API projects expose the same contract:
 
 ### Run all APIs with Docker Compose
 
+To use released Docker Hub images, follow the [published-image setup](../../README.md#run-published-docker-images)
+and run `docker compose -f compose.published.yaml up -d` after configuring
+`DOCKERHUB_NAMESPACE` and `IMAGE_TAG` in this folder's `.env` file.
+Copy `.env.sample` to `.env` if needed; `IMAGE_TAG` defaults to `latest`.
+The commands below build images locally.
+
 Build and start all three APIs from `src/HtmlToPdf`:
 
 ```powershell

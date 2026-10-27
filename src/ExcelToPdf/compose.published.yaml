@@ -1,0 +1,31 @@
+name: excel-to-pdf
+
+services:
+  playground:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/excel-to-pdf-playground:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    depends_on:
+      - proxy
+    ports:
+      - "8094:80"
+
+  proxy:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/excel-to-pdf-proxy:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    depends_on:
+      - libreoffice-api
+    environment:
+      ReverseProxy__Clusters__libreoffice-cluster__Destinations__destination1__Address: http://libreoffice-api:8080/
+    ports:
+      - "8090:8080"
+
+  libreoffice-api:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/excel-to-pdf-libreoffice-api:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    ports:
+      - "8091:8080"

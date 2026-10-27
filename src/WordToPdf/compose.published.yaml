@@ -1,0 +1,31 @@
+name: word-to-pdf
+
+services:
+  playground:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/word-to-pdf-playground:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    depends_on:
+      - proxy
+    ports:
+      - "8104:80"
+
+  proxy:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/word-to-pdf-proxy:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    depends_on:
+      - libreoffice-api
+    environment:
+      ReverseProxy__Clusters__libreoffice-cluster__Destinations__destination1__Address: http://libreoffice-api:8080/
+    ports:
+      - "8100:8080"
+
+  libreoffice-api:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/word-to-pdf-libreoffice-api:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    ports:
+      - "8101:8080"

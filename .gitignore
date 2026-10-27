@@ -4,6 +4,9 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
 # User-specific files
+# Local environment settings (templates remain tracked)
+.env
+
 *.rsuser
 *.suo
 *.user

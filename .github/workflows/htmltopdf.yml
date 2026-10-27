@@ -106,6 +106,9 @@ jobs:
           fi
           repository="${IMAGE_NAME//\//-}"
           echo "image=docker.io/$DOCKERHUB_NAMESPACE/$repository:$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" != *-* ]]; then
+            echo "latest=docker.io/$DOCKERHUB_NAMESPACE/$repository:latest" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build image
         uses: docker/build-push-action@v7
         with:
@@ -129,6 +132,11 @@ jobs:
         env:
           LOCAL_IMAGE: ${{ matrix.image }}:ci
           RELEASE_IMAGE: ${{ steps.release.outputs.image }}
+          LATEST_IMAGE: ${{ steps.release.outputs.latest }}
         run: |
           docker tag "$LOCAL_IMAGE" "$RELEASE_IMAGE"
           docker push "$RELEASE_IMAGE"
+          if [[ -n "$LATEST_IMAGE" ]]; then
+            docker tag "$LOCAL_IMAGE" "$LATEST_IMAGE"
+            docker push "$LATEST_IMAGE"
+          fi

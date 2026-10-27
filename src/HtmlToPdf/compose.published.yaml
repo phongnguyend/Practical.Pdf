@@ -1,0 +1,52 @@
+name: html-to-pdf
+
+services:
+  playground:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/html-to-pdf-playground:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    depends_on:
+      - proxy
+    ports:
+      - "8084:80"
+
+  proxy:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/html-to-pdf-proxy:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    depends_on:
+      - chrome-cli-api
+      - playwright-api
+      - puppeteer-sharp-api
+    environment:
+      ReverseProxy__Clusters__chrome-cluster__Destinations__destination1__Address: http://chrome-cli-api:8080/
+      ReverseProxy__Clusters__playwright-cluster__Destinations__destination1__Address: http://playwright-api:8080/
+      ReverseProxy__Clusters__puppeteer-cluster__Destinations__destination1__Address: http://puppeteer-sharp-api:8080/
+    ports:
+      - "8080:8080"
+
+  chrome-cli-api:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/html-to-pdf-chrome-cli-api:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    ports:
+      - "8081:8080"
+
+  playwright-api:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/html-to-pdf-playwright-api:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    ipc: host
+    ports:
+      - "8082:8080"
+
+  puppeteer-sharp-api:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/html-to-pdf-puppeteer-sharp-api:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    ports:
+      - "8083:8080"

@@ -48,7 +48,10 @@ engine APIs, CLIs, proxy, and playground. Repository names replace the slash in
 the matrix image name with a hyphen: `html-to-pdf/proxy` becomes
 `<namespace>/html-to-pdf-proxy:1.2.3`. Images target Linux AMD64.
 Prereleases such as `v1.2.3-rc.1` publish the `1.2.3-rc.1` image tag.
-Only the explicit version tag is published; `latest` is not updated.
+Stable releases also publish `latest` from the same built image as the version
+tag, for every engine API, CLI, proxy, and playground. Prereleases do not update
+`latest`. Rerunning a stable release republishes both tags, so rerun the newest
+stable release when backfilling `latest` for existing images.
 Use a new version tag for each release. A failed matrix job can be rerun to
 finish publishing that version. Manual dispatch on a release tag also publishes;
 manual dispatch on a branch only builds.
@@ -62,3 +65,41 @@ docker compose build
 ```
 
 Compose builds service images; the workflows additionally build CLI images.
+
+### Run published Docker images
+
+Each solution includes a standalone `compose.published.yaml` that pulls its
+engine APIs, proxy, and playground from Docker Hub without building locally:
+
+```powershell
+cd src/ExcelToPdf # Or src/HtmlToPdf or src/WordToPdf from the repository root
+Copy-Item .env.sample .env # Only if .env does not already exist
+```
+
+Edit `.env` in that solution folder:
+
+```dotenv
+DOCKERHUB_NAMESPACE=your-dockerhub-account-or-organization
+IMAGE_TAG=latest
+```
+
+Compose loads this file automatically. Local `.env` files are ignored by Git;
+`.env.sample` provides the shared template. Then start the services:
+
+```powershell
+docker compose -f compose.published.yaml up -d
+```
+
+`DOCKERHUB_NAMESPACE` must match the namespace used by the release workflow.
+Images default to `latest` and are pulled on every `up` to pick up republished
+tags. To pin a release, set `IMAGE_TAG=1.2.3` in `.env` before running the command;
+use the image version without the Git tag prefix or `v`.
+
+The playgrounds are available at http://localhost:8084 (HTML),
+http://localhost:8094 (Excel), and http://localhost:8104 (Word).
+Published Compose uses the same project names and ports as local Compose, so
+it replaces that solution's existing containers when switching deployment modes.
+Images require Linux containers and target AMD64.
+
+To stop the published deployment, run
+`docker compose -f compose.published.yaml down` from its solution folder.
