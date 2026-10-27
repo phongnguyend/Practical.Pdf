@@ -52,6 +52,7 @@ jobs:
       matrix:
         include:
           - image: html-to-pdf/chrome-cli-api
+            engine: chrome
             context: src/HtmlToPdf/HtmlToPdf.Chrome.Api
             dockerfile: src/HtmlToPdf/HtmlToPdf.Chrome.Api/Dockerfile
             cache-scope: htmltopdf-chrome-cli-api
@@ -60,6 +61,7 @@ jobs:
             dockerfile: src/HtmlToPdf/HtmlToPdf.Chrome.Cli/Dockerfile
             cache-scope: htmltopdf-chrome-cli
           - image: html-to-pdf/playwright-api
+            engine: playwright
             context: src/HtmlToPdf/HtmlToPdf.Playwright.Api
             dockerfile: src/HtmlToPdf/HtmlToPdf.Playwright.Api/Dockerfile
             cache-scope: htmltopdf-playwright-api
@@ -68,6 +70,7 @@ jobs:
             dockerfile: src/HtmlToPdf/HtmlToPdf.Playwright.Cli/Dockerfile
             cache-scope: htmltopdf-playwright-cli
           - image: html-to-pdf/puppeteer-sharp-api
+            engine: puppeteer
             context: src/HtmlToPdf/HtmlToPdf.PuppeteerSharp.Api
             dockerfile: src/HtmlToPdf/HtmlToPdf.PuppeteerSharp.Api/Dockerfile
             cache-scope: htmltopdf-puppeteer-sharp-api
@@ -120,6 +123,46 @@ jobs:
           tags: ${{ matrix.image }}:ci
           cache-from: type=gha,scope=${{ matrix.cache-scope }}
           cache-to: type=gha,mode=max,scope=${{ matrix.cache-scope }}
+      - name: Set up Python for engine integration tests
+        if: matrix.engine != ''
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install PDF validation dependency
+        if: matrix.engine != ''
+        run: python -m pip install -r src/HtmlToPdf/integration/requirements.txt
+      - name: Start engine integration container
+        if: matrix.engine != ''
+        env:
+          IMAGE: ${{ matrix.image }}:ci
+        run: docker run -d --name htmltopdf-integration --init --shm-size=1g -p 127.0.0.1:18080:8080 "$IMAGE"
+      - name: Convert GitHub URL and downloaded HTML to PDFs
+        if: matrix.engine != ''
+        timeout-minutes: 7
+        env:
+          ENGINE: ${{ matrix.engine }}
+        run: >-
+          python src/HtmlToPdf/integration/convert_github.py
+          --engine "$ENGINE"
+          --output "artifacts/htmltopdf-$ENGINE"
+      - name: Collect engine container logs
+        if: always() && matrix.engine != ''
+        env:
+          ENGINE: ${{ matrix.engine }}
+        run: |
+          mkdir -p "artifacts/htmltopdf-$ENGINE"
+          docker logs htmltopdf-integration > "artifacts/htmltopdf-$ENGINE/container.log" 2>&1 || true
+      - name: Upload integration PDFs and diagnostics
+        if: always() && matrix.engine != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: htmltopdf-${{ matrix.engine }}-integration
+          path: artifacts/htmltopdf-${{ matrix.engine }}/
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Remove integration container
+        if: always() && matrix.engine != ''
+        run: docker rm -f htmltopdf-integration || true
       - name: Log in to Docker Hub
         if: startsWith(github.ref, 'refs/tags/releases/htmltopdf/v')
         uses: docker/login-action@v4

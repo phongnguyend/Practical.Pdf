@@ -36,6 +36,35 @@ dotnet build .\HtmlToPdf.slnx
 
 ## Converter APIs
 
+### Pipeline integration PDFs
+
+The [HtmlToPdf workflow](../../.github/workflows/htmltopdf.yml) tests each newly
+built Chrome, Playwright, and PuppeteerSharp API image before publishing it.
+Each engine converts `https://github.com/phongnguyend` through `/convert-url`,
+then uploads HTML downloaded from the same address to `/convert-file`.
+The HTML is used unchanged, so relative resources and dynamic content may
+differ from the URL result. These live checks require access to GitHub.
+
+The checks parse the PDFs and verify that extracted text contains
+`phongnguyend`. Both conversions are attempted even if one fails.
+Open the workflow run in **Actions** and download its **Artifacts**:
+
+- `htmltopdf-chrome-integration`
+- `htmltopdf-playwright-integration`
+- `htmltopdf-puppeteer-integration`
+
+Each artifact is retained for 30 days and contains `<engine>-url.pdf`,
+`<engine>-file.pdf`, downloaded `phongnguyend.html`, extracted PDF text,
+`report.json`, and container logs. Available outputs and diagnostics are
+uploaded even when a conversion fails.
+
+To run the same test against a local API, from the repository root:
+
+```powershell
+python -m pip install -r src/HtmlToPdf/integration/requirements.txt
+python src/HtmlToPdf/integration/convert_github.py --engine chrome --base-url http://localhost:8081 --output artifacts/htmltopdf-chrome
+```
+
 ### Convert a webpage URL
 
 All three APIs also expose `POST /convert-url` with JSON `{ "url": "https://example.com" }`.
@@ -49,8 +78,14 @@ individual results, PDF viewing, and downloads as file uploads. Pages open in
 a fresh server-side browser without the user's signed-in cookies. The address
 must be reachable from the converter (inside Docker, `localhost` means that container).
 URL conversion has a 90-second overall limit. Playwright and PuppeteerSharp
-wait for page load and reject HTTP error responses; Chrome CLI may print a
-browser or HTTP error page because it does not expose navigation status.
+reject HTTP error responses and wait for network activity, delayed scripts,
+DOM updates, fonts, and image decoding before printing. They also scroll the
+page to trigger lazy content. These waits are bounded so continuously updating
+pages do not hang. Chrome CLI uses a 10-second virtual-time budget for delayed
+scripts; it cannot perform the same scrolling and readiness checks and may print
+a browser or HTTP error page because it does not expose navigation status.
+For complex pages, prefer Playwright or PuppeteerSharp. The site's print CSS
+still applies, so the PDF can differ from its normal browser layout.
 
 ```powershell
 Invoke-WebRequest -Uri http://localhost:8080/playwright/convert-url -Method Post -ContentType application/json -Body '{"url":"https://example.com"}' -OutFile webpage.pdf

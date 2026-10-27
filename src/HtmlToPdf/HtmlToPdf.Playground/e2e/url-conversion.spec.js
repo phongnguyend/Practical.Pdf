@@ -52,7 +52,17 @@ test('real URL navigation and validation through all three APIs', async ({ reque
     } else if (req.url === '/script.js') {
       assets.add('js');
       res.writeHead(200, { 'Content-Type': 'application/javascript' });
-      res.end('document.querySelector("h1").textContent = "URL conversion verified";');
+      res.end(`setTimeout(() => {
+        document.querySelector('h1').textContent = 'URL conversion verified';
+        const style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = '/delayed.css';
+        document.head.append(style);
+      }, 1500);`);
+    } else if (req.url === '/delayed.css') {
+      assets.add('delayed-css');
+      res.writeHead(200, { 'Content-Type': 'text/css' });
+      res.end('h1 { font-weight: bold; }');
     } else {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end('<!doctype html><link rel="stylesheet" href="/style.css"><h1>Loading</h1><script src="/script.js"></script>');
@@ -66,7 +76,7 @@ test('real URL navigation and validation through all three APIs', async ({ reque
       expect(response.status(), await response.text()).toBe(200);
       expect(response.headers()['content-type']).toContain('application/pdf');
       expect((await response.body()).subarray(0, 5).toString()).toBe('%PDF-');
-      expect([...assets].sort()).toEqual(['css', 'js']);
+      expect([...assets].sort()).toEqual(['css', 'delayed-css', 'js']);
       for (const url of ['', 'not a URL', 'file:///etc/passwd', 'ftp://example.com', 'https://user:password@example.com']) {
         const invalid = await request.post(`/api/${engine}/convert-url`, { data: { url } });
         expect(invalid.status()).toBe(400);

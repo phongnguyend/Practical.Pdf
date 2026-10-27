@@ -67,7 +67,9 @@ public static class UrlConversionEndpoints
             process.StartInfo.ArgumentList.Add($"--user-data-dir={Path.Combine(directory, "profile")}");
             process.StartInfo.ArgumentList.Add($"--print-to-pdf={pdfPath}");
             process.StartInfo.ArgumentList.Add("--no-pdf-header-footer");
-            process.StartInfo.ArgumentList.Add("--timeout=30000");
+            // A timeout is only an upper bound; virtual time lets delayed scripts run before printing.
+            process.StartInfo.ArgumentList.Add("--timeout=60000");
+            process.StartInfo.ArgumentList.Add("--virtual-time-budget=10000");
             process.StartInfo.ArgumentList.Add(url);
             process.Start();
             var output = process.StandardOutput.ReadToEndAsync();
