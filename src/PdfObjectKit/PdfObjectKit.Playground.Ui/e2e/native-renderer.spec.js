@@ -311,3 +311,49 @@ test('Delete removes selected image and whole text line but ignores editing and 
   expect(edits).toHaveLength(2);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+for (const rotated of [false, true]) {
+  test(`native renderer paints saved widget text and updates after editing (rotated=${rotated})`, async ({ page }) => {
+    await page.goto('/');
+    let bytes = fixture(rotated);
+    async function upload() {
+      await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'widgets.pdf', mimeType: 'application/pdf', buffer: bytes });
+      await expect(page.getByRole('status')).toContainText('indirect objects');
+      await page.getByRole('button', { name: 'PdfObjectKit (experimental)', exact: true }).click();
+      await expect(page.locator('.page > div > canvas')).toHaveAttribute('data-renderer', 'native');
+    }
+    async function edit(change) {
+      const response = await page.request.post('/api/documents/edit', { multipart: {
+        file: { name: 'widgets.pdf', mimeType: 'application/pdf', buffer: bytes },
+        edit: JSON.stringify({ value: '', pageNumber: 1, ...change }),
+      } });
+      expect(response.ok()).toBeTruthy();
+      bytes = await response.body();
+    }
+    async function ink() {
+      return page.locator('.page > div > canvas').evaluate(canvas => {
+        const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+        let count = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i] < 80 && pixels[i + 1] < 80 && pixels[i + 2] < 80) {
+            count++;
+          }
+        }
+        return count;
+      });
+    }
+    await upload();
+    const before = await ink();
+    await edit({ kind: 'add-field', fieldType: 'Text', fieldName: 'Notes', value: 'Visible widget text', x: 5, y: 50, width: 170, height: 24 });
+    await edit({ kind: 'add-field', fieldType: 'PushButton', fieldName: 'Button', value: 'Continue', x: 5, y: 76, width: 170, height: 24 });
+    await edit({ kind: 'add-field', fieldType: 'Signature', fieldName: 'Signature', x: 5, y: 140, width: 170, height: 24 });
+    await upload();
+    expect(await ink()).toBeGreaterThan(before + 150);
+    const canvas = page.locator('.page > div > canvas');
+    const rendered = await canvas.evaluate(c => c.toDataURL());
+    await edit({ kind: 'field', fieldName: 'Notes', value: 'Updated text' });
+    await upload();
+    expect(await canvas.evaluate(c => c.toDataURL())).not.toBe(rendered);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+}

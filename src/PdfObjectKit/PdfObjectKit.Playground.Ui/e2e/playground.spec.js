@@ -775,3 +775,150 @@ test('Delete removes a selected form field but preserves keyboard editing in its
   await expect(page.locator('.object').filter({ hasText: 'FullName' })).toHaveCount(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+
+for (const type of ['CheckBox', 'Choice', 'RadioButton']) {
+  test(`create, edit and delete ${type} field`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await page.getByRole('button', { name: 'Form field', exact: true }).click();
+    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await page.getByLabel('Field name', { exact: true }).fill('AddedField');
+    await page.getByLabel('Initial field value', { exact: true }).selectOption(type === 'CheckBox' ? 'Yes' : type === 'Choice' ? 'Option 1' : 'Choice1');
+    await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+    const widgets = page.locator('.object').filter({ hasText: 'AddedField' });
+    await expect(widgets).toHaveCount(type === 'RadioButton' ? 2 : 1);
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    const canvas = page.locator('.page > div > canvas');
+    const before = await canvas.evaluate(c => c.toDataURL());
+    await widgets.first().click();
+    await expect(page.locator('.inspector pre')).toContainText(type);
+    if (type === 'Choice') {
+      await page.getByLabel('New value', { exact: true }).fill('Option 2');
+    } else {
+      await page.getByLabel('New value', { exact: true }).selectOption(type === 'CheckBox' ? 'Off' : 'Choice2');
+    }
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.locator('.inspector pre')).toHaveCount(0);
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    expect(await canvas.evaluate(c => c.toDataURL())).not.toBe(before);
+    await widgets.first().click();
+    await expect(page.locator('.inspector pre')).toContainText(type === 'CheckBox' ? 'Off' : type === 'Choice' ? 'Option 2' : 'Choice2');
+    await page.getByRole('button', { name: 'Delete field', exact: true }).click();
+    await expect(widgets).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+}
+
+for (const type of ['MultilineText', 'ListBox']) {
+  test(`create and edit ${type} field`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await page.getByRole('button', { name: 'Form field', exact: true }).click();
+    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await page.getByLabel('Field name', { exact: true }).fill('NewMode');
+    if (type === 'MultilineText') {
+      await page.getByLabel('Text to insert', { exact: true }).fill('First line\nSecond line');
+      await expect(page.getByLabel('Text placement preview').locator('text')).toHaveCount(2);
+    } else {
+      await page.getByLabel('Initial field value', { exact: true }).selectOption('Option 1');
+      await expect(page.getByLabel('Text placement preview').locator('text')).toHaveCount(2);
+    }
+    await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+    const widget = page.locator('.object').filter({ hasText: 'NewMode' });
+    await expect(widget).toHaveCount(1);
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    const canvas = page.locator('.page > div > canvas');
+    const before = await canvas.evaluate(c => c.toDataURL());
+    await widget.click();
+    if (type === 'MultilineText') {
+      await expect(page.getByLabel('New value', { exact: true })).toHaveValue('First line\nSecond line');
+      await page.getByLabel('New value', { exact: true }).fill('Changed\nAnother line');
+    } else {
+      await page.getByLabel('New value', { exact: true }).selectOption('Option 2');
+    }
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.locator('.inspector pre')).toHaveCount(0);
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    expect(await canvas.evaluate(c => c.toDataURL())).not.toBe(before);
+    await widget.click();
+    await expect(page.getByLabel('New value', { exact: true })).toHaveValue(type === 'MultilineText' ? 'Changed\nAnother line' : 'Option 2');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+}
+
+test('create, edit, reset and clear a multi-select list box', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  await page.getByRole('button', { name: 'Form field', exact: true }).click();
+  await page.getByLabel('Field type', { exact: true }).selectOption('MultiSelectListBox');
+  await page.getByLabel('Field name', { exact: true }).fill('Languages');
+  await page.getByLabel('Field options', { exact: true }).fill('English\nFrench\nGerman');
+  await page.getByRole('checkbox', { name: 'English', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'German', exact: true }).check();
+  await expect(page.getByLabel('Text placement preview').locator('rect[fill="#3366cc"]')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  const widget = page.locator('.object').filter({ hasText: 'Languages' });
+  await expect(widget).toHaveCount(1);
+  await widget.click();
+  await expect(page.getByRole('checkbox', { name: 'English', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'German', exact: true })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'English', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'English', exact: true })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'English', exact: true }).uncheck();
+  await page.getByRole('checkbox', { name: 'German', exact: true }).uncheck();
+  await page.getByRole('checkbox', { name: 'French', exact: true }).check();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.inspector pre')).toHaveCount(0);
+  await widget.click();
+  await expect(page.getByRole('checkbox', { name: 'French', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'English', exact: true })).not.toBeChecked();
+  await page.getByRole('checkbox', { name: 'French', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.inspector pre')).toHaveCount(0);
+  await widget.click();
+  await expect(page.locator('.object-editor input[type="checkbox"]:checked')).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+for (const type of ['PushButton', 'Signature']) {
+  test(`create, inspect and delete ${type} field`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+    await expect(page.getByRole('status')).toContainText('indirect objects');
+    await page.getByRole('button', { name: 'Form field', exact: true }).click();
+    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await page.getByLabel('Field name', { exact: true }).fill('AppearanceField');
+    if (type === 'PushButton') {
+      await page.getByLabel('Button caption', { exact: true }).fill('Continue');
+    }
+    await expect(page.getByLabel('Text placement preview')).toContainText(type === 'PushButton' ? 'Continue' : 'Unsigned signature');
+    await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+    const widget = page.locator('.object').filter({ hasText: 'AppearanceField' });
+    await expect(widget).toHaveCount(1);
+    await widget.click();
+    await expect(page.locator('.inspector pre')).toContainText(type);
+    if (type === 'PushButton') {
+      await expect(page.getByLabel('New value', { exact: true })).toHaveValue('Continue');
+      await page.getByLabel('New value', { exact: true }).fill('Next step');
+      const canvas = page.locator('.page > div > canvas');
+      const before = await canvas.evaluate(c => c.toDataURL());
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(page.locator('.inspector pre')).toHaveCount(0);
+      await expect(page.getByRole('status')).toContainText('indirect objects');
+      expect(await canvas.evaluate(c => c.toDataURL())).not.toBe(before);
+      await widget.click();
+      await expect(page.getByLabel('New value', { exact: true })).toHaveValue('Next step');
+    } else {
+      await expect(page.getByLabel('New value', { exact: true })).toHaveCount(0);
+      await expect(page.locator('.inspector-notice')).toContainText('Signing is not available');
+    }
+    await page.getByRole('button', { name: 'Delete field', exact: true }).click();
+    await expect(widget).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+}

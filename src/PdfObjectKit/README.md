@@ -559,11 +559,23 @@ PdfFormEditor.SetValue(document, "Plan", "Premium"); // Radio appearance-state n
 File.WriteAllBytes("filled.pdf", PdfWriter.Write(document));
 ```
 
+Create additional field types with generated normal appearances:
+
+```csharp
+PdfFormEditor.InsertCheckBox(document, 1, "Accepted", false, 40, 600, 20, 20);
+PdfFormEditor.InsertDropdown(document, 1, "Country",
+    [new("US", "United States"), new("UK", "United Kingdom")], "US", 40, 550, 180, 24);
+PdfFormEditor.InsertRadioGroup(document, 1, "ContactMethod",
+    [new("Email", "By email"), new("Phone", "By phone")], "Email", 40, 470, 180, 48);
+```
+
+In the playground, place **Form field**, then select **Text field**, **Multiline text**, **Checkbox**, **Dropdown**, **List box**, **Multi-select list box**, **Radio group**, **Pushbutton**, or **Signature field** in the Inspector. Dropdowns, list boxes and radio groups accept one option label per line and an initial selection. Radio options occupy equal-height rows; allow at least 16 PDF points per option. Radio export states in the playground are `Choice1`, `Choice2`, etc.; the library accepts custom export states. `Off` is reserved for an unchecked/cleared button. Names must be unique top-level names. New dropdowns are noneditable and single-select. Labels currently use printable ASCII; checkbox/radio appearances are generated as vector graphics. Placement previews update live. Both renderers display saved normal widget appearances. The native renderer reports widgets with missing appearances instead of synthesizing their appearance from values.
+
 Extraction returns terminal fields with qualified names, types, inherited flags and values, default values, choice export/display pairs, and widget references, page numbers, rectangles and appearance-state names. Documents without an AcroForm return an empty list. XFA forms are unsupported.
 
-Editing updates the field value and every associated widget appearance. Checkboxes and radio buttons use their existing appearance streams; `SetValue` accepts an appearance-state name or `Off`. Single-line text and single-selection dropdowns generate plain black 12pt Helvetica appearances using printable ASCII display text. This replaces custom styling, borders and backgrounds, and clips text to the widget rectangle without fitting. Text and dropdown fields support `PdfTextAlignment.Left`, `Center`, and `Right`. Pass the optional `textAlignment` argument to `SetValue` or `InsertTextField`; value edits preserve the inherited alignment when it is omitted. `PdfFormExtractor` exposes `TextAlignment`. The playground provides alignment buttons for new and existing fields, with live alignment previews when creating fields. Dropdowns store the export value and display the matching label. Fields remain interactive; they are not flattened.
+Editing updates the field value and every associated widget appearance. Checkboxes and radio buttons use their existing appearance streams; `SetValue` accepts an appearance-state name or `Off`. Single-line/multiline text, single-selection dropdowns, and single/multi-select list boxes generate plain black 12pt Helvetica appearances using printable ASCII display text. This replaces custom styling, borders and backgrounds, and clips text to the widget rectangle without fitting. Text and dropdown fields support `PdfTextAlignment.Left`, `Center`, and `Right`. Pass the optional `textAlignment` argument to `SetValue` or `InsertTextField`; value edits preserve the inherited alignment when it is omitted. `PdfFormExtractor` exposes `TextAlignment`. The playground provides alignment buttons for new and existing fields, with live alignment previews when creating fields. Dropdowns store the export value and display the matching label. Fields remain interactive; they are not flattened.
 
-Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, multiline/password/comb/rich-text fields, list boxes, multiple selections, and unsupported display characters are rejected. Signature and pushbutton editing, script execution and font/style preservation are not implemented. `PdfFormEditor.InsertTextField` creates a top-level single-line text field; `DeleteField` removes a terminal field and all its widgets from the field tree and page annotations.
+Edits are atomic: rejected operations leave the document unchanged. Read-only fields, signed forms, calculation-order forms, target fields/widgets with additional actions, unsupported button appearances, rotated widgets, password/comb/rich-text fields, and unsupported display characters are rejected. Digital signing, button action creation, script execution and font/style preservation are not implemented. Pushbutton captions can be edited using `SetPushButtonCaption`. `PdfFormEditor.InsertTextField` creates a top-level text field (`multiline: true` enables line breaks and wrapping); `DeleteField` removes a terminal field and all its widgets from the field tree and page annotations.
 
 ## Browser playground
 
@@ -585,7 +597,7 @@ npm run dev
 
 Use the **PDF.js / PdfObjectKit (experimental)** buttons in the top toolbar to compare renderers without changing the document, page, zoom, selection, or edits. PDF.js remains the default. In native mode, `POST /api/documents/render?page=1` uses `PdfCanvasExporter.Export(document, pageNumber)` to produce a display list from our parser, and `src/renderers/nativeRenderer.ts` paints it with Canvas 2D. It does not call PDF.js page rendering. PDF.js still loads document/page geometry for the shared viewport and serves as the reference renderer.
 
-The experimental renderer supports decoded horizontal text with PDF glyph advances, basic paths, clipping, transforms, RGB/gray/CMYK drawing colors, axial RGB shading patterns with exponential/stitching functions, Form XObjects, JPEG RGB/gray images, and 8-bit RGB/gray image streams with simple soft masks. Edits are rebuilt and painted with the selected renderer. Rendering notes identify unsupported operators and image formats. Embedded glyf TrueType fonts (`FontFile2`) now load through the browser FontFace API. The exporter rebuilds a private-use cmap for the used glyphs: Identity-H CID fonts use CIDToGIDMap (or identity), while supported simple fonts use their PDF encoding and TrueType cmap. ToUnicode remains extraction metadata and does not select the rendered CID glyph. PDF advances position each glyph without stretching its embedded outline. Non-embedded fonts, unsupported formats/mappings, malformed fonts, and browser-rejected font data use browser substitutes with specific rendering notes. Type1/CFF/Type3 and vertical-font rendering are not implemented. Browser rasterization can still differ from PDF.js. Font faces are released after each canvas render. Gradient functions are sampled at 257 stops; sharp discontinuities and nonlinear transitions are approximate. Annotation/widget appearances, text clipping, tiling patterns, other shading types, advanced color spaces, blend modes and transparency groups are not fully rendered. Use PDF.js to check fidelity; this is a starting point for incremental renderer development, not a full PDF renderer. Display lists are bounded to 200,000 commands and 16 million decoded image pixels per page; these do not replace parser/decompression security limits.
+The experimental renderer supports decoded horizontal text with PDF glyph advances, basic paths, clipping, transforms, RGB/gray/CMYK drawing colors, axial RGB shading patterns with exponential/stitching functions, Form XObjects, JPEG RGB/gray images, and 8-bit RGB/gray image streams with simple soft masks. Edits are rebuilt and painted with the selected renderer. Rendering notes identify unsupported operators and image formats. Embedded glyf TrueType fonts (`FontFile2`) now load through the browser FontFace API. The exporter rebuilds a private-use cmap for the used glyphs: Identity-H CID fonts use CIDToGIDMap (or identity), while supported simple fonts use their PDF encoding and TrueType cmap. ToUnicode remains extraction metadata and does not select the rendered CID glyph. PDF advances position each glyph without stretching its embedded outline. Non-embedded fonts, unsupported formats/mappings, malformed fonts, and browser-rejected font data use browser substitutes with specific rendering notes. Type1/CFF/Type3 and vertical-font rendering are not implemented. Browser rasterization can still differ from PDF.js. Font faces are released after each canvas render. Gradient functions are sampled at 257 stops; sharp discontinuities and nonlinear transitions are approximate. Non-widget annotations, widgets without saved appearances, text clipping, tiling patterns, other shading types, advanced color spaces, blend modes and transparency groups are not fully rendered. Use PDF.js to check fidelity; this is a starting point for incremental renderer development, not a full PDF renderer. Display lists are bounded to 200,000 commands and 16 million decoded image pixels per page; these do not replace parser/decompression security limits.
 
 Press **Delete** to remove the selected image occurrence, whole text line (all its runs), or form field, then automatically save and rerender. The shortcut is inactive while editing inputs, while a dialog is open, during document operations, and for read-only fields. Holding the key does not repeat deletion. Form-field deletion follows the Inspector action and removes all widgets of that field.
 
@@ -667,3 +679,46 @@ In the playground, select an existing image or editable form field, then drag it
 Select a text segment in the playground and drag its outline to move all its runs together. Drop saves automatically; Escape cancels. Fonts, sizes, spacing, and other text placements are preserved. The library API is `PdfTextEditor.MoveText(document, pageNumber, runs, deltaX, deltaY)` with deltas in unrotated PDF page coordinates. Re-extract runs after edits. Shared Form occurrences are edited independently. Clipping inside groups containing only the selected text moves with that text, including exclusive Form bounding boxes. Clipping shared with unselected artwork remains fixed; text used as a clipping path is rejected.
 
 To remove a selected text line in the playground, choose **Delete whole line**. It removes every indexed run in that line and saves automatically; **Delete text run** still removes only the selected segment. Library clients can call `PdfTextEditor.DeleteText(document, pageNumber, runs)`. Deletion preserves subsequent text positions and other shared Form placements. This is content editing, not secure redaction.
+
+### Multiline text and list boxes
+
+```csharp
+PdfFormEditor.InsertTextField(document, 1, "Notes", "First line\nSecond line",
+    40, 400, 240, 80, multiline: true);
+PdfFormEditor.InsertListBox(document, 1, "Country",
+    [new("US", "United States"), new("UK", "United Kingdom")],
+    "UK", 40, 300, 240, 60);
+PdfFormEditor.SetValue(document, "Notes", "Updated\nnotes");
+PdfFormEditor.SetValue(document, "Country", "US");
+```
+
+Multiline fields preserve the complete value, wrap at spaces (or characters for long words), and draw top-down with 14pt line spacing. Overflow is clipped to the widget; font size is not reduced. CR, LF and CRLF line endings are accepted. List boxes store the export value and selection index, highlight the selected label, and scroll the saved appearance to that option. An empty value clears the selection. Both support left/center/right alignment. The playground offers live approximate previews and editing for these modes. Password/comb/rich-text fields, digital signing and button action creation remain unsupported.
+
+
+Multi-select list boxes use an array of export values:
+
+```csharp
+PdfFormEditor.InsertMultiSelectListBox(document, 1, "Languages",
+    [new("en", "English"), new("fr", "French"), new("de", "German")],
+    ["en", "de"], 40, 200, 240, 80);
+PdfFormEditor.SetValues(document, "Languages", ["fr", "de"]);
+PdfFormEditor.SetValues(document, "Languages", []); // Clear all selections.
+```
+
+`SetValues` requires a multi-select list box. It validates unique export values, stores values and selection indices in option order, and regenerates all widget appearances with highlighted selections. Invalid or ambiguous selections leave the document unchanged. The saved appearance begins at the first selected option and clips overflow; interactive viewers can scroll through the remaining options. The playground offers checkboxes for initial selections and editing, including clearing all selections and resetting unsaved edits. Use `SetValue` for single-selection fields.
+
+
+### Pushbuttons and unsigned signature fields
+
+```csharp
+PdfFormEditor.InsertPushButton(document, 1, "ContinueButton", "Continue", 40, 120, 140, 30);
+PdfFormEditor.SetPushButtonCaption(document, "ContinueButton", "Next step");
+PdfFormEditor.InsertSignatureField(document, 1, "ApproverSignature", 40, 60, 240, 50);
+```
+
+Pushbuttons have a centered printable-ASCII caption and a generated 12pt Helvetica appearance. `SetPushButtonCaption` updates all widgets and replaces custom appearance styling; it does not set a field value or execute actions. The extractor exposes the normal caption as `PdfFormWidget.Caption`. Newly created buttons have no actions attached.
+
+Signature fields are unsigned placeholders with no `/V` signature dictionary. Their appearance reads ?Unsigned signature?; this is not a digital signature or a drawn signature image. Sign them using a separate signing tool. Creation and caption editing reject already signed forms. The playground supports placement previews, caption editing, and the existing move/rename/delete actions for these fields. Digital signing and button action configuration are not included. `Unknown` is an extraction fallback, not a creatable field type.
+
+
+The native renderer draws visible widgets after page content using their saved normal `/AP /N` appearances. Checkbox/radio state dictionaries use `/AS`. Appearance matrices and bounding boxes map into each widget rectangle; hidden, invisible and NoView widgets are skipped. Rendering does not modify the PDF or add widget text to the text extractor. Widgets without usable appearances produce a rendering note; regenerate appearances by editing the field or use a PDF viewer that synthesizes them. NoZoom/NoRotate annotation flags and other advanced annotation behavior remain unsupported.

@@ -47,5 +47,7 @@ public sealed class PdfFormWidget
 
     public List<double> Rectangle { get; init; } = [];
 
+    public string? Caption { get; init; }
+
     public List<string> AppearanceStates { get; init; } = [];
 }

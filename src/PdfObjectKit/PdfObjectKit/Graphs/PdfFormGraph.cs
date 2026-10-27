@@ -85,6 +85,7 @@ internal sealed class PdfFormGraph
                     ObjectReference = widgetRaw.Reference,
                     PageNumber = pages.TryGetValue(widget, out var number) ? number : null,
                     Rectangle = Graph.Get(widget, "Rect")?.Items?.Select(v => Number(Graph.Resolve(v))).ToList() ?? [],
+                    Caption = Graph.Get(widget, "MK") is { } mk && Graph.Get(mk, "CA") is { } caption ? Text(caption) : null,
                     AppearanceStates = Graph.Get(widget, "AP") is { } ap && Graph.Get(ap, "N") is { Type: "dictionary" } states
                         ? states.Entries!.Keys.ToList() : []
                 });

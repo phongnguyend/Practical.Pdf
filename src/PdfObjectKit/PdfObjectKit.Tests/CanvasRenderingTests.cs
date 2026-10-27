@@ -1,5 +1,7 @@
 using System.Text;
 using PdfObjectKit.Graphs;
+using PdfObjectKit.Editors;
+using PdfObjectKit.Converters;
 using PdfObjectKit.Models;
 using PdfObjectKit.Readers;
 using PdfObjectKit.Rendering;
@@ -7,8 +9,71 @@ using static PdfObjectKit.Primitives.PdfPrimitives;
 
 internal static class CanvasRenderingTests
 {
+    private static void TestWidgetAppearances()
+    {
+        var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Page text")));
+        PdfFormEditor.InsertTextField(document, 1, "Name", "Visible name", 40, 40, 150, 30);
+        PdfFormEditor.InsertTextField(document, 1, "Notes", "First\nSecond", 40, 80, 150, 60, multiline: true);
+        PdfFormEditor.InsertDropdown(document, 1, "Dropdown", [new("a", "Dropdown label")], "a", 40, 150, 150, 30);
+        PdfFormEditor.InsertMultiSelectListBox(document, 1, "List", [new("a", "List alpha"), new("b", "List beta")], ["a", "b"], 40, 190, 150, 50);
+        PdfFormEditor.InsertCheckBox(document, 1, "Check", true, 40, 250, 20, 20);
+        PdfFormEditor.InsertRadioGroup(document, 1, "Radio", [new("a", "Radio alpha"), new("b", "Radio beta")], "b", 80, 250, 150, 50);
+        PdfFormEditor.InsertPushButton(document, 1, "Button", "Continue", 40, 310, 150, 30);
+        PdfFormEditor.InsertSignatureField(document, 1, "Signature", 40, 350, 150, 40);
+        var before = PdfConverter.ToJson(document);
+        var display = PdfCanvasExporter.Export(document, 1);
+        var text = string.Concat(display.Commands.SelectMany(command => command.Glyphs ?? []).Select(glyph => glyph.Text));
+        foreach (var expected in new[] { "Page text", "Visible name", "First", "Second", "Dropdown label", "List alpha", "List beta", "Radio alpha", "Radio beta", "Continue", "Unsigned signature" })
+        {
+            if (!text.Contains(expected))
+            {
+                throw new Exception("Native renderer omitted widget text: " + expected);
+            }
+        }
+        var name = display.Commands.Single(command => command.Kind == "text" && string.Concat(command.Glyphs!.Select(g => g.Text)) == "Visible name");
+        if (name.Numbers[4] != 42 || name.Numbers[5] != 51 || PdfConverter.ToJson(document) != before)
+        {
+            throw new Exception("Widget appearances must use page coordinates without mutating the document.");
+        }
+        var selectedPaths = display.Commands.Count(command => command.Kind == "l");
+        PdfFormEditor.SetChecked(document, "Check", false);
+        if (PdfCanvasExporter.Export(document, 1).Commands.Count(command => command.Kind == "l") >= selectedPaths)
+        {
+            throw new Exception("Checkbox rendering must select its current appearance state.");
+        }
+        var form = new PdfFormGraph(document);
+        var widget = form.Fields.Single(field => field.Model.Name == "Name").Widgets[0];
+        widget.Entries!["F"] = Num(32);
+        text = string.Concat(PdfCanvasExporter.Export(document, 1).Commands.SelectMany(command => command.Glyphs ?? []).Select(g => g.Text));
+        if (text.Contains("Visible name"))
+        {
+            throw new Exception("NoView widgets must not render.");
+        }
+        widget.Entries["F"] = Num(4);
+        widget.Entries["Rect"] = Array(Num(100), Num(100), Num(180), Num(140));
+        var appearance = Stream(Encoding.ASCII.GetBytes("BT /F1 12 Tf 1 0 0 1 10 20 Tm (Mapped) Tj ET"));
+        appearance.Entries!["BBox"] = Array(Num(10), Num(20), Num(30), Num(60));
+        appearance.Entries["Matrix"] = Array(Num(0), Num(1), Num(-1), Num(0), Num(0), Num(0));
+        appearance.Entries["Resources"] = Dict(("Font", Dict(("F1", Dict(("Type", Name("Font")), ("Subtype", Name("Type1")), ("BaseFont", Name("Helvetica")))))));
+        widget.Entries["AP"] = Dict(("N", appearance));
+        display = PdfCanvasExporter.Export(document, 1);
+        var mapped = display.Commands.Single(command => command.Kind == "text" && string.Concat(command.Glyphs!.Select(g => g.Text)) == "Mapped");
+        if (mapped.Numbers[4] != 180 || mapped.Numbers[5] != 100)
+        {
+            throw new Exception("Appearance Matrix and nonzero BBox must map into the widget rectangle.");
+        }
+        widget.Entries.Remove("AP");
+        display = PdfCanvasExporter.Export(document, 1);
+        if (!display.Warnings.Any(warning => warning.Contains("no usable saved normal appearance"))
+            || !display.Commands.Any(command => command.Glyphs?.Any(g => g.Text == "C") == true))
+        {
+            throw new Exception("Missing appearances must warn without suppressing other widgets.");
+        }
+    }
+
     public static void Run()
     {
+        TestWidgetAppearances();
         var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Original")));
         var page = new PdfGraph(document).Pages()[0];
         var form = Stream(Encoding.ASCII.GetBytes("BT /F1 10 Tf 2 Tc 20 30 Td [(A) -100 (B)] TJ ET"));

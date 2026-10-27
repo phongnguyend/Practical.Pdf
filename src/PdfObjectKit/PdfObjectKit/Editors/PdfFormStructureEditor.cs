@@ -152,8 +152,8 @@ public static partial class PdfFormEditor
         });
     }
 
-    /// <summary>Adds a top-level single-line text field and its widget, using the default field appearance.</summary>
-    public static void InsertTextField(PdfObjectDocument document, int pageNumber, string fieldName, string value, double x, double y, double width, double height, PdfTextAlignment textAlignment = PdfTextAlignment.Left)
+    /// <summary>Adds a top-level text field (optionally multiline) and its widget, using the default field appearance.</summary>
+    public static void InsertTextField(PdfObjectDocument document, int pageNumber, string fieldName, string value, double x, double y, double width, double height, PdfTextAlignment textAlignment = PdfTextAlignment.Left, bool multiline = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fieldName);
         if (fieldName.Contains('.') || !double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(width) || !double.IsFinite(height)
@@ -176,7 +176,7 @@ public static partial class PdfFormEditor
             graph.Resolve(working.Trailer.Entries!["Root"]).Entries!["AcroForm"] = acro;
             var widget = Dict(("Type", Name("Annot")), ("Subtype", Name("Widget")), ("FT", Name("Tx")),
                 ("T", Str(new byte[] { 0xFE, 0xFF }.Concat(Encoding.BigEndianUnicode.GetBytes(fieldName)).ToArray())),
-                ("F", Num(4)), ("Rect", Array(Num(x), Num(y), Num(x + width), Num(y + height))));
+                ("Ff", Num(multiline ? 1 << 12 : 0)), ("F", Num(4)), ("Rect", Array(Num(x), Num(y), Num(x + width), Num(y + height))));
             var id = new PdfReference(checked(working.Objects.Max(o => o.Id.ObjectNumber) + 1));
             working.Objects.Add(new(id, widget));
             acro.Entries!["Fields"] = new() { Type = "array", Items = [.. graph.Get(acro, "Fields")?.Items ?? [], Ref(id)] };

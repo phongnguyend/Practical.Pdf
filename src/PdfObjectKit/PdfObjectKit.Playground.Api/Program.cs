@@ -43,6 +43,11 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             return Results.Problem("Provide an edit value of at most 10000 characters.", statusCode: 400);
         }
 
+        if (edit.Values is not null && (edit.Values.Count > 100 || edit.Values.Any(value => value is null || value.Length > 10000)))
+        {
+            return Results.Problem("Provide at most 100 selection values, each at most 10000 characters.", statusCode: 400);
+        }
+
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, cancellation);
         var document = PdfReader.Read(buffer.ToArray());
@@ -92,7 +97,48 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         }
         else if (edit.Kind == "add-field" && edit.FieldName is not null)
         {
-            PdfFormEditor.InsertTextField(document, edit.PageNumber, edit.FieldName, edit.Value, edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left);
+            switch (edit.FieldType)
+            {
+                case PdfFormFieldKind.Text:
+                    PdfFormEditor.InsertTextField(document, edit.PageNumber, edit.FieldName, edit.Value, edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left, edit.Multiline);
+                    break;
+                case PdfFormFieldKind.PushButton:
+                    PdfFormEditor.InsertPushButton(document, edit.PageNumber, edit.FieldName, edit.Value, edit.X, edit.Y, edit.Width, edit.Height);
+                    break;
+                case PdfFormFieldKind.Signature:
+                    PdfFormEditor.InsertSignatureField(document, edit.PageNumber, edit.FieldName, edit.X, edit.Y, edit.Width, edit.Height);
+                    break;
+                case PdfFormFieldKind.CheckBox:
+                    if (edit.Value is not ("Yes" or "Off"))
+                    {
+                        throw new ArgumentException("Checkbox value must be Yes or Off.");
+                    }
+                    PdfFormEditor.InsertCheckBox(document, edit.PageNumber, edit.FieldName, edit.Value == "Yes", edit.X, edit.Y, edit.Width, edit.Height);
+                    break;
+                case PdfFormFieldKind.Choice:
+                    if (edit.MultiSelect)
+                    {
+                        PdfFormEditor.InsertMultiSelectListBox(document, edit.PageNumber, edit.FieldName, edit.Choices ?? [], edit.Values ?? [], edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left);
+                    }
+                    else if (edit.ListBox)
+                    {
+                        PdfFormEditor.InsertListBox(document, edit.PageNumber, edit.FieldName, edit.Choices ?? [], edit.Value, edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left);
+                    }
+                    else
+                    {
+                        PdfFormEditor.InsertDropdown(document, edit.PageNumber, edit.FieldName, edit.Choices ?? [], edit.Value, edit.X, edit.Y, edit.Width, edit.Height, edit.TextAlignment ?? PdfTextAlignment.Left);
+                    }
+                    break;
+                case PdfFormFieldKind.RadioButton:
+                    PdfFormEditor.InsertRadioGroup(document, edit.PageNumber, edit.FieldName, edit.Choices ?? [], edit.Value, edit.X, edit.Y, edit.Width, edit.Height);
+                    break;
+                default:
+                    throw new ArgumentException("Choose a supported form field type.");
+            }
+        }
+        else if (edit.Kind == "button-caption" && edit.FieldName is not null)
+        {
+            PdfFormEditor.SetPushButtonCaption(document, edit.FieldName, edit.Value);
         }
         else if (edit.Kind == "rename-field" && edit.FieldName is not null)
         {
@@ -108,7 +154,14 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         }
         else if (edit.Kind == "field" && edit.FieldName is not null)
         {
-            PdfFormEditor.SetValue(document, edit.FieldName, edit.Value, edit.TextAlignment);
+            if (edit.Values is not null)
+            {
+                PdfFormEditor.SetValues(document, edit.FieldName, edit.Values, edit.TextAlignment);
+            }
+            else
+            {
+                PdfFormEditor.SetValue(document, edit.FieldName, edit.Value, edit.TextAlignment);
+            }
         }
         else
         {
@@ -242,7 +295,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
                 {
                     if (widget.PageNumber is { } page && widget.Rectangle is { Count: 4 } r)
                     {
-                        items.Add(new($"widget{++widgetNumber}", page, "field", field.Name, Rectangle(r[0], r[1], r[2], r[3]), new { field.Name, field.Kind, field.Values, field.TextAlignment, field.IsReadOnly, field.Choices, widgetIndex = field.Widgets.IndexOf(widget), states = field.Widgets.SelectMany(w => w.AppearanceStates).Distinct(), widget }));
+                        items.Add(new($"widget{++widgetNumber}", page, "field", field.Name, Rectangle(r[0], r[1], r[2], r[3]), new { field.Name, field.Kind, field.Values, field.TextAlignment, field.IsReadOnly, field.Flags, field.Choices, widgetIndex = field.Widgets.IndexOf(widget), states = field.Widgets.SelectMany(w => w.AppearanceStates).Distinct(), widget }));
                     }
                 }
             }
@@ -282,4 +335,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null);

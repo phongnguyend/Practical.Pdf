@@ -156,14 +156,14 @@ internal static class FormTests
         PdfFormEditor.SetValue(repeated, "Applicant.FullName", "");
         Check(PdfFormExtractor.Extract(repeated)[0].Values.Single() == "", "empty text clears field");
 
-        foreach (var scenario in new[] { "multiline", "rotated", "xfa", "cycle" })
+        foreach (var scenario in new[] { "password", "rotated", "xfa", "cycle" })
         {
             var unsupported = PdfConverter.FromJson(PdfConverter.ToJson(doc));
             var unsupportedGraph = new PdfGraph(unsupported);
             switch (scenario)
             {
-                case "multiline":
-                    unsupportedGraph.Resolve(field).Entries!["Ff"] = Num(1 << 12);
+                case "password":
+                    unsupportedGraph.Resolve(field).Entries!["Ff"] = Num(1 << 13);
                     break;
                 case "rotated":
                     unsupportedGraph.Resolve(textWidget).Entries!["MK"] = Dict(("R", Num(90)));
@@ -287,6 +287,275 @@ internal static class FormTests
             Check(PdfConverter.ToJson(aligned) == beforeInvalidAlignment, "invalid alignment is atomic");
         }
 
+        TestFieldCreation();
+        TestMultilineAndLists();
+        TestMultiSelectLists();
+        TestPushButtonsAndSignatures();
         Console.WriteLine($"Passed {checks} AcroForm checks.");
+    }
+
+    private static void TestPushButtonsAndSignatures()
+    {
+        var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage()));
+        PdfFormEditor.InsertPushButton(document, 1, "Continue", "Continue", 20, 40, 120, 30);
+        PdfFormEditor.InsertSignatureField(document, 1, "Approval", 20, 90, 180, 50);
+        document = PdfReader.Read(PdfWriter.Write(document));
+        var form = new PdfFormGraph(document);
+        var button = form.Fields.Single(f => f.Model.Name == "Continue");
+        var signature = form.Fields.Single(f => f.Model.Name == "Approval");
+        if (button.Model.Kind != PdfFormFieldKind.PushButton || button.Model.Widgets.Single().Caption != "Continue"
+            || signature.Model.Kind != PdfFormFieldKind.Signature || signature.Inherited.ContainsKey("V")
+            || form.Graph.Get(signature.Node, "DV") is not null || ((int)Number(form.Graph.Get(form.AcroForm!, "SigFlags")!) & 1) == 0)
+        {
+            throw new Exception("Pushbutton caption and unsigned signature fields must round-trip.");
+        }
+        foreach (var field in form.Fields)
+        {
+            var widget = field.Widgets.Single();
+            if (field.Model.Values.Count != 0 || form.Graph.Get(widget, "A") is not null || form.Graph.Get(widget, "AA") is not null
+                || form.Graph.Get(form.Graph.Get(widget, "AP")!, "N")?.Type != "stream" || field.Model.Widgets.Single().PageNumber != 1)
+            {
+                throw new Exception("New appearance fields must have an appearance and no value or actions.");
+            }
+        }
+        PdfFormEditor.SetPushButtonCaption(document, "Continue", "Next (step)");
+        form = new PdfFormGraph(document);
+        button = form.Fields.Single(f => f.Model.Name == "Continue");
+        var content = Encoding.ASCII.GetString(Convert.FromBase64String(form.Graph.Get(form.Graph.Get(button.Widgets.Single(), "AP")!, "N")!.Base64!));
+        if (button.Model.Widgets.Single().Caption != "Next (step)" || !content.Contains(Syntax(Str(Encoding.ASCII.GetBytes("Next (step)"))))
+            || button.Model.Values.Count != 0)
+        {
+            throw new Exception("Caption edits must update metadata and appearance without adding a field value.");
+        }
+        void Reject(Action action)
+        {
+            var before = PdfConverter.ToJson(document);
+            try
+            {
+                action();
+                throw new Exception("Invalid appearance field operation accepted.");
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+            {
+                if (PdfConverter.ToJson(document) != before)
+                {
+                    throw new Exception("Rejected appearance field operations must be atomic.");
+                }
+            }
+        }
+        Reject(() => PdfFormEditor.InsertPushButton(document, 1, "Continue", "Duplicate", 0, 0, 100, 30));
+        Reject(() => PdfFormEditor.InsertSignatureField(document, 0, "Invalid", 0, 0, 100, 30));
+        Reject(() => PdfFormEditor.InsertSignatureField(document, 1, "Invalid", 0, 0, -1, 30));
+        Reject(() => PdfFormEditor.SetPushButtonCaption(document, "Continue", "Bad\ncaption"));
+        Reject(() => PdfFormEditor.SetPushButtonCaption(document, "Approval", "Not a button"));
+        Reject(() => PdfFormEditor.SetValue(document, "Approval", "Not a digital signature"));
+        Reject(() => PdfFormEditor.SetValue(document, "Continue", "Not a button value"));
+        PdfFormEditor.MoveWidget(document, "Approval", 0, 5, 10);
+        PdfFormEditor.RenameField(document, "Approval", "ApproverSignature");
+        var moved = PdfFormExtractor.Extract(PdfReader.Read(PdfWriter.Write(document))).Single(f => f.Name == "ApproverSignature");
+        if (!moved.Widgets.Single().Rectangle.SequenceEqual(new double[] { 25, 100, 205, 150 }))
+        {
+            throw new Exception("Unsigned signature fields must support moving and renaming.");
+        }
+        // Simulate a signed field to exercise the existing signed-form mutation guard.
+        var signedForm = new PdfFormGraph(document);
+        var signedNode = signedForm.Fields.Single(f => f.Model.Name == "ApproverSignature").Node;
+        signedNode.Entries!["V"] = Dict(("Type", Name("Sig")));
+        Reject(() => PdfFormEditor.InsertSignatureField(document, 1, "Another", 0, 0, 100, 30));
+        Reject(() => PdfFormEditor.InsertPushButton(document, 1, "Another", "Button", 0, 0, 100, 30));
+        Reject(() => PdfFormEditor.SetPushButtonCaption(document, "Continue", "Blocked"));
+        signedNode.Entries.Remove("V");
+        PdfFormEditor.DeleteField(document, "ApproverSignature");
+        PdfFormEditor.DeleteField(document, "Continue");
+        if (PdfFormExtractor.Extract(document).Count != 0)
+        {
+            throw new Exception("Appearance fields must be removable.");
+        }
+        Console.WriteLine("Pushbutton and unsigned signature checks passed.");
+    }
+
+    private static void TestMultiSelectLists()
+    {
+        var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage()));
+        PdfFormEditor.InsertMultiSelectListBox(document, 1, "Languages",
+            [new("en", "English"), new("fr", "French"), new("de", "German")], ["de", "en"], 40, 40, 180, 80);
+        document = PdfReader.Read(PdfWriter.Write(document));
+        var form = new PdfFormGraph(document);
+        var field = form.Fields.Single(f => f.Model.Name == "Languages");
+        string Appearance(PdfFormGraph graph, PdfFormGraph.Field target)
+        {
+            return Encoding.ASCII.GetString(Convert.FromBase64String(graph.Graph.Get(graph.Graph.Get(target.Widgets[0], "AP")!, "N")!.Base64!));
+        }
+        if ((field.Model.Flags & (1 << 21)) == 0 || !field.Model.Values.SequenceEqual(["en", "de"])
+            || !form.Graph.Get(field.Node, "I")!.Items!.Select(Number).SequenceEqual(new double[] { 0, 2 })
+            || Appearance(form, field).Split("0.2 0.4 0.8 rg").Length != 3)
+        {
+            throw new Exception("Multi-select values, sorted indices and both highlights must round-trip.");
+        }
+        PdfFormEditor.SetValues(document, "Languages", ["fr"], PdfTextAlignment.Center);
+        form = new PdfFormGraph(document);
+        field = form.Fields.Single(f => f.Model.Name == "Languages");
+        if (!field.Model.Values.SequenceEqual(["fr"]) || field.Model.TextAlignment != PdfTextAlignment.Center
+            || Number(form.Graph.Get(field.Node, "TI")!) != 1 || Number(form.Graph.Get(field.Node, "I")!.Items![0]) != 1)
+        {
+            throw new Exception("Replacing a selection must update values, alignment and scroll position.");
+        }
+        void Reject(Action action)
+        {
+            var before = PdfConverter.ToJson(document);
+            try
+            {
+                action();
+                throw new Exception("Invalid multi-select edit accepted.");
+            }
+            catch (ArgumentException)
+            {
+                if (PdfConverter.ToJson(document) != before)
+                {
+                    throw new Exception("Invalid multi-select edits must be atomic.");
+                }
+            }
+        }
+        Reject(() => PdfFormEditor.SetValues(document, "Languages", ["missing"]));
+        Reject(() => PdfFormEditor.SetValues(document, "Languages", ["en", "en"]));
+        Reject(() => PdfFormEditor.SetValues(document, "Languages", [null!]));
+        Reject(() => PdfFormEditor.SetValue(document, "Languages", "en"));
+        Reject(() => PdfFormEditor.InsertMultiSelectListBox(document, 1, "Invalid", [new("en", "English")], ["missing"], 0, 0, 100, 40));
+        PdfFormEditor.InsertTextField(document, 1, "Text", "", 0, 0, 100, 30);
+        PdfFormEditor.InsertListBox(document, 1, "Single", [new("en", "English")], "en", 0, 0, 100, 40);
+        Reject(() => PdfFormEditor.SetValues(document, "Text", []));
+        Reject(() => PdfFormEditor.SetValues(document, "Single", ["en"]));
+        PdfFormEditor.SetValues(document, "Languages", []);
+        document = PdfReader.Read(PdfWriter.Write(document));
+        form = new PdfFormGraph(document);
+        field = form.Fields.Single(f => f.Model.Name == "Languages");
+        if (field.Model.Values.Count != 0 || form.Graph.Get(field.Node, "I")!.Items!.Count != 0
+            || Appearance(form, field).Contains("0.2 0.4 0.8 rg"))
+        {
+            throw new Exception("Clearing selection must remove all values, indices and highlights.");
+        }
+        Console.WriteLine("Multi-select list box checks passed.");
+    }
+
+    private static void TestMultilineAndLists()
+    {
+        var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage()));
+        PdfFormEditor.InsertTextField(document, 1, "Notes", "First\r\nSecond", 10, 10, 100, 80, multiline: true);
+        PdfFormEditor.InsertListBox(document, 1, "CountryList", [new("US", "United States"), new("UK", "United Kingdom"), new("FR", "France")], "UK", 120, 10, 120, 60);
+        document = PdfReader.Read(PdfWriter.Write(document));
+        string Appearance(PdfFormGraph graph, PdfFormGraph.Field field)
+        {
+            var appearance = graph.Graph.Get(graph.Graph.Get(field.Widgets[0], "AP")!, "N")!;
+            return Encoding.ASCII.GetString(Convert.FromBase64String(appearance.Base64!));
+        }
+        var graph = new PdfFormGraph(document);
+        var notes = graph.Fields.Single(f => f.Model.Name == "Notes");
+        var list = graph.Fields.Single(f => f.Model.Name == "CountryList");
+        if ((notes.Model.Flags & (1 << 12)) == 0 || notes.Model.Values.Single() != "First\r\nSecond"
+            || !Appearance(graph, notes).Contains("2 66 Tm") || !Appearance(graph, notes).Contains("2 52 Tm")
+            || (list.Model.Flags & (1 << 17)) != 0 || Number(graph.Graph.Get(list.Node, "I")!.Items![0]) != 1
+            || Number(graph.Graph.Get(list.Node, "TI")!) != 1 || !Appearance(graph, list).Contains("0.2 0.4 0.8 rg")
+            || !Appearance(graph, list).Contains(Syntax(Str(Encoding.ASCII.GetBytes("United Kingdom")))))
+        {
+            throw new Exception("Multiline and list box flags, values, selection and appearances must round-trip.");
+        }
+        PdfFormEditor.SetValue(document, "Notes", new string('W', 30), PdfTextAlignment.Right);
+        graph = new PdfFormGraph(document);
+        notes = graph.Fields.Single(f => f.Model.Name == "Notes");
+        if (Appearance(graph, notes).Split(" Tj").Length < 4 || notes.Model.Values.Single().Length != 30)
+        {
+            throw new Exception("Long words must wrap without losing stored text.");
+        }
+        PdfFormEditor.SetValue(document, "CountryList", "FR");
+        graph = new PdfFormGraph(document);
+        list = graph.Fields.Single(f => f.Model.Name == "CountryList");
+        if (Number(graph.Graph.Get(list.Node, "I")!.Items![0]) != 2 || list.Model.Values.Single() != "FR")
+        {
+            throw new Exception("List edits must update selection indices and value.");
+        }
+        var before = PdfConverter.ToJson(document);
+        try
+        {
+            PdfFormEditor.SetValue(document, "CountryList", "missing");
+            throw new Exception("Unknown option accepted.");
+        }
+        catch (ArgumentException)
+        {
+            if (before != PdfConverter.ToJson(document))
+            {
+                throw new Exception("Invalid list edit must be atomic.");
+            }
+        }
+        PdfFormEditor.SetValue(document, "CountryList", "");
+        graph = new PdfFormGraph(document);
+        list = graph.Fields.Single(f => f.Model.Name == "CountryList");
+        if (graph.Graph.Get(list.Node, "I")!.Items!.Count != 0 || Appearance(graph, list).Contains("0.2 0.4 0.8 rg"))
+        {
+            throw new Exception("Clearing a list must remove its selection and highlight.");
+        }
+        Console.WriteLine("Multiline text and list box checks passed.");
+    }
+
+    private static void TestFieldCreation()
+    {
+        var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage()));
+        PdfFormEditor.InsertCheckBox(document, 1, "Agree", true, 20, 20, 20, 20);
+        PdfFormEditor.InsertDropdown(document, 1, "Country", [new("US", "United States"), new("UK", "United Kingdom")], "UK", 50, 50, 160, 24);
+        PdfFormEditor.InsertRadioGroup(document, 1, "Contact", [new("Email", "By email"), new("Phone", "By phone")], "Email", 50, 100, 160, 48);
+        var restored = PdfReader.Read(PdfWriter.Write(document));
+        var fields = PdfFormExtractor.Extract(restored);
+        if (fields.Count != 3 || fields[0].Kind != PdfFormFieldKind.CheckBox || fields[0].Values.Single() != "Yes"
+            || fields[1].Kind != PdfFormFieldKind.Choice || fields[1].Choices[1].DisplayValue != "United Kingdom"
+            || fields[2].Kind != PdfFormFieldKind.RadioButton || fields[2].Widgets.Count != 2)
+        {
+            throw new Exception("New field types must round-trip with options, values and widgets.");
+        }
+        PdfFormEditor.SetChecked(restored, "Agree", false);
+        PdfFormEditor.SetValue(restored, "Country", "US");
+        PdfFormEditor.SetValue(restored, "Contact", "Phone");
+        var graph = new PdfFormGraph(restored);
+        var radio = graph.Fields.Single(f => f.Model.Name == "Contact");
+        if (graph.Graph.Get(radio.Widgets[0], "AS")?.Name != "Off" || graph.Graph.Get(radio.Widgets[1], "AS")?.Name != "Phone"
+            || graph.Fields.Single(f => f.Model.Name == "Agree").Model.Values.Single() != "Off")
+        {
+            throw new Exception("Button edits must keep value and widget appearances synchronized.");
+        }
+        foreach (var field in graph.Fields)
+        {
+            foreach (var widget in field.Widgets)
+            {
+                if (graph.Graph.Get(widget, "AP") is null)
+                {
+                    throw new Exception("Every created widget must have an appearance.");
+                }
+            }
+        }
+        void Reject(Action action)
+        {
+            var before = PdfConverter.ToJson(restored);
+            try
+            {
+                action();
+                throw new Exception("Expected invalid form creation to fail.");
+            }
+            catch (ArgumentException)
+            {
+                if (PdfConverter.ToJson(restored) != before)
+                {
+                    throw new Exception("Rejected field creation must be atomic.");
+                }
+            }
+        }
+        Reject(() => PdfFormEditor.InsertCheckBox(restored, 1, "Agree", false, 0, 0, 20, 20));
+        Reject(() => PdfFormEditor.InsertCheckBox(restored, 0, "New", false, 0, 0, 20, 20));
+        Reject(() => PdfFormEditor.InsertCheckBox(restored, 1, "New", false, 0, 0, 20, 20, "Off"));
+        Reject(() => PdfFormEditor.InsertDropdown(restored, 1, "New", [new("a", "A"), new("a", "B")], "a", 0, 0, 50, 20));
+        Reject(() => PdfFormEditor.InsertRadioGroup(restored, 1, "New", [new("a", "A"), new("b", "B")], "missing", 0, 0, 80, 40));
+        PdfFormEditor.DeleteField(restored, "Contact");
+        if (PdfFormExtractor.Extract(restored).Any(field => field.Name == "Contact"))
+        {
+            throw new Exception("Deleting a radio group must remove all widgets.");
+        }
+        Console.WriteLine("Form creation checks passed.");
     }
 }

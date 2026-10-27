@@ -36,9 +36,10 @@ public static class PdfCanvasExporter
             throw new ArgumentOutOfRangeException(nameof(pageNumber));
         }
         var page = pages[pageNumber - 1];
+        var warnings = new HashSet<string> { "Experimental: annotations and advanced PDF graphics may differ from PDF.js." };
+        (graph, page) = PdfCanvasWidgetAppearances.Prepare(document, graph, page, warnings);
         var interpreted = new PdfPageInterpreter(graph, page);
         var result = new PdfCanvasPage();
-        var warnings = new HashSet<string> { "Experimental: annotations and advanced PDF graphics may differ from PDF.js." };
         if (interpreted.TextWarning is { } textWarning)
         {
             warnings.Add(textWarning);
