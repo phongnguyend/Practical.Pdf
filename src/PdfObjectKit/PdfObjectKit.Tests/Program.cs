@@ -95,3 +95,4 @@ HeuristicTests.Run();
 MarkdownImageTests.Run();
 
 SecurityTests.Run();
+WatermarkTests.Run();

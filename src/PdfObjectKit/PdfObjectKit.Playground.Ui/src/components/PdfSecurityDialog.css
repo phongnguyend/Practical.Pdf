@@ -1,0 +1,54 @@
+.security-permissions {
+  min-width: 0;
+  margin: 18px 0 0;
+  padding: 12px;
+  border: 1px solid #d7deea;
+  border-radius: 10px;
+  background: #f8faff;
+}
+
+.security-permissions legend {
+  padding: 0 6px;
+  color: #405675;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.security-permission-list {
+  display: grid;
+  gap: 4px;
+}
+
+.security-permission {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.security-permission:hover {
+  background: #edf3ff;
+}
+
+.security-permission input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2358d3;
+}
+
+.security-permission:focus-within {
+  background: #edf3ff;
+}
+
+.security-permissions:disabled .security-permission {
+  opacity: .55;
+  cursor: not-allowed;
+}

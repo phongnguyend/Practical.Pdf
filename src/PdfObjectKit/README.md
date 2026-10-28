@@ -1069,3 +1069,34 @@ var protectedBytes = PdfWriter.Write(document, new PdfWriteOptions
 In the playground, encrypted uploads open an in-app password dialog. Restricted documents require owner authentication before creating a decrypted working copy. **Protect PDF** downloads an encrypted copy with selected permissions; the current tab and ordinary Download PDF remain unencrypted. Passwords are submitted in request bodies, never URL parameters, and are not persisted in browser storage. Deploy the API over HTTPS and avoid request-body logging. The CLI currently has no password/security switches; use the library or playground for these operations.
 
 Security regressions include independent pypdf/QPDF fixtures, wrong passwords, owner/user roles, tampered permissions, unsupported filters, Unicode and empty passwords, encrypted object streams, independent fields, and source immutability. Export interoperability was checked with pypdf, QPDF and PDF.js. The browser security tests verify PDF.js text decoding and permission flags. This implementation has not undergone an independent cryptographic security audit.
+
+## Text watermarks
+
+Use **Watermark** in the playground to add a text watermark to the current page, all pages, or a range. Configure color, font size, opacity, angle, center/corner placement, margin, and foreground/background layering. **Preview** renders the actual resulting PDF without saving; **Add watermark** applies it to the current tab. Select an existing watermark in the dialog to update or remove it.
+
+```csharp
+using PdfObjectKit.Editors;
+using PdfObjectKit.Options;
+
+var id = PdfWatermarkEditor.AddText(document, new PdfTextWatermarkOptions
+{
+    Text = "CONFIDENTIAL",
+    PageNumbers = [1, 2], // null means all pages
+    FontSize = 48,
+    Opacity = 0.2,
+    Rotation = 45,
+    Color = "#808080",
+    Position = PdfWatermarkPosition.Center,
+    Layer = PdfWatermarkLayer.Foreground
+});
+
+var watermarks = PdfWatermarkEditor.GetWatermarks(document);
+PdfWatermarkEditor.UpdateText(document, id, new() { Text = "APPROVED" });
+PdfWatermarkEditor.Remove(document, id);
+```
+
+Placement is relative to the rotated visible page (CropBox intersected with MediaBox); positive watermark angles rotate counterclockwise. Dimensions use PDF user-space units. Text uses Helvetica and currently supports single-line printable ASCII. Text is not automatically shrunk to fit. Background watermarks can be covered by opaque page content. Image watermarks and custom/Unicode fonts are not included in this initial text-watermark feature.
+
+Changes are atomic and reject signed documents or unbalanced content streams. Watermarks use marked Form XObjects and placement streams, so identity survives save/reopen and content-stream consolidation. Removal preserves unrelated content and later edits, but is visual removal, not secure redaction or object-table compaction. Only PdfObjectKit watermarks retaining their custom metadata can be managed; arbitrary pre-existing watermarks are not detected. A watermark is a visual marking, not a copying restriction.
+
+PdfObjectKit watermark text is excluded from paragraph grouping so diagonal watermarks do not disable selection of the underlying document text. Raw text extraction and PDF rendering still include watermark text; use the Watermark dialog to manage it.

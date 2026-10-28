@@ -1,2 +1,71 @@
 .modal { border: 0; border-radius: 12px; color: #263850; }
 .modal::backdrop { background: #10203d88; }
+
+.modal button:has(> svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  column-gap: 8px;
+}
+
+.modal button > svg {
+  flex-shrink: 0;
+}
+
+.modal :is(input, textarea, select):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"], [type="button"], [type="submit"], [type="reset"]) {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #263850;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.modal :is(input, textarea, select):focus-visible {
+  border-color: #326de0;
+  outline: 2px solid #7bafff;
+  outline-offset: 2px;
+}
+
+.modal :is(input, textarea, select):disabled {
+  border-color: #d7deea;
+  color: #74839a;
+  cursor: not-allowed;
+}
+
+.modal :is(input, textarea)::placeholder {
+  color: #8190a5;
+  opacity: 1;
+}
+
+.modal :is(input, textarea, select)[aria-invalid="true"] {
+  border-color: #c64242;
+}
+
+.modal input[type="color"] {
+  box-sizing: border-box;
+  height: calc(1.4em + 18px);
+  padding: 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.modal input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.modal input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 3px;
+}
+
+.modal input[type="color"]::-moz-color-swatch {
+  border: 0;
+  border-radius: 3px;
+}

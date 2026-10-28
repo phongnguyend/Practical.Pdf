@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LockKeyhole, Download, X } from 'lucide-react';
 import { Modal } from './Modal';
 import './PageAssemblyDialog.css';
+import './PdfSecurityDialog.css';
 
 export function PdfSecurityDialog({ file, unlock, onClose, onUnlocked }: {
   file: File; unlock: boolean; onClose: () => void; onUnlocked: (file: File) => Promise<void>;
@@ -53,7 +54,7 @@ export function PdfSecurityDialog({ file, unlock, onClose, onUnlocked }: {
       <p className="control-help">{unlock ? 'Enter the PDF password. Restricted documents require the owner password. This opens a decrypted working copy; use Protect PDF when downloading to apply encryption again.' : 'AES-256 encryption. The working tab stays unencrypted. Permissions are requests enforced by supporting PDF viewers.'}</p>
       <label className="assembly-pages">{unlock ? 'PDF password' : 'Open password (optional)'}<input id="pdf-password" type="password" autoComplete="off" maxLength={127} disabled={busy} value={password} onChange={event => setPassword(event.target.value)} /></label>
       {!unlock && <><label className="assembly-pages">Owner password<input aria-label="Owner password" type="password" autoComplete="new-password" required maxLength={127} disabled={busy} value={owner} onChange={event => setOwner(event.target.value)} /><span>Use a different password to manage document permissions. Store it somewhere safe.</span></label>
-        <fieldset disabled={busy}><legend>Allow recipients to</legend>{(Object.entries({ allowPrinting: 'Print', allowHighQualityPrinting: 'Print at high quality', allowCopying: 'Copy text and images', allowModifying: 'Modify content', allowAnnotations: 'Add annotations', allowFormFilling: 'Fill form fields', allowDocumentAssembly: 'Assemble pages' }) as [keyof typeof permissions, string][]).map(([key, label]) => <label key={key} style={{ display: 'flex', gap: 8, margin: '8px 0' }}><input type="checkbox" checked={permissions[key]} onChange={event => setPermissions({ ...permissions, [key]: event.target.checked })} />{label}</label>)}</fieldset></>}
+        <fieldset className="security-permissions" disabled={busy}><legend>Allow recipients to</legend><div className="security-permission-list">{(Object.entries({ allowPrinting: 'Print', allowHighQualityPrinting: 'Print at high quality', allowCopying: 'Copy text and images', allowModifying: 'Modify content', allowAnnotations: 'Add annotations', allowFormFilling: 'Fill form fields', allowDocumentAssembly: 'Assemble pages' }) as [keyof typeof permissions, string][]).map(([key, label]) => <label key={key} className="security-permission"><input type="checkbox" checked={permissions[key]} onChange={event => setPermissions({ ...permissions, [key]: event.target.checked })} /><span>{label}</span></label>)}</div></fieldset></>}
       {error && <p className="assembly-error" role="alert">{error}</p>}
       <div className="assembly-actions"><button type="button" disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className="primary-action" disabled={busy || (!unlock && (!owner || owner === password))}>{unlock ? <LockKeyhole size={16} /> : <Download size={16} />}{busy ? 'Processing...' : unlock ? 'Unlock and open' : 'Download protected PDF'}</button></div>
     </form>

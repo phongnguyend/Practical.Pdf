@@ -1,0 +1,9 @@
+.watermark-dialog { width: min(900px, calc(100vw - 40px)); }
+.watermark-columns { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr); gap: 24px; }
+.watermark-settings { border: 0; padding: 0; margin: 0; min-width: 0; }
+.watermark-settings label { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.watermark-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.watermark-grid input { width: 100%; min-width: 0; box-sizing: border-box; }
+.watermark-preview { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f2f5fa; padding: 12px; border-radius: 8px; }
+.watermark-preview canvas { max-width: 100%; height: auto; background: white; box-shadow: 0 2px 10px #0002; }
+@media (max-width: 650px) { .watermark-columns { grid-template-columns: 1fr; } }

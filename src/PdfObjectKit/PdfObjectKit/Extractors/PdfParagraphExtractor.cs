@@ -43,7 +43,11 @@ public static class PdfParagraphExtractor
             throw new InvalidDataException($"Cannot detect paragraphs: {parsed.TextWarning}");
         }
 
-        if (parsed.Slots.Any(s => !s.IsHorizontal || s.Height <= 0))
+        // Watermarks are decorative Form content, not document paragraphs. Keep them in
+        // raw text extraction/rendering, but do not let their angle suppress page text.
+        var slots = parsed.Slots.Where(slot => !parsed.TextStreams.TryGetValue(slot.Stream, out var stream)
+            || stream.Entries?.GetValueOrDefault("PdfObjectKitWatermark")?.Type != "string").ToList();
+        if (slots.Any(s => !s.IsHorizontal || s.Height <= 0))
         {
             throw new NotSupportedException("Paragraph detection requires horizontal text in page coordinates.");
         }
@@ -51,7 +55,7 @@ public static class PdfParagraphExtractor
         var hashes = parsed.TextStreams.Select(s => (Id: s.Key, Value: s.Value)).ToDictionary(s => s.Id,
             s => Convert.ToHexString(SHA256.HashData(Convert.FromBase64String(s.Value.Base64!))));
         var rows = new List<List<NativeSlot>>();
-        foreach (var slot in parsed.Slots.Where(s => !string.IsNullOrWhiteSpace(s.Text))
+        foreach (var slot in slots.Where(s => !string.IsNullOrWhiteSpace(s.Text))
             .OrderByDescending(s => s.BaselineStart.Y).ThenBy(s => s.BaselineStart.X))
         {
             var row = rows.FirstOrDefault(r => Math.Abs(r[0].BaselineStart.Y - slot.BaselineStart.Y)
