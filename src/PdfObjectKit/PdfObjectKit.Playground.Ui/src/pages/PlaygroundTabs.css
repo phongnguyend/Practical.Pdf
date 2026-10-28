@@ -11,3 +11,24 @@
 .browser-tab .tab-close:hover, .tab-add:hover { background: #ccd8eb; }
 .tab-add { margin-bottom: 6px; }
 .tab-modified { width: 6px; height: 6px; border-radius: 50%; background: #386cdc; flex-shrink: 0; }
+
+.browser-tab.merge-selected { border-color: #8aabe8; background: #e5edfd; }
+.browser-tab.merge-selected.active { background: #fff; }
+.tab-merge-check { width: 14px; height: 14px; flex-shrink: 0; margin: 0 3px; accent-color: #2358d3; cursor: pointer; }
+.tab-merge-actions { display: flex; gap: 4px; align-items: center; margin: 0 0 6px auto; flex-shrink: 0; }
+.tab-merge-actions > button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 12px; white-space: nowrap; }
+.tab-merge-actions > button:first-child:not(:disabled) { color: white; background: #2358d3; border-color: #2358d3; }
+.merge-order-hint { padding: 5px 16px; background: #f3f6fc; border-bottom: 1px solid #dfe5ef; color: #60718b; font-size: 11px; }
+.merge-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; background: #fff0f0; color: #a32d35; font-size: 12px; }
+.merge-error button { display: inline-flex; padding: 4px; border: 0; background: transparent; }
+.merge-spinner { animation: merge-spin 1s linear infinite; }
+@keyframes merge-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .merge-spinner { animation: none; } }
+
+.browser-tab { position: relative; }
+.browser-tab > [role="tab"][draggable="true"] { cursor: grab; }
+.browser-tab > [role="tab"][draggable="true"]:active { cursor: grabbing; }
+.browser-tab.drop-before::before, .browser-tab.drop-after::after { content: ''; position: absolute; top: 3px; bottom: 3px; width: 3px; border-radius: 2px; background: #2358d3; pointer-events: none; z-index: 2; }
+.browser-tab.drop-before::before { left: 0; }
+.browser-tab.drop-after::after { right: 0; }
+.tab-reorder-announcement { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

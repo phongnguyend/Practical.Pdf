@@ -135,3 +135,91 @@ for (const mode of ['split', 'extract']) {
     await expect(page.locator('.object')).toContainText(mode === 'split' ? 'First' : 'Second');
   });
 }
+
+test('merge checked tabs uses saved edits and tab order, and opens an independent result', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles([pdfFile('first.pdf', ['First']), pdfFile('second.pdf', ['Second'])]);
+  await expect(page.locator('.object')).toContainText('First');
+  await page.getByRole('region', { name: 'Object toolbox' }).getByRole('button', { name: 'Text', exact: true }).click();
+  await page.getByLabel('Text to insert').fill('Saved edit');
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  await expect(page.locator('.object').filter({ hasText: 'Saved edit' })).toHaveCount(1);
+  // Reverse selection order still merges in visible tab order.
+  await page.getByLabel('Select second.pdf for merge').check();
+  await expect(page.getByRole('button', { name: 'Merge selected (1)', exact: true })).toBeDisabled();
+  await page.getByLabel('Select first.pdf for merge').check();
+  await page.screenshot({ path: 'test-results/merge-tabs.png' });
+  await page.getByRole('button', { name: 'Merge selected (2)', exact: true }).click();
+  await expect(page.getByRole('tab')).toHaveCount(3);
+  await expect(page.getByRole('tab', { name: 'merged.pdf', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.object').filter({ hasText: 'Saved edit' })).toHaveCount(1);
+  await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(2);
+  await page.getByLabel('Page', { exact: true }).selectOption('2');
+  await expect(page.locator('.object')).toContainText('Second');
+  await page.getByRole('tab', { name: /^first\.pdf(?: Modified)?$/ }).click();
+  await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(1);
+  await expect(page.locator('.object').filter({ hasText: 'Saved edit' })).toHaveCount(1);
+  await expect(page.getByLabel('Select first.pdf for merge')).not.toBeChecked();
+});
+
+test('Ctrl selection and merge failure preserve source tabs and selection', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles([pdfFile('one.pdf', ['One']), pdfFile('two.pdf', ['Two'])]);
+  await expect(page.locator('.object')).toContainText('One');
+  await page.getByRole('tab', { name: 'two.pdf', exact: true }).click({ modifiers: ['Control'] });
+  await expect(page.getByLabel('Select one.pdf for merge')).toBeChecked();
+  await expect(page.getByLabel('Select two.pdf for merge')).toBeChecked();
+  await page.route('**/api/documents/merge', route => route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ detail: 'Unsupported merge feature.' }) }));
+  await page.getByRole('button', { name: 'Merge selected (2)', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Unsupported merge feature');
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.locator('.object')).toContainText('One');
+  await expect(page.getByLabel('Select two.pdf for merge')).toBeChecked();
+  await page.getByRole('button', { name: 'Close two.pdf', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Merge selected (1)', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Clear merge selection', exact: true }).click();
+  await expect(page.getByLabel('Select one.pdf for merge')).not.toBeChecked();
+});
+
+test('merge endpoint rejects fewer than two files', async ({ request }) => {
+  const response = await request.post('/api/documents/merge', { multipart: { files: { name: 'one.pdf', mimeType: 'application/pdf', buffer: pdfFile('one.pdf', ['One']).buffer } } });
+  expect(response.status()).toBe(400);
+});
+
+test('drag and keyboard tab reordering preserves saved edits, view and merge order', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles([pdfFile('a.pdf', ['Alpha']), pdfFile('b.pdf', ['Beta']), pdfFile('c.pdf', ['Gamma'])]);
+  await expect(page.locator('.object')).toContainText('Alpha');
+  await page.getByLabel('Zoom', { exact: true }).selectOption('1.25');
+  await page.getByRole('region', { name: 'Object toolbox' }).getByRole('button', { name: 'Text', exact: true }).click();
+  await page.getByLabel('Text to insert').fill('Saved before reorder');
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  await expect(page.locator('.object').filter({ hasText: 'Saved before reorder' })).toHaveCount(1);
+  for (const name of ['a.pdf', 'b.pdf', 'c.pdf']) {
+    await page.getByLabel(`Select ${name} for merge`).check();
+  }
+  const a = page.getByRole('tab', { name: /^a\.pdf/ });
+  const c = page.getByRole('tab', { name: 'c.pdf', exact: true });
+  const cBox = await c.boundingBox();
+  await a.dragTo(c, { targetPosition: { x: cBox.width - 3, y: cBox.height / 2 } });
+  await expect(page.getByRole('tab')).toHaveText(['b.pdf', 'c.pdf', 'a.pdf']);
+  await expect(a).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Zoom', { exact: true })).toHaveValue('1.25');
+  await expect(page.locator('.object').filter({ hasText: 'Saved before reorder' })).toHaveCount(1);
+  await a.focus();
+  await a.press('Alt+ArrowLeft');
+  await expect(page.getByRole('tab')).toHaveText(['b.pdf', 'a.pdf', 'c.pdf']);
+  await expect(a).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Merge selected (3)', exact: true })).toBeEnabled();
+  await a.press('Alt+ArrowLeft');
+  await a.press('Alt+ArrowLeft');
+  await expect(page.getByRole('tab')).toHaveText(['a.pdf', 'b.pdf', 'c.pdf']);
+  await a.press('Alt+ArrowRight');
+  await page.getByRole('button', { name: 'Merge selected (3)', exact: true }).click();
+  await expect(page.getByRole('tab')).toHaveCount(4);
+  await expect(page.locator('.object')).toContainText('Beta');
+  await page.getByLabel('Page', { exact: true }).selectOption('2');
+  await expect(page.locator('.object').filter({ hasText: 'Saved before reorder' })).toHaveCount(1);
+  await page.getByLabel('Page', { exact: true }).selectOption('3');
+  await expect(page.locator('.object')).toContainText('Gamma');
+});

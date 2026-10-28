@@ -30,7 +30,8 @@ type CanvasObject = { id: string; pageNumber: number; kind: Kind; label: string;
 type Inspection = { pdfVersion: string; pageCount: number; objectCount: number; objects: CanvasObject[]; warnings: string[] };
 const colors: Record<Kind, string> = { text: '#2563eb', image: '#be6514', field: '#008577', annotation: '#a16207' };
 
-export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOpenFiles, onSaved, onViewChange, onBusyChange }: {
+export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBusy = false, tabId, onOpenFiles, onSaved, onViewChange, onBusyChange }: {
+  externalBusy?: boolean;
   initialFile?: File;
   initialView: DocumentView;
   tabStrip: ReactNode;
@@ -50,7 +51,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
   const [name, setName] = useState('');
   const [page, setPage] = useState(initialView.page);
   const [zoom, setZoom] = useState(initialView.zoom);
-  const [busy, setBusy] = useState(false);
+  const [loading, setBusy] = useState(false);
+  const busy = loading || externalBusy;
   const [fileDrag, setFileDrag] = useState<'pdf' | 'image' | null>(null);
   const fileDragDepth = useRef(0);
   const [creationFieldType, setCreationFieldType] = useState<FormFieldType>('Text');

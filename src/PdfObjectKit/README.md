@@ -1004,3 +1004,24 @@ space; arbitrary skewed/rotated text within a page may have looser bounds.
 Changing page, zoom, document or mode clears the passage selection to avoid stale
 coordinates. Creating an object or choosing one in the object list returns to
 Select objects mode.
+
+### Merge open playground tabs
+
+Check the selection box on two or more PDF tabs, or Ctrl/Cmd-click tabs, then
+choose **Merge selected**. The first Ctrl/Cmd-click also includes the active PDF
+when starting a selection. Files are merged in their visible left-to-right tab
+order, using each tab's latest saved edits. The result opens in a new `merged.pdf`
+tab; all source tabs remain unchanged. Finish or cancel an in-progress draft
+before merging. Failed merges retain the source tabs and selection.
+
+The merge API accepts 2?32 multipart `files`, at most 20 MB each and 64 MB total.
+The output is limited to 100 pages and 20 MB so it can be reopened in the
+playground. Form field names are prefixed per source (`Document1_`, etc.), and
+colliding attachment and destination names are renamed using the existing
+assembly policies. Unsupported document features are reported without creating
+a partial result.
+
+Drag a tab onto the left or right edge of another tab to reorder it. The blue
+insertion indicator shows the destination. With a tab focused, Alt+Left/Right
+moves it one position without changing the active document. Reordering retains
+edits, view state and merge selections; Merge selected uses the updated order.

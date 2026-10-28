@@ -19,6 +19,81 @@ var app = builder.Build();
 using var gate = new SemaphoreSlim(1);
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
+app.MapPost("/api/documents/merge", async (HttpRequest request, CancellationToken cancellation) =>
+{
+    const long maxMergeBytes = 64L * 1024 * 1024;
+    if (!request.HasFormContentType)
+    {
+        return Results.Problem("Send PDF files as multipart form data.", statusCode: 415);
+    }
+    var sizeFeature = request.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+    if (sizeFeature is { IsReadOnly: false })
+    {
+        sizeFeature.MaxRequestBodySize = maxMergeBytes + 65536;
+    }
+    if (request.ContentLength > maxMergeBytes + 65536)
+    {
+        return Results.Problem("Merge uploads must total at most 64 MB.", statusCode: 413);
+    }
+    if (!await gate.WaitAsync(0, cancellation))
+    {
+        return Results.Problem("Another document operation is running. Try again shortly.", statusCode: 429);
+    }
+    try
+    {
+        var form = await request.ReadFormAsync(cancellation);
+        var files = form.Files.GetFiles("files");
+        if (files.Count is < 2 or > 32 || files.Count != form.Files.Count)
+        {
+            return Results.Problem("Select between 2 and 32 PDF tabs to merge.", statusCode: 400);
+        }
+        if (files.Any(file => file.Length is <= 0 or > maxBytes) || files.Sum(file => file.Length) > maxMergeBytes)
+        {
+            return Results.Problem("Choose PDFs up to 20 MB each and 64 MB combined.", statusCode: 413);
+        }
+        // Parse lazily so assembly does not retain every input graph at once.
+        IEnumerable<PdfObjectDocument> ReadDocuments()
+        {
+            foreach (var file in files)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                using var stream = file.OpenReadStream();
+                using var buffer = new MemoryStream();
+                stream.CopyTo(buffer);
+                yield return PdfReader.Read(buffer.ToArray());
+            }
+        }
+        var merged = PdfDocumentMerger.Merge(ReadDocuments(), new PdfObjectKit.Options.PdfPageAssemblyOptions
+        {
+            MaxPages = 100,
+            MaxObjects = 250000,
+            MaxNodes = 1000000,
+            MaxEncodedStreamBytes = maxMergeBytes,
+            NamespaceFormFields = true,
+            RenameConflictingAttachments = true,
+            RenameConflictingDestinations = true
+        }, cancellation);
+        var bytes = PdfWriter.Write(merged);
+        if (bytes.Length > maxBytes)
+        {
+            return Results.Problem("The merged PDF exceeds the playground's 20 MB document limit.", statusCode: 422);
+        }
+        return Results.File(bytes, "application/pdf", "merged.pdf");
+    }
+    catch (BadHttpRequestException ex)
+    {
+        return Results.Problem("The merge upload could not be read or exceeds the upload limit.", statusCode: ex.StatusCode);
+    }
+    catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or ArgumentException or FormatException or OverflowException)
+    {
+        return Results.Problem($"Cannot merge these PDFs: {ex.Message}", statusCode: 422);
+    }
+    finally
+    {
+        gate.Release();
+    }
+});
+
 app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken cancellation) =>
 {
     if (!request.HasFormContentType)
