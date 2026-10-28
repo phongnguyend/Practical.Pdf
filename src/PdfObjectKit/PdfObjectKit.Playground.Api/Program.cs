@@ -134,7 +134,17 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             throw new NotSupportedException("This PDF contains a signature. Editing would invalidate it; signed-document editing is disabled.");
         }
         byte[]? signedBytes = null;
-        if (edit.Kind == "delete-objects")
+        if (edit.Kind == "delete-page")
+        {
+            document = PdfPageEditor.DeletePage(document, edit.PageNumber, new PdfObjectKit.Options.PdfPageAssemblyOptions
+            {
+                MaxPages = 100,
+                MaxObjects = 250000,
+                MaxNodes = 1000000,
+                MaxEncodedStreamBytes = 64L * 1024 * 1024
+            }, cancellation);
+        }
+        else if (edit.Kind == "delete-objects")
         {
             if (edit.Deletions is not { Count: > 0 and <= 1000 } deletions
                 || deletions.Any(item => item.PageNumber != edit.PageNumber

@@ -1025,3 +1025,5 @@ Drag a tab onto the left or right edge of another tab to reorder it. The blue
 insertion indicator shows the destination. With a tab focused, Alt+Left/Right
 moves it one position without changing the active document. Reordering retains
 edits, view state and merge selections; Merge selected uses the updated order.
+
+Use **Delete page** beside the page controls to remove the current page after confirmation. The current tab is updated using the saved PDF, and the nearest remaining page is selected. The last page cannot be deleted. Download the result to keep it. Library clients can call `PdfPageEditor.DeletePage(document, pageNumber, options)`; it returns an independent document and leaves the source unchanged, using the same preservation rules and limits as page extraction.

@@ -24,6 +24,23 @@ public static class PdfPageEditor
         return copier.Finish();
     }
 
+    /// <summary>Returns an independent document without the specified one-based page. The source is unchanged.</summary>
+    public static PdfObjectDocument DeletePage(PdfObjectDocument document, int pageNumber, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        cancellationToken.ThrowIfCancellationRequested();
+        var count = new PdfGraph(document).Pages().Count;
+        if (pageNumber < 1 || pageNumber > count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber));
+        }
+        if (count <= 1)
+        {
+            throw new InvalidOperationException("Cannot delete the last page of a PDF.");
+        }
+        return ExtractPages(document, Enumerable.Range(1, count).Where(number => number != pageNumber).ToArray(), options, cancellationToken);
+    }
+
     /// <summary>Creates one independent document per page, in source order.</summary>
     public static IReadOnlyList<PdfObjectDocument> Split(PdfObjectDocument document, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
     {

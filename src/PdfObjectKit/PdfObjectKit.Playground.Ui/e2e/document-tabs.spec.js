@@ -223,3 +223,45 @@ test('drag and keyboard tab reordering preserves saved edits, view and merge ord
   await page.getByLabel('Page', { exact: true }).selectOption('3');
   await expect(page.locator('.object')).toContainText('Gamma');
 });
+
+
+test('delete current page preserves tab, remaining order and view, and protects last page', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('delete.pdf', ['First', 'Second', 'Third'], true));
+  await expect(page.locator('.object')).toContainText('First');
+  await page.getByLabel('Zoom', { exact: true }).selectOption('1.25');
+  await page.getByLabel('Page', { exact: true }).selectOption('2');
+  await expect(page.locator('.object')).toContainText('Second');
+  await page.getByRole('button', { name: 'Delete page', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('Delete page 2?');
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Delete page', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete page', exact: true }).click();
+  await expect(page.locator('.object')).toContainText('Third');
+  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByLabel('Page', { exact: true })).toHaveValue('2');
+  await expect(page.getByLabel('Zoom', { exact: true })).toHaveValue('1.25');
+  await page.getByRole('button', { name: 'Delete page', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete page', exact: true }).click();
+  await expect(page.locator('.object')).toContainText('First');
+  await expect(page.getByLabel('Page', { exact: true })).toHaveValue('1');
+  await expect(page.getByRole('button', { name: 'Delete page', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'New tab', exact: true }).click();
+  await page.getByRole('tab', { name: /delete.pdf/ }).click();
+  await expect(page.locator('.object')).toContainText('First');
+  await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(1);
+});
+
+test('delete page API rejects invalid page and deleting the last page', async ({ request }) => {
+  for (const pageNumber of [0, 2, 1]) {
+    const file = pdfFile('single.pdf', ['Only']);
+    const response = await request.post('/api/documents/edit', { multipart: {
+      file: { name: file.name, mimeType: file.mimeType, buffer: file.buffer },
+      edit: JSON.stringify({ kind: 'delete-page', pageNumber, value: '' }),
+    } });
+    expect(response.status()).toBe(422);
+  }
+});

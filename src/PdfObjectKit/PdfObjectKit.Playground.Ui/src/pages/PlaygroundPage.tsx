@@ -1,3 +1,4 @@
+import { Modal } from '../components/Modal';
 import { FormFieldToolbox } from '../components/FormFieldToolbox';
 import { fieldDefaults, formFieldTypes, type FormFieldType } from '../components/formFieldTypes';
 import { ObjectLayerFilters } from '../components/ObjectLayerFilters';
@@ -9,7 +10,7 @@ import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files } from 'lucide-react';
+import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2 } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from '../geometry.mjs';
@@ -68,6 +69,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showMarkdown, setShowMarkdown] = useState(false);
+  const [confirmDeletePage, setConfirmDeletePage] = useState(false);
   const [assembly, setAssembly] = useState<'split' | 'extract' | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Blob | null>(null);
   const [error, setError] = useState('');
@@ -154,8 +156,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     onViewChange({ page, zoom, renderer });
   }, [page, zoom, renderer]);
   useEffect(() => {
-    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || assembly !== null);
-  }, [busy, saving, rendering, exporting, adding, showMarkdown, assembly]);
+    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || confirmDeletePage || assembly !== null);
+  }, [busy, saving, rendering, exporting, adding, showMarkdown, confirmDeletePage, assembly]);
 
   function openFiles(files: File[]) {
     if (saving || busy) {
@@ -255,7 +257,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       task = getDocument({ data: await updated.arrayBuffer(), cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/pdfjs/standard_fonts/', wasmUrl: '/pdfjs/wasm/' });
       const loaded = await task.promise;
       // Check rendering before replacing the current document. A failed save keeps the old bytes.
-      const preview = await loaded.getPage(page);
+      const nextPage = Math.min(page, loaded.numPages);
+      const preview = await loaded.getPage(nextPage);
       const canvas = document.createElement('canvas');
       const view = preview.getViewport({ scale: zoom });
       const ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(16_000_000 / (view.width * view.height)));
@@ -265,7 +268,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       canvas.style.height = `${view.height}px`;
       let notes: string[] = [];
       if (renderer === 'native') {
-        notes = await renderNative(canvas, view, ratio, updated, page);
+        notes = await renderNative(canvas, view, ratio, updated, nextPage);
       } else {
         await preview.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] }).promise;
       }
@@ -273,6 +276,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       prepared.current = { pdf: loaded, canvas, viewport: view, renderer, notes };
       setPdf(loaded);
       setPdfBytes(updated);
+      setPage(nextPage);
+      setTextSelection(null);
       onSaved(new File([updated], name, { type: 'application/pdf' }));
       setInspection(data);
       setAdding(false);
@@ -554,7 +559,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       setTextSelection(null);
       window.getSelection()?.removeAllRanges();
       panGesture.current = null;
-    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
+    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><button aria-label="Delete page" title={pdf.numPages === 1 ? 'Cannot delete the last page' : 'Delete current page'} disabled={pdf.numPages <= 1 || saving || busy || rendering || adding || exporting} onClick={() => setConfirmDeletePage(true)}><Trash2 size={16} aria-hidden="true" />Delete page</button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}><X size={15} aria-hidden="true" />Dismiss</button></div>}
     <main><aside className="objects"><section className="toolbox" aria-label="Object toolbox"><h2>Create objects</h2><p className="hint">Drag a type onto the page. Move and resize it, then insert.</p>{[['add-text', 'Text'], ['add-image', 'Image'], ['add-comment', 'Comment']].map(([kind, label]) => <button key={kind} className="toolbox-item" disabled={!pdf || saving || busy || rendering} draggable={!!pdf && !saving && !busy && !rendering} onDragStart={event => {
       event.dataTransfer.setData('application/x-pdfobjectkit-type', kind);
@@ -626,7 +631,16 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
         void saveEdit(edit);
       }
     }} />{markupActions}</> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} />{markupActions}<ObjectEditor item={selected} busy={saving || busy || rendering || exporting} onSave={saveEdit} onExportImage={exportImage} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, (key, value) => key === 'values' && selected.kind === 'field' && (((selected.details as { flags?: number }).flags ?? 0) & (1 << 13)) !== 0 ? (value as string[]).map(text => '*'.repeat(text.length)) : value, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
-    </div>{assembly && pdfBytes && pdf && <PageAssemblyDialog mode={assembly} pdf={pdfBytes} name={name} pageCount={pdf.numPages} onClose={() => setAssembly(null)} onOpenFiles={onOpenFiles} />}
+    </div>{confirmDeletePage && <Modal labelledBy="delete-page-title" initialFocus="[data-delete-cancel]" className="page-assembly-dialog" onClose={() => setConfirmDeletePage(false)}>
+      <div className="assembly-heading"><div><Trash2 size={22} aria-hidden="true" /><h2 id="delete-page-title">Delete page {page}?</h2></div><button type="button" className="icon-button" aria-label="Close delete page confirmation" onClick={() => setConfirmDeletePage(false)}><X size={18} aria-hidden="true" /></button></div>
+      <p className="assembly-document">{name}</p>
+      <p>This removes page {page} from the current tab. This action cannot be undone.</p>
+      <p className="control-help">Your original file on disk is unchanged. Download the updated PDF to keep the result.</p>
+      <div className="assembly-actions"><button type="button" data-delete-cancel onClick={() => setConfirmDeletePage(false)}>Cancel</button><button type="button" className="danger-action" onClick={() => {
+        setConfirmDeletePage(false);
+        void saveEdit({ kind: 'delete-page', pageNumber: page, value: '' });
+      }}><Trash2 size={16} aria-hidden="true" />Delete page</button></div>
+    </Modal>}{assembly && pdfBytes && pdf && <PageAssemblyDialog mode={assembly} pdf={pdfBytes} name={name} pageCount={pdf.numPages} onClose={() => setAssembly(null)} onOpenFiles={onOpenFiles} />}
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
     <footer>PdfObjectKit extracts · {renderer === 'native' ? 'PdfObjectKit renders (experimental)' : 'PDF.js renders'}<span>Add, edit and delete · Files are not saved by the API</span></footer>
   </div>;
