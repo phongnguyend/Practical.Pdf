@@ -2,6 +2,14 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
+async function chooseField(page, type = 'Text') {
+  const toggle = page.getByRole('button', { name: 'Form field', exact: true });
+  if (await toggle.getAttribute('aria-expanded') !== 'true') {
+    await toggle.click();
+  }
+  await page.locator(`[data-field-type="${type}"]`).click();
+}
+
 function rotatedFormPdf() {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>',
@@ -131,7 +139,7 @@ test('add and delete text, image and form field through the playground', async (
   await page.getByRole('button', { name: 'Delete text run' }).click();
   await expect(page.locator('.object').filter({ hasText: 'Added text' })).toHaveCount(0);
 
-  await page.getByRole('region', { name: 'Object toolbox' }).getByRole('button', { name: 'Form field', exact: true }).click();
+  await chooseField(page);
   await page.getByLabel('Field name').fill('AddedField');
   await page.getByLabel('Text to insert').fill('Value');
   await expect(page.locator('.text-placement-preview text')).toHaveText('Value');
@@ -218,7 +226,10 @@ test('drag types from left toolbox, move the object body and resize its frame', 
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'rotated.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
   await expect(page.getByRole('status')).toContainText('indirect objects');
-  for (const [label, kind] of [['Image', 'add-image'], ['Form field', 'add-field'], ['Text', 'add-text']]) {
+  for (const [label, kind] of [['Image', 'add-image'], ['Text field', 'add-field:Text'], ['Text', 'add-text']]) {
+    if (kind === 'add-field:Text') {
+      await page.getByRole('button', { name: 'Form field', exact: true }).click();
+    }
     await page.getByRole('button', { name: label, exact: true }).dragTo(page.locator('.page'), { targetPosition: { x: 100, y: 100 } });
     await expect(page.locator('.inspector legend')).toContainText(`Add ${label.toLowerCase()}`);
     await expect(page.locator('.placement-box')).toBeVisible();
@@ -319,7 +330,7 @@ test('inspector replaces selections and creation drafts instead of accumulating 
   const toolbox = page.getByRole('region', { name: 'Object toolbox' });
   await toolbox.getByRole('button', { name: 'Text', exact: true }).click();
   await page.getByLabel('Text to insert').fill('Uncommitted draft');
-  await toolbox.getByRole('button', { name: 'Form field', exact: true }).click();
+  await chooseField(page);
   await expect(page.getByLabel('Text to insert')).toHaveValue('');
   await expect(page.getByRole('button', { name: 'Insert object', exact: true })).toHaveCount(1);
   await expect(page.locator('.inspector .object-editor')).toHaveCount(0);
@@ -340,7 +351,11 @@ test('Escape cancels creation from a focused inspector input', async ({ page }) 
   await expect(page.getByRole('status')).toContainText('indirect objects');
   const count = await page.locator('.object').count();
   for (const type of ['Text', 'Image', 'Form field']) {
-    await page.getByRole('region', { name: 'Object toolbox' }).getByRole('button', { name: type, exact: true }).click();
+    if (type === 'Form field') {
+      await chooseField(page);
+    } else {
+      await page.getByRole('region', { name: 'Object toolbox' }).getByRole('button', { name: type, exact: true }).click();
+    }
     await expect(page.locator('.placement-box')).toBeVisible();
     await page.getByLabel('X', { exact: true }).focus();
     await page.keyboard.press('Escape');
@@ -405,7 +420,7 @@ test('field alignment previews, saves and can be changed without changing the va
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
   await expect(page.getByRole('status')).toContainText('indirect objects');
-  await page.getByRole('region', { name: 'Object toolbox' }).getByRole('button', { name: 'Form field', exact: true }).click();
+  await chooseField(page);
   await page.getByLabel('Text to insert').fill('Aligned value');
   await page.getByRole('button', { name: 'Align center', exact: true }).click();
   await expect(page.locator('.text-placement-preview text')).toHaveAttribute('text-anchor', 'middle');
@@ -782,8 +797,7 @@ for (const type of ['CheckBox', 'Choice', 'RadioButton']) {
     await page.goto('/');
     await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
     await expect(page.getByRole('status')).toContainText('indirect objects');
-    await page.getByRole('button', { name: 'Form field', exact: true }).click();
-    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await chooseField(page, type);
     await page.getByLabel('Field name', { exact: true }).fill('AddedField');
     await page.getByLabel('Initial field value', { exact: true }).selectOption(type === 'CheckBox' ? 'Yes' : type === 'Choice' ? 'Option 1' : 'Choice1');
     await page.getByRole('button', { name: 'Insert object', exact: true }).click();
@@ -816,8 +830,7 @@ for (const type of ['MultilineText', 'ListBox']) {
     await page.goto('/');
     await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
     await expect(page.getByRole('status')).toContainText('indirect objects');
-    await page.getByRole('button', { name: 'Form field', exact: true }).click();
-    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await chooseField(page, type);
     await page.getByLabel('Field name', { exact: true }).fill('NewMode');
     if (type === 'MultilineText') {
       await page.getByLabel('Text to insert', { exact: true }).fill('First line\nSecond line');
@@ -853,8 +866,7 @@ test('create, edit, reset and clear a multi-select list box', async ({ page }) =
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
   await expect(page.getByRole('status')).toContainText('indirect objects');
-  await page.getByRole('button', { name: 'Form field', exact: true }).click();
-  await page.getByLabel('Field type', { exact: true }).selectOption('MultiSelectListBox');
+  await chooseField(page, 'MultiSelectListBox');
   await page.getByLabel('Field name', { exact: true }).fill('Languages');
   await page.getByLabel('Field options', { exact: true }).fill('English\nFrench\nGerman');
   await page.getByRole('checkbox', { name: 'English', exact: true }).check();
@@ -890,8 +902,7 @@ for (const type of ['PushButton', 'Signature']) {
     await page.goto('/');
     await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
     await expect(page.getByRole('status')).toContainText('indirect objects');
-    await page.getByRole('button', { name: 'Form field', exact: true }).click();
-    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await chooseField(page, type);
     await page.getByLabel('Field name', { exact: true }).fill('AppearanceField');
     if (type === 'PushButton') {
       await page.getByLabel('Button caption', { exact: true }).fill('Continue');
@@ -928,8 +939,7 @@ for (const type of ['Password', 'Comb']) {
     await page.goto('/');
     await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
     await expect(page.getByRole('status')).toContainText('indirect objects');
-    await page.getByRole('button', { name: 'Form field', exact: true }).click();
-    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await chooseField(page, type);
     await page.getByLabel('Field name', { exact: true }).fill('TextMode');
     await page.getByLabel('Maximum characters', { exact: true }).fill('6');
     await page.getByLabel('Text to insert', { exact: true }).fill(type === 'Password' ? 'Secret' : 'ABC');
@@ -967,8 +977,7 @@ for (const type of ['RichText', 'FileSelect']) {
     await page.goto('/');
     await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
     await expect(page.getByRole('status')).toContainText('indirect objects');
-    await page.getByRole('button', { name: 'Form field', exact: true }).click();
-    await page.getByLabel('Field type', { exact: true }).selectOption(type);
+    await chooseField(page, type);
     await page.getByLabel('Field name', { exact: true }).fill('Advanced');
     if (type === 'RichText') {
       await page.getByLabel('Rich text XHTML', { exact: true }).fill('<body><p>Hello <b>bold</b></p></body>');
@@ -999,23 +1008,30 @@ test('configure and remove a pushbutton action', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
   await expect(page.getByRole('status')).toContainText('indirect objects');
-  await page.getByRole('button', { name: 'Form field', exact: true }).click();
-  await page.getByLabel('Field type', { exact: true }).selectOption('PushButton');
+  await chooseField(page, 'PushButton');
   await page.getByLabel('Field name', { exact: true }).fill('ActionButton');
   await page.getByRole('button', { name: 'Insert object', exact: true }).click();
   const widget = page.locator('.object').filter({ hasText: 'ActionButton' });
   await widget.click();
-  await page.getByLabel('Button action', { exact: true }).selectOption('OpenUrl');
+  await expect(page.getByRole('button', { name: 'Save action', exact: true })).toBeDisabled();
+  await page.getByRole('radio', { name: 'Open URL', exact: true }).check();
   await page.getByLabel('Action URL', { exact: true }).fill('https://example.com/');
+  await page.locator('.button-action-editor').getByRole('button', { name: 'Reset', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'No action', exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Save action', exact: true })).toBeDisabled();
+  await page.getByRole('radio', { name: 'Open URL', exact: true }).check();
+  await page.getByLabel('Action URL', { exact: true }).fill('https://example.com/');
+  await page.locator('.button-action-editor').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/button-action-editor.png' });
   await page.getByRole('button', { name: 'Save action', exact: true }).click();
   await expect(page.locator('.inspector pre')).toHaveCount(0);
   await widget.click();
-  await expect(page.getByLabel('Button action', { exact: true })).toHaveValue('OpenUrl');
-  await page.getByLabel('Button action', { exact: true }).selectOption('None');
+  await expect(page.getByRole('radio', { name: 'Open URL', exact: true })).toBeChecked();
+  await page.getByRole('radio', { name: 'No action', exact: true }).check();
   await page.getByRole('button', { name: 'Save action', exact: true }).click();
   await expect(page.locator('.inspector pre')).toHaveCount(0);
   await widget.click();
-  await expect(page.getByLabel('Button action', { exact: true })).toHaveValue('None');
+  await expect(page.getByRole('radio', { name: 'No action', exact: true })).toBeChecked();
 });
 
 test('sign a PDF with an ephemeral test certificate and reject later edits', async ({ page }) => {
@@ -1032,8 +1048,7 @@ test('sign a PDF with an ephemeral test certificate and reject later edits', asy
     await page.goto('/');
     await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
     await expect(page.getByRole('status')).toContainText('indirect objects');
-    await page.getByRole('button', { name: 'Form field', exact: true }).click();
-    await page.getByLabel('Field type', { exact: true }).selectOption('Signature');
+    await chooseField(page, 'Signature');
     await page.getByLabel('Field name', { exact: true }).fill('Signature');
     await page.getByRole('button', { name: 'Insert object', exact: true }).click();
     const widget = page.locator('.object').filter({ hasText: 'Signature' });
@@ -1159,4 +1174,31 @@ test('rectangle selection supports reverse drag, additive selection, cancel and 
   await expect(page.locator('.object')).toHaveCount(3);
   await expect(page.locator('.object').filter({ hasText: 'Keep me' })).toHaveCount(1);
   await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('form toolbox expands, collapses and drags concrete field types', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'form.pdf', mimeType: 'application/pdf', buffer: rotatedFormPdf() });
+  await expect(page.getByRole('status')).toContainText('indirect objects');
+  const toggle = page.getByRole('button', { name: 'Form field', exact: true });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(page.getByRole('group', { name: 'Form field types' }).getByRole('button')).toHaveCount(13);
+  await toggle.click();
+  await expect(page.getByRole('group', { name: 'Form field types' })).toHaveCount(0);
+  await toggle.click();
+  for (const [type, label] of [['CheckBox', 'Checkbox'], ['MultilineText', 'Multiline text'], ['Signature', 'Signature field']]) {
+    await page.locator(`[data-field-type="${type}"]`).dragTo(page.locator('.page'), { targetPosition: { x: 100, y: 100 } });
+    await expect(page.locator('.inspector legend').first()).toContainText(`Add ${label.toLowerCase()}`);
+    await expect(page.getByRole('combobox', { name: 'Field type', exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Height', { exact: true })).toHaveValue(type === 'CheckBox' ? '20' : type === 'MultilineText' ? '80' : '30');
+    await page.getByLabel('Field name', { exact: true }).fill('Dragged' + type);
+    await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+    await expect(page.locator('.object').filter({ hasText: 'Dragged' + type })).toHaveCount(1);
+  }
+  await chooseField(page, 'Comb');
+  await expect(page.getByLabel('Maximum characters')).toHaveValue('6');
+  await chooseField(page, 'Text');
+  await expect(page.getByLabel('Maximum characters')).toHaveValue('');
+  await page.screenshot({ path: 'test-results/form-field-toolbox.png' });
 });

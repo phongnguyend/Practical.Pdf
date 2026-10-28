@@ -11,7 +11,17 @@ export function containsPoint(points, x, y) {
   return inside;
 }
 
-export function hitTest(objects, viewport, x, y) {
-  return [...objects].reverse().find(object => containsPoint(
+export function hitTest(objects, viewport, x, y, preferAnnotation = false) {
+  const hits = [...objects].reverse().filter(object => containsPoint(
     object.corners.map(point => viewport.convertToViewportPoint(point.x, point.y)), x, y));
+  const top = hits[0];
+  if (preferAnnotation) {
+    return hits.find(object => object.kind === 'annotation') ?? top;
+  }
+  // Text markup decorates the text; it must not steal its selection/drag target.
+  // Comments remain clickable, and markup can still be selected in the object list.
+  if (top?.kind === 'annotation' && ['Highlight', 'Underline', 'StrikeOut'].includes(top.details?.kind)) {
+    return hits.find(object => object.kind === 'text') ?? top;
+  }
+  return top;
 }

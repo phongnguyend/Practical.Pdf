@@ -82,6 +82,7 @@ PageAssemblyTests.Run();
 TaggedAssemblyTests.Run();
 TextMovementTests.Run();
 CanvasRenderingTests.Run();
+AnnotationTests.Run();
 
 MarkdownTests.Run();
 

@@ -1,0 +1,33 @@
+.selectable-text-frame { position: absolute; inset: 0; pointer-events: none; }
+.selectable-text-layer {
+  position: absolute; inset: 0; overflow: clip; line-height: 1; text-align: initial;
+  letter-spacing: normal; word-spacing: normal; text-size-adjust: none;
+  transform-origin: 0 0; pointer-events: auto; user-select: text; cursor: text;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.selectable-text-layer :is(span, br) {
+  color: transparent; position: absolute; white-space: pre; cursor: text;
+  transform-origin: 0 0; user-select: text;
+}
+.selectable-text-layer > :not(.markedContent), .selectable-text-layer .markedContent span:not(.markedContent) {
+  --font-height: 0; --scale-x: 1; --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.selectable-text-layer .markedContent { display: contents; }
+.selectable-text-layer ::selection { background: #2563eb55; color: transparent; }
+.selectable-text-layer[data-main-rotation="90"] { transform: rotate(90deg) translateY(-100%); }
+.selectable-text-layer[data-main-rotation="180"] { transform: rotate(180deg) translate(-100%, -100%); }
+.selectable-text-layer[data-main-rotation="270"] { transform: rotate(270deg) translateX(-100%); }
+.text-selection-notice { position: absolute; top: 0; left: 0; right: 0; padding: 8px; background: #fff5cf; color: #604900; pointer-events: none; }
+.workspace.pan-mode { cursor: grab; touch-action: none; user-select: none; }
+.workspace.pan-mode:active { cursor: grabbing; }
+.interaction-mode { display: inline-flex; align-items: center; gap: 5px; }
+.selected-text-preview { max-height: 150px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.selectable-text-layer br::selection { background: transparent; }
+
+.interaction-mode { padding: 3px; border: 1px solid #d6deec; border-radius: 7px; background: #f7f9fc; gap: 2px; }
+.interaction-mode button { border-color: transparent; background: transparent; }
+.interaction-mode button[aria-pressed="true"] { color: #174fc4; background: #e5edff; border-color: #9ab7ff; }

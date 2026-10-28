@@ -63,8 +63,9 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         {
             if (edit.Deletions is not { Count: > 0 and <= 1000 } deletions
                 || deletions.Any(item => item.PageNumber != edit.PageNumber
-                    || item.Kind is not ("delete-text-line" or "delete-image" or "delete-field")
+                    || item.Kind is not ("delete-text-line" or "delete-image" or "delete-field" or "delete-annotation")
                     || (item.Kind == "delete-text-line" && item.Runs is not { Count: > 0 })
+                    || (item.Kind == "delete-annotation" && item.AnnotationNumber <= 0)
                     || (item.Kind == "delete-image" && item.ImageNumber <= 0)
                     || (item.Kind == "delete-field" && string.IsNullOrEmpty(item.FieldName))))
             {
@@ -84,10 +85,33 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             {
                 PdfPageEditor.DeleteImage(document, edit.PageNumber, number);
             }
+            foreach (var number in deletions.Where(item => item.Kind == "delete-annotation").Select(item => item.AnnotationNumber).Distinct().OrderDescending())
+            {
+                PdfAnnotationEditor.Delete(document, edit.PageNumber, number);
+            }
             foreach (var fieldName in deletions.Where(item => item.Kind == "delete-field").Select(item => item.FieldName!).Distinct())
             {
                 PdfFormEditor.DeleteField(document, fieldName);
             }
+        }
+        else if (edit.Kind is "add-comment" or "add-highlight" or "add-underline" or "add-strikeout")
+        {
+            var kind = edit.Kind switch
+            {
+                "add-comment" => PdfAnnotationKind.Comment,
+                "add-highlight" => PdfAnnotationKind.Highlight,
+                "add-underline" => PdfAnnotationKind.Underline,
+                _ => PdfAnnotationKind.StrikeOut
+            };
+            PdfAnnotationEditor.Add(document, edit.PageNumber, kind, edit.Regions ?? [new(edit.X, edit.Y, edit.Width, edit.Height)], edit.Value);
+        }
+        else if (edit.Kind == "annotation")
+        {
+            PdfAnnotationEditor.UpdateContents(document, edit.PageNumber, edit.AnnotationNumber, edit.Value);
+        }
+        else if (edit.Kind == "delete-annotation")
+        {
+            PdfAnnotationEditor.Delete(document, edit.PageNumber, edit.AnnotationNumber);
         }
         else if (edit.Kind == "sign-field" && edit.FieldName is not null)
         {
@@ -421,6 +445,14 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
             warnings.Add($"Form overlays unavailable. {ex.Message}");
         }
 
+        foreach (var annotation in PdfAnnotationExtractor.Extract(document))
+        {
+            if (annotation.Rectangle is { Count: 4 } r)
+            {
+                items.Add(new($"p{annotation.PageNumber}-annotation{annotation.AnnotationNumber}", annotation.PageNumber, "annotation",
+                    $"{annotation.Kind}: {annotation.Contents}", Rectangle(r[0], r[1], r[2], r[3]), annotation));
+            }
+        }
         return Results.Ok(new { document.PdfVersion, pageCount = images.Count, objectCount = document.Objects.Count, objects = items, warnings });
     }
     catch (BadHttpRequestException ex)
@@ -454,4 +486,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null, int AnnotationNumber = 0, List<PdfAnnotationRegion>? Regions = null);

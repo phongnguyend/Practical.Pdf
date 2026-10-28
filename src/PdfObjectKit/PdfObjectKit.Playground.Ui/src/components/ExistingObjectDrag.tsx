@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PageViewport } from 'pdfjs-dist';
 
-export function ExistingObjectDrag({ viewport, corners, disabled, onMove, onToggle }: {
+export function ExistingObjectDrag({ viewport, corners, disabled, onMove, onToggle, onAnnotationPick }: {
   onToggle?: () => void;
+  onAnnotationPick?: (clientX: number, clientY: number) => void;
   viewport: PageViewport;
   corners: { x: number; y: number }[];
   disabled: boolean;
@@ -33,12 +34,16 @@ export function ExistingObjectDrag({ viewport, corners, disabled, onMove, onTogg
       style={{ pointerEvents: disabled ? 'none' : 'all', cursor: gesture.current ? 'grabbing' : 'grab', touchAction: 'none' }}
       onClick={event => {
         event.stopPropagation();
+        if (!disabled && event.altKey) {
+          onAnnotationPick?.(event.clientX, event.clientY);
+          return;
+        }
         if (!disabled && (event.ctrlKey || event.metaKey)) {
           onToggle?.();
         }
       }}
       onPointerDown={event => {
-        if (disabled || event.button !== 0 || event.ctrlKey || event.metaKey) {
+        if (disabled || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey) {
           return;
         }
         event.preventDefault();

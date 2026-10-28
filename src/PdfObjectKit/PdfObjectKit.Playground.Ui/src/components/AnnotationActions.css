@@ -1,0 +1,10 @@
+.markup-tools { padding: 16px 0; border-bottom: 1px solid #edf0f5; }
+.markup-tools-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.inspector .markup-tools-heading h3 { margin: 0; font-size: 12px; }
+.markup-tools-heading > span { font-size: 10px; color: #758398; }
+.markup-tools-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.markup-tools-buttons button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-width: 0; min-height: 62px; padding: 9px 3px; border: 1px solid #dce4ef; border-radius: 8px; background: #fff; color: #40516b; font-size: 10px; line-height: 1.2; }
+.markup-tools-buttons button svg { color: #3869be; }
+.markup-tools-buttons button:hover:not(:disabled) { background: #edf3ff; border-color: #8baae5; color: #174fc4; }
+.markup-tools-buttons button:focus-visible { outline: 2px solid #326de0; outline-offset: 2px; }
+.markup-tools-buttons button:active:not(:disabled) { background: #dfeaff; }

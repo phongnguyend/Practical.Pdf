@@ -15,3 +15,17 @@ test('viewport transform handles rotation/crop offsets and selects the topmost o
   assert.equal(hitTest([item, top], viewport, 10, 10), top);
   assert.equal(hitTest([item], viewport, 40, 40), undefined);
 });
+
+test('text markup does not intercept text selection; comments and standalone markup stay selectable', () => {
+  const viewport = { convertToViewportPoint: (x, y) => [y, x] };
+  const corners = [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 }, { x: 0, y: 10 }];
+  const text = { kind: 'text', corners };
+  for (const kind of ['Highlight', 'Underline', 'StrikeOut']) {
+    const annotation = { kind: 'annotation', details: { kind }, corners };
+    assert.equal(hitTest([text, annotation], viewport, 5, 10), text);
+    assert.equal(hitTest([annotation], viewport, 5, 10), annotation);
+    assert.equal(hitTest([text, annotation], viewport, 5, 10, true), annotation);
+  }
+  const comment = { kind: 'annotation', details: { kind: 'Comment' }, corners };
+  assert.equal(hitTest([text, comment], viewport, 5, 10), comment);
+});

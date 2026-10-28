@@ -569,7 +569,7 @@ PdfFormEditor.InsertRadioGroup(document, 1, "ContactMethod",
     [new("Email", "By email"), new("Phone", "By phone")], "Email", 40, 470, 180, 48);
 ```
 
-In the playground, place **Form field**, then select **Text field**, **Rich text**, **File select**, **Password**, **Comb**, **Multiline text**, **Checkbox**, **Dropdown**, **List box**, **Multi-select list box**, **Radio group**, **Pushbutton**, or **Signature field** in the Inspector. Dropdowns, list boxes and radio groups accept one option label per line and an initial selection. Radio options occupy equal-height rows; allow at least 16 PDF points per option. Radio export states in the playground are `Choice1`, `Choice2`, etc.; the library accepts custom export states. `Off` is reserved for an unchecked/cleared button. Names must be unique top-level names. New dropdowns are noneditable and single-select. Labels currently use printable ASCII; checkbox/radio appearances are generated as vector graphics. Placement previews update live. Both renderers display saved normal widget appearances. The native renderer reports widgets with missing appearances instead of synthesizing their appearance from values.
+In the playground, expand **Form field** in the Create objects toolbox, then drag or click **Text field**, **Rich text**, **File select**, **Password**, **Comb**, **Multiline text**, **Checkbox**, **Dropdown**, **List box**, **Multi-select list box**, **Radio group**, **Pushbutton**, or **Signature field**. The Inspector shows only the settings for the chosen type; there is no field-type dropdown. Collapse the group to save space. Dropdowns, list boxes and radio groups accept one option label per line and an initial selection. Radio options occupy equal-height rows; allow at least 16 PDF points per option. Radio export states in the playground are `Choice1`, `Choice2`, etc.; the library accepts custom export states. `Off` is reserved for an unchecked/cleared button. Names must be unique top-level names. New dropdowns are noneditable and single-select. Labels currently use printable ASCII; checkbox/radio appearances are generated as vector graphics. Placement previews update live. Both renderers display saved normal widget appearances. The native renderer reports widgets with missing appearances instead of synthesizing their appearance from values.
 
 Extraction returns terminal fields with qualified names, types, inherited flags and values, default values, choice export/display pairs, and widget references, page numbers, rectangles and appearance-state names. Documents without an AcroForm return an empty list. XFA forms are unsupported.
 
@@ -605,7 +605,7 @@ Select an image and choose **Download image** in the Inspector to save its full 
 
 Open `http://localhost:5173`, upload or drop a PDF, choose a page, and select an outline or an entry in the object list. Toggle text/image/field layers and adjust zoom. The UI proxies `/api` to `http://localhost:5080`; keep both processes running. PDF.js workers, fonts, CMaps and WASM assets are served locally, with no runtime CDN dependency.
 
-The playground supports text-run editing and AcroForm filling. Select a text line, choose its source run, enter a new value and click Save. For fields, enter a text/dropdown export value or select a checkbox/radio appearance state. Existing library restrictions apply (including unsupported shared Form text, missing glyphs and unsupported field styles). Text field appearances are regenerated as plain 12pt Helvetica. Drag Text, Image, or Form field from the left Create objects toolbox onto the canvas. A placement box appears at the drop position: drag its body to move it and its corner handles to resize width and height. Enter text or choose an image (up to 5 MB) in the inspector, then choose Insert object to commit. Clicking a toolbox item or Add object is a keyboard-accessible alternative. Drawing a fresh rectangle on an empty part of the page is also supported. Dropping a supported raster image onto an open document starts image placement with a preview. The playground checks file signatures before upload: PNG/JPEG bytes are preserved, while other browser-decodable raster formats (WebP, GIF, BMP and AVIF) are converted to PNG. Animated formats use one frame. Converted PNGs must also fit the 5 MB limit and 16-million-pixel limit. Renaming a file does not convert its format; unreadable images produce a client-side error without modifying the PDF. The library/API still accept only PNG/JPEG bytes. Numeric coordinates remain available for keyboard use. Image/field dimensions follow the rectangle; resizing a text placement changes its font size from the rectangle height without wrapping or fitting its width. The lower PDF-space edge is the text baseline. Text insertion uses black ASCII Helvetica. Cancel discards a pending insertion.
+The playground supports text-run editing and AcroForm filling. Select a text line, choose its source run, enter a new value and click Save. For fields, enter a text/dropdown export value or select a checkbox/radio appearance state. Existing library restrictions apply (including unsupported shared Form text, missing glyphs and unsupported field styles). Text field appearances are regenerated as plain 12pt Helvetica. Drag Text, Image, or a specific type from the expandable Form field group in the left Create objects toolbox onto the canvas. A placement box appears at the drop position: drag its body to move it and its corner handles to resize width and height. Enter text or choose an image (up to 5 MB) in the inspector, then choose Insert object to commit. Clicking a toolbox item or Add object is a keyboard-accessible alternative. Drawing a fresh rectangle on an empty part of the page is also supported. Dropping a supported raster image onto an open document starts image placement with a preview. The playground checks file signatures before upload: PNG/JPEG bytes are preserved, while other browser-decodable raster formats (WebP, GIF, BMP and AVIF) are converted to PNG. Animated formats use one frame. Converted PNGs must also fit the 5 MB limit and 16-million-pixel limit. Renaming a file does not convert its format; unreadable images produce a client-side error without modifying the PDF. The library/API still accept only PNG/JPEG bytes. Numeric coordinates remain available for keyboard use. Image/field dimensions follow the rectangle; resizing a text placement changes its font size from the rectangle height without wrapping or fitting its width. The lower PDF-space edge is the text baseline. Text insertion uses black ASCII Helvetica. Cancel discards a pending insertion.
 
 The inspector provides Delete text run, Delete image occurrence, and Delete field. Field deletion removes all widgets for that field across the document. Image deletion preserves other placements, including shared nested Forms, by cloning the changed invocation path. Vector-path editing and arbitrary raw-object deletion are not exposed. Deleted content can remain in unreachable/shared PDF objects; these operations are not secure redaction.
 
@@ -947,3 +947,60 @@ ActualText/Alt, annotation OBJR references, Form XObject MCR references, ID tree
 merged parent-key collisions, source immutability, and independent PDFsharp
 reads. Set PDFOBJECTKIT_TAGGED_TEST_PDF to a local PDF path when running the
 backend console tests to additionally verify splitting that document.
+
+## Comments and text markup
+
+`PdfAnnotationEditor` creates standard PDF comments (`Text`), highlights,
+underlines and strikethroughs (`StrikeOut`). Annotations preserve the underlying
+page content and include saved appearances for PDF.js and the experimental
+native renderer. Comment text and author names support Unicode.
+
+```csharp
+PdfAnnotationEditor.Add(document, 1, PdfAnnotationKind.Comment,
+    [new PdfAnnotationRegion(40, 650, 24, 24)], "Please review", "Reviewer");
+PdfAnnotationEditor.Add(document, 1, PdfAnnotationKind.Highlight,
+    [new PdfAnnotationRegion(40, 600, 180, 16),
+     new PdfAnnotationRegion(40, 580, 120, 16)], "Check these lines");
+var annotations = PdfAnnotationExtractor.Extract(document);
+PdfAnnotationEditor.UpdateContents(document, 1, annotations[0].AnnotationNumber, "Reviewed");
+PdfAnnotationEditor.Delete(document, 1, annotations[0].AnnotationNumber);
+```
+
+Coordinates use unrotated PDF page space in points, with the origin at the
+bottom left. Supply one rectangle per line for multiline markup. Annotation
+numbers are one-based positions in the page annotation array; re-extract after
+changes. In the playground, use the Comment tool to place a note. Highlight, Underline and Strikethrough
+apply only to selected text: select one or multiple text lines and use
+**Annotate selected text** in the Inspector. Select an annotation to edit its
+comment or delete it; Ctrl/Cmd selection and Delete also work for annotations.
+Download PDF includes the saved annotations.
+
+This first version uses fixed yellow highlighting and orange lines, and
+axis-aligned regions. Select text mode supports character-level selection. Imported annotations
+are listed for these four subtypes; the native renderer needs their saved normal
+appearance. Signed documents and locked annotations are protected. Deleting
+annotations with structure-tree references or replies is rejected rather than
+leaving dangling references. Creating annotations does not automatically add
+accessibility tags, and deletion is not secure redaction of underlying content.
+
+Clicking text covered by highlight, underline or strikethrough selects the text
+so it can still be moved. Alt+click to select overlapping annotations, or select the markup in the object list to edit or delete it.
+Comments remain directly selectable on the canvas. Moving text does not move its annotations.
+
+### Playground interaction modes
+
+Use the toolbar mode icons (with tooltips and active-state highlighting):
+
+- **Select objects**: select, Ctrl/Cmd-toggle, rectangle-select, and move objects.
+- **Select text**: drag over characters or words, then choose Highlight, Underline
+  or Strikethrough in the Inspector. Each selected text fragment receives its own
+  region, including passages spanning lines. Escape clears the selection.
+- **Pan**: drag to scroll the workspace without selecting or modifying content.
+
+Partial selection uses PDF.js's transparent text layer with either renderer.
+Page rotation, crop and zoom are mapped back to PDF coordinates. Scanned pages
+need OCR before text selection is available. Regions are axis-aligned in PDF
+space; arbitrary skewed/rotated text within a page may have looser bounds.
+Changing page, zoom, document or mode clears the passage selection to avoid stale
+coordinates. Creating an object or choosing one in the object list returns to
+Select objects mode.

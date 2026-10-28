@@ -5,9 +5,9 @@ import { useState } from 'react';
 import { Check, Pencil, Save, Trash2, RefreshCw, Download } from 'lucide-react';
 
 export type ButtonAction = { kind: 'OpenUrl' | 'GoToPage' | 'ResetForm' | 'SubmitForm'; url?: string; pageNumber?: number; fieldNames?: string[] };
-export type Edit = { deletions?: Edit[]; action?: ButtonAction | null; certificate?: File; certificatePassword?: string; richText?: boolean; fileSelect?: boolean; password?: boolean; comb?: boolean; maxLength?: number; multiSelect?: boolean; values?: string[]; multiline?: boolean; listBox?: boolean; fieldType?: 'Text' | 'CheckBox' | 'RadioButton' | 'Choice' | 'PushButton' | 'Signature'; choices?: { exportValue: string; displayValue: string }[]; kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; runs?: unknown[]; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
+export type Edit = { annotationNumber?: number; regions?: { x: number; y: number; width: number; height: number }[]; deletions?: Edit[]; action?: ButtonAction | null; certificate?: File; certificatePassword?: string; richText?: boolean; fileSelect?: boolean; password?: boolean; comb?: boolean; maxLength?: number; multiSelect?: boolean; values?: string[]; multiline?: boolean; listBox?: boolean; fieldType?: 'Text' | 'CheckBox' | 'RadioButton' | 'Choice' | 'PushButton' | 'Signature'; choices?: { exportValue: string; displayValue: string }[]; kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; runs?: unknown[]; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
 type Run = { text: string; fontName?: string | null; fontSize?: number; formOccurrenceId?: number | null };
-type Details = { maxLength?: number; richText?: string; isSigned?: boolean; widget?: { caption?: string; action?: ButtonAction }; flags?: number; corners?: { x: number; y: number }[]; textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
+type Details = { annotationNumber?: number; contents?: string; maxLength?: number; richText?: string; isSigned?: boolean; widget?: { caption?: string; action?: ButtonAction }; flags?: number; corners?: { x: number; y: number }[]; textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
 
 export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { kind: string; pageNumber: number; details: unknown }; busy: boolean; onSave: (edit: Edit) => Promise<void>; onExportImage: (page: number, image: number) => Promise<void> }) {
   const details = item.details as Details;
@@ -22,7 +22,7 @@ export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { ki
   const [newName, setNewName] = useState(partialName);
   const richText = details.kind === 'Text' && ((details.flags ?? 0) & (1 << 25)) !== 0;
   const fileSelect = details.kind === 'Text' && ((details.flags ?? 0) & (1 << 20)) !== 0;
-  const initialValue = item.kind === 'text' ? runs[runIndex]?.text ?? '' : richText ? details.richText ?? '<body/>' : details.kind === 'PushButton' ? details.widget?.caption ?? '' : details.values?.[0] ?? (['CheckBox', 'RadioButton'].includes(details.kind ?? '') ? 'Off' : '');
+  const initialValue = item.kind === 'annotation' ? details.contents ?? '' : item.kind === 'text' ? runs[runIndex]?.text ?? '' : richText ? details.richText ?? '<body/>' : details.kind === 'PushButton' ? details.widget?.caption ?? '' : details.values?.[0] ?? (['CheckBox', 'RadioButton'].includes(details.kind ?? '') ? 'Off' : '');
   const initialAlignment = details.textAlignment ?? 'Left';
   const [alignment, setAlignment] = useState<Alignment>(initialAlignment);
   const password = details.kind === 'Text' && ((details.flags ?? 0) & (1 << 13)) !== 0;
@@ -30,7 +30,7 @@ export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { ki
   const multiSelect = details.kind === 'Choice' && ((details.flags ?? 0) & (1 << 21)) !== 0;
   const [selectedValues, setSelectedValues] = useState(details.values ?? []);
   const [value, setValue] = useState(initialValue);
-  const supported = item.kind === 'text'
+  const supported = item.kind === 'annotation' ? !details.isReadOnly : item.kind === 'text'
     ? runs.length > 0 && runs[runIndex]?.formOccurrenceId == null
     : !details.isReadOnly && ['Text', 'Choice', 'CheckBox', 'RadioButton', 'PushButton'].includes(details.kind ?? '');
   const button = details.kind === 'CheckBox' || details.kind === 'RadioButton';
@@ -38,7 +38,7 @@ export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { ki
   const canDelete = item.kind === 'image' || (item.kind === 'text' ? supported : !details.isReadOnly);
   function remove() {
     void onSave({ kind: item.kind === 'text' ? 'text' : `delete-${item.kind}`, value: '', pageNumber: item.pageNumber,
-      run: item.kind === 'text' ? runs[runIndex] : undefined, fieldName: details.name, imageNumber: details.imageNumber });
+      run: item.kind === 'text' ? runs[runIndex] : undefined, annotationNumber: details.annotationNumber, fieldName: details.name, imageNumber: details.imageNumber });
   }
   return <div className="object-editor">
     {item.kind === 'image' && <section className="editor inspector-section image-export-section">
@@ -60,10 +60,10 @@ export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { ki
     {item.kind !== 'image' && <form className="editor" onSubmit={event => {
       event.preventDefault();
       if (supported && dirty) {
-        void onSave({ kind: richText ? 'rich-text' : details.kind === 'PushButton' ? 'button-caption' : item.kind, value, values: multiSelect ? selectedValues : undefined, textAlignment: item.kind === 'field' && !button && details.kind !== 'PushButton' ? alignment : undefined, pageNumber: item.pageNumber, run: item.kind === 'text' ? runs[runIndex] : undefined, fieldName: details.name });
+        void onSave({ annotationNumber: details.annotationNumber, kind: richText ? 'rich-text' : details.kind === 'PushButton' ? 'button-caption' : item.kind, value, values: multiSelect ? selectedValues : undefined, textAlignment: item.kind === 'field' && !button && details.kind !== 'PushButton' ? alignment : undefined, pageNumber: item.pageNumber, run: item.kind === 'text' ? runs[runIndex] : undefined, fieldName: details.name });
       }
     }}><fieldset disabled={busy}>
-      <div className="section-heading"><h3>{item.kind === 'text' ? 'Text content' : details.kind === 'PushButton' ? 'Button caption' : 'Field value'}</h3><span className={dirty ? 'edit-status dirty' : 'edit-status'}>{dirty ? 'Unsaved' : <><Check size={12} aria-hidden="true" /> Saved</>}</span></div>
+      <div className="section-heading"><h3>{item.kind === 'annotation' ? 'Annotation comment' : item.kind === 'text' ? 'Text content' : details.kind === 'PushButton' ? 'Button caption' : 'Field value'}</h3><span className={dirty ? 'edit-status dirty' : 'edit-status'}>{dirty ? 'Unsaved' : <><Check size={12} aria-hidden="true" /> Saved</>}</span></div>
       {item.kind === 'text' && runs.length > 1 && <label>Text segment<select aria-label="Source run" value={runIndex} onChange={event => {
         const index = Number(event.target.value);
         setRunIndex(index);
@@ -80,7 +80,7 @@ export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { ki
           : password || comb ? <input type={password ? 'password' : 'text'} autoComplete="off" aria-label="New value" maxLength={details.maxLength ?? 10000} value={value} onChange={event => setValue(event.target.value)} /> : details.kind === 'PushButton' ? <input aria-label="New value" maxLength={10000} value={value} onChange={event => setValue(event.target.value)} /> : details.kind === 'Choice' && ((details.flags ?? 0) & (1 << 17)) === 0 ? <select aria-label="New value" value={value} onChange={event => setValue(event.target.value)}><option value="">No selection</option>{details.choices?.map(choice => <option key={choice.exportValue} value={choice.exportValue}>{choice.displayValue}</option>)}</select> : details.kind === 'Choice' ? <input aria-label="New value" maxLength={10000} value={value} list="field-choices" onChange={event => setValue(event.target.value)} />
           : <textarea aria-label="New value" rows={4} maxLength={richText ? 10000 : details.maxLength ?? 10000} value={value} onChange={event => setValue(event.target.value)} />}</label>}
         {details.kind === 'Choice' && <datalist id="field-choices">{details.choices?.map(choice => <option key={choice.exportValue} value={choice.exportValue}>{choice.displayValue}</option>)}</datalist>}
-        <p className="control-help">{item.kind === 'text' ? 'Edits the selected segment. Single-line text only.' : richText ? 'XHTML subset: body, p, span, b, i, u, br; Helvetica, pt sizes and #RRGGBB colors.' : fileSelect ? 'Stores a file name or path only. No file content is uploaded or embedded.' : password ? 'Display is masked, but the PDF stores the actual value. This is not encryption.' : comb ? `One character per cell; maximum ${details.maxLength ?? 'unknown'} characters.` : details.kind === 'PushButton' ? 'Updates the caption. This does not add or execute button actions.' : button ? 'Choose the state to display in the PDF.' : multiSelect ? 'Select any number of options. Clear all to remove the selection.' : details.kind === 'Choice' ? 'Choose or enter the option export value.' : ((details.flags ?? 0) & (1 << 12)) !== 0 ? 'Multiline text wraps to the field width. Saved using 12 pt Helvetica.' : 'Single-line text. Saved using 12 pt Helvetica.'}</p>
+        <p className="control-help">{item.kind === 'annotation' ? 'Saved as the annotation comment in the PDF.' : item.kind === 'text' ? 'Edits the selected segment. Single-line text only.' : richText ? 'XHTML subset: body, p, span, b, i, u, br; Helvetica, pt sizes and #RRGGBB colors.' : fileSelect ? 'Stores a file name or path only. No file content is uploaded or embedded.' : password ? 'Display is masked, but the PDF stores the actual value. This is not encryption.' : comb ? `One character per cell; maximum ${details.maxLength ?? 'unknown'} characters.` : details.kind === 'PushButton' ? 'Updates the caption. This does not add or execute button actions.' : button ? 'Choose the state to display in the PDF.' : multiSelect ? 'Select any number of options. Clear all to remove the selection.' : details.kind === 'Choice' ? 'Choose or enter the option export value.' : ((details.flags ?? 0) & (1 << 12)) !== 0 ? 'Multiline text wraps to the field width. Saved using 12 pt Helvetica.' : 'Single-line text. Saved using 12 pt Helvetica.'}</p>
         {item.kind === 'field' && !button && details.kind !== 'PushButton' && <TextAlignment value={alignment} onChange={setAlignment} />}
         <div className="editor-actions"><button className="primary-action" type="submit" disabled={!dirty}><Save size={15} aria-hidden="true" />{busy ? 'Saving...' : 'Save'}</button><button type="button" disabled={!dirty} onClick={() => {
           setValue(initialValue);
@@ -95,8 +95,8 @@ export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { ki
       <p className="control-help">Rename only this part of the name. Parent groups and the value stay unchanged.</p>
       <button className="secondary-action" type="button" disabled={!newName.trim() || newName === partialName} onClick={() => void onSave({ kind: 'rename-field', value: newName, fieldName: details.name, pageNumber: item.pageNumber })}><Pencil size={14} aria-hidden="true" />Rename</button>
     </fieldset></section>}
-    {(canDelete || (item.kind === 'text' && runs.length > 0)) && <section className="remove-section"><h3>Remove object</h3><p className="control-help">{item.kind === 'field' ? 'Removes this field and all its widgets from every page.' : item.kind === 'image' ? 'Removes this placement. Other copies of the image stay in place.' : 'Delete the selected segment or every segment in this line.'}</p>
-      {canDelete && <button className="danger-action" type="button" disabled={busy} onClick={remove}><Trash2 size={14} aria-hidden="true" />{item.kind === 'text' ? 'Delete text run' : item.kind === 'image' ? 'Delete image occurrence' : 'Delete field'}</button>}
+    {(canDelete || (item.kind === 'text' && runs.length > 0)) && <section className="remove-section"><h3>Remove object</h3><p className="control-help">{item.kind === 'annotation' ? 'Removes this annotation without changing the underlying text.' : item.kind === 'field' ? 'Removes this field and all its widgets from every page.' : item.kind === 'image' ? 'Removes this placement. Other copies of the image stay in place.' : 'Delete the selected segment or every segment in this line.'}</p>
+      {canDelete && <button className="danger-action" type="button" disabled={busy} onClick={remove}><Trash2 size={14} aria-hidden="true" />{item.kind === 'annotation' ? 'Delete annotation' : item.kind === 'text' ? 'Delete text run' : item.kind === 'image' ? 'Delete image occurrence' : 'Delete field'}</button>}
       {item.kind === 'text' && runs.length > 0 && <button className="danger-action" type="button" disabled={busy} onClick={() => void onSave({ kind: 'delete-text-line', value: '', pageNumber: item.pageNumber, runs })}><Trash2 size={14} aria-hidden="true" />Delete whole line</button>}
     </section>}
   </div>;

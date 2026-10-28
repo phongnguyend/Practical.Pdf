@@ -6,7 +6,7 @@ export type FieldPreview = { type: string; value: string; maxLength?: number; va
 
 export type Bounds = { x: number; y: number; width: number; height: number };
 
-export function Placement({ viewport, bounds, onChange, image, text, fontSize = 12, field = false, fieldPreview, alignment = 'Left', disabled, resizable = true }: { viewport: PageViewport; bounds: Bounds; onChange: (bounds: Bounds) => void; image?: File; text?: string; fontSize?: number; field?: boolean; fieldPreview?: FieldPreview; alignment?: Alignment; disabled: boolean; resizable?: boolean }) {
+export function Placement({ viewport, bounds, onChange, image, text, fontSize = 12, annotation, field = false, fieldPreview, alignment = 'Left', disabled, resizable = true }: { viewport: PageViewport; bounds: Bounds; onChange: (bounds: Bounds) => void; image?: File; text?: string; fontSize?: number; annotation?: string; field?: boolean; fieldPreview?: FieldPreview; alignment?: Alignment; disabled: boolean; resizable?: boolean }) {
   const clipId = useId();
   const surface = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; original: Bounds; mode: 'draw' | 'move' } | null>(null);
@@ -96,6 +96,11 @@ export function Placement({ viewport, bounds, onChange, image, text, fontSize = 
         onChange({ ...bounds, x, y });
       }
     }} onPointerMove={update} onPointerUp={event => { update(event); drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
+    {['comment', 'highlight', 'underline', 'strikeout'].includes(annotation ?? '') && <svg aria-label="Annotation preview" width={viewport.width} height={viewport.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      <g transform={`matrix(${a} ${b} ${c} ${d} ${viewport.transform[4]} ${viewport.transform[5]})`}>
+        {annotation === 'highlight' || annotation === 'comment' ? <rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="#ffcc00" opacity={annotation === 'highlight' ? .35 : 1} /> : <line x1={bounds.x} x2={bounds.x + bounds.width} y1={bounds.y + (annotation === 'underline' ? 1 : bounds.height / 2)} y2={bounds.y + (annotation === 'underline' ? 1 : bounds.height / 2)} stroke="#d94000" strokeWidth={Math.max(.5, bounds.height / 16)} />}
+      </g>
+    </svg>}
     {text !== undefined && <svg className="text-placement-preview" aria-label="Text placement preview" width={viewport.width} height={viewport.height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
       {field && <defs><clipPath id={clipId}><rect x={left} y={top} width={width} height={height} /></clipPath></defs>}
       <g clipPath={field ? `url(#${clipId})` : undefined}>{comb ? <g transform={`matrix(${a} ${b} ${-c} ${-d} ${fieldX} ${fieldY})`}>

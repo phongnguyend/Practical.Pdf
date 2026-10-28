@@ -37,7 +37,7 @@ internal static class PdfCanvasWidgetAppearances
             try
             {
                 var widget = graph.Resolve(raw);
-                if (graph.Get(widget, "Subtype")?.Name != "Widget")
+                if (graph.Get(widget, "Subtype")?.Name is not ("Widget" or "Text" or "Highlight" or "Underline" or "StrikeOut"))
                 {
                     continue;
                 }

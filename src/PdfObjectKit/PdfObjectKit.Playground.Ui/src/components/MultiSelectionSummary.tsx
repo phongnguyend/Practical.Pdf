@@ -14,6 +14,7 @@ export function MultiSelectionSummary({ items, pageNumber, busy, canDelete, onDe
     { kind: 'text', label: 'Text lines' },
     { kind: 'image', label: 'Images' },
     { kind: 'field', label: 'Form widgets' },
+    { kind: 'annotation', label: 'Annotations' },
   ].map(group => ({ ...group, count: items.filter(item => item.kind === group.kind).length }));
   return <section className="multi-selection">
     <div className="multi-selection-heading">

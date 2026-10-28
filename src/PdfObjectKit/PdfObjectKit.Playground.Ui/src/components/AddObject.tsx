@@ -1,3 +1,5 @@
+import { formFieldTypes, type FormFieldType } from './formFieldTypes';
+import { AnnotationDraft } from './AnnotationDraft';
 import { useEffect, useState } from 'react';
 import { Plus, Move } from 'lucide-react';
 import { TextAlignment, type Alignment } from './TextAlignment';
@@ -6,9 +8,9 @@ import { FileNamePicker } from './FileNamePicker';
 import type { Bounds, FieldPreview } from './Placement';
 import type { Edit } from './ObjectEditor';
 
-export function AddObject({ kind, alignment, onAlignmentChange, value, setValue, fontSize, setFontSize, pageNumber, point, onBoundsChange, droppedImage, onImageChange, busy, onSave, onCancel, onFieldPreviewChange }: { kind: string; alignment: Alignment; onAlignmentChange: (alignment: Alignment) => void; value: string; setValue: (value: string) => void; fontSize: number; setFontSize: (size: number) => void; pageNumber: number; point: Bounds; onBoundsChange: (bounds: Bounds) => void; droppedImage?: File; onImageChange: (image?: File) => void; busy: boolean; onSave: (edit: Edit) => Promise<void>; onCancel: () => void; onFieldPreviewChange: (preview: FieldPreview) => void }) {
-  const [fieldType, setFieldType] = useState<NonNullable<Edit['fieldType']> | 'RichText' | 'FileSelect' | 'Password' | 'Comb' | 'MultilineText' | 'ListBox' | 'MultiSelectListBox'>('Text');
-  const [maxLength, setMaxLength] = useState<number | ''>('');
+export function AddObject({ fieldType = 'Text', kind, alignment, onAlignmentChange, value, setValue, fontSize, setFontSize, pageNumber, point, onBoundsChange, droppedImage, onImageChange, busy, onSave, onCancel, onFieldPreviewChange }: { fieldType?: FormFieldType; kind: string; alignment: Alignment; onAlignmentChange: (alignment: Alignment) => void; value: string; setValue: (value: string) => void; fontSize: number; setFontSize: (size: number) => void; pageNumber: number; point: Bounds; onBoundsChange: (bounds: Bounds) => void; droppedImage?: File; onImageChange: (image?: File) => void; busy: boolean; onSave: (edit: Edit) => Promise<void>; onCancel: () => void; onFieldPreviewChange: (preview: FieldPreview) => void }) {
+
+  const [maxLength, setMaxLength] = useState<number | ''>(fieldType === 'Comb' ? 6 : '');
   const textField = fieldType === 'RichText' || fieldType === 'FileSelect' || fieldType === 'Text' || fieldType === 'MultilineText' || fieldType === 'Password' || fieldType === 'Comb';
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [optionText, setOptionText] = useState('Option 1\nOption 2');
@@ -35,19 +37,14 @@ export function AddObject({ kind, alignment, onAlignmentChange, value, setValue,
       onBoundsChange({ x, y, width: nextWidth, height: nextHeight });
     }
   }, [kind, value, fontSize, x, y, width, height, onBoundsChange]);
+  if (kind === 'add-comment') {
+    return <AnnotationDraft kind={kind} value={value} setValue={setValue} pageNumber={pageNumber} bounds={point} onChange={onBoundsChange} busy={busy} onSave={onSave} onCancel={onCancel} />;
+  }
   return <form className="editor" onSubmit={event => {
     event.preventDefault();
     void onSave({ kind, richText: fieldType === 'RichText', fileSelect: fieldType === 'FileSelect', password: fieldType === 'Password', comb: fieldType === 'Comb', maxLength: textField && maxLength ? maxLength : undefined, fieldType: textField ? 'Text' : fieldType === 'ListBox' || fieldType === 'MultiSelectListBox' ? 'Choice' : fieldType, multiline: fieldType === 'MultilineText', listBox: fieldType === 'ListBox' || fieldType === 'MultiSelectListBox', multiSelect: fieldType === 'MultiSelectListBox', values: fieldType === 'MultiSelectListBox' ? selectedValues : undefined, choices: fieldType === 'Choice' || fieldType === 'ListBox' || fieldType === 'MultiSelectListBox' || fieldType === 'RadioButton' ? choices : undefined, value, pageNumber, fieldName, textAlignment: kind === 'add-field' ? alignment : undefined, image, x, y, width: kind === 'add-text' ? undefined : width, height: kind === 'add-text' ? undefined : height, fontSize });
-  }}><fieldset disabled={busy}><legend>Add {kind === 'add-image' ? 'image' : kind === 'add-field' ? 'form field' : 'text'} · page {pageNumber}</legend>
+  }}><fieldset disabled={busy}><legend>Add {kind === 'add-image' ? 'image' : kind === 'add-field' ? formFieldTypes.find(item => item.type === fieldType)?.label.toLowerCase() : 'text'} · page {pageNumber}</legend>
     <div className="inspector-section"><h3>Content</h3>
-    {kind === 'add-field' && <label>Field type<select aria-label="Field type" value={fieldType} onChange={event => {
-      const next = event.target.value as typeof fieldType;
-      setFieldType(next);
-      setMaxLength(next === 'Comb' ? 6 : '');
-      setSelectedValues([]);
-      setValue(next === 'CheckBox' || next === 'RadioButton' ? 'Off' : next === 'PushButton' ? 'Button' : next === 'RichText' ? '<body><p>Rich <b>text</b></p></body>' : '');
-      onBoundsChange({ ...point, width: next === 'CheckBox' ? 20 : 150, height: next === 'CheckBox' ? 20 : next === 'RichText' || next === 'MultilineText' || next === 'ListBox' || next === 'MultiSelectListBox' ? 80 : next === 'RadioButton' ? Math.max(40, choices.length * 24) : 30 });
-    }}><option value="Text">Text field</option><option value="RichText">Rich text</option><option value="FileSelect">File select</option><option value="Password">Password</option><option value="Comb">Comb (one character per cell)</option><option value="MultilineText">Multiline text</option><option value="ListBox">List box</option><option value="MultiSelectListBox">Multi-select list box</option><option value="CheckBox">Checkbox</option><option value="RadioButton">Radio group</option><option value="Choice">Dropdown</option><option value="PushButton">Pushbutton</option><option value="Signature">Signature field</option></select></label>}
     {kind === 'add-field' && (fieldType === 'Choice' || fieldType === 'ListBox' || fieldType === 'MultiSelectListBox' || fieldType === 'RadioButton') && <label>Options (one per line)<textarea aria-label="Field options" rows={4} required value={optionText} maxLength={10000} onChange={event => { setOptionText(event.target.value); setSelectedValues([]); setValue(fieldType === 'RadioButton' ? 'Off' : ''); }} /></label>}
     {kind === 'add-field' && fieldType === 'RichText' ? <label>Rich text (XHTML)<textarea aria-label="Rich text XHTML" rows={5} maxLength={10000} value={value} onChange={event => setValue(event.target.value)} /><span className="control-help">Supports b/i/u, span styles for pt sizes and #RRGGBB colors. Preview shows plain text until saved.</span></label> : kind === 'add-field' && fieldType === 'Signature' ? <p className="control-help">Creates an unsigned field for use with a signing tool. This does not sign the PDF.</p> : kind === 'add-field' && fieldType === 'PushButton' ? <label>Caption<input aria-label="Button caption" maxLength={10000} value={value} onChange={event => setValue(event.target.value)} /><span className="control-help">No action is attached to this button.</span></label> : kind === 'add-field' && fieldType === 'MultiSelectListBox' ? <fieldset className="field-selections"><legend>Initial selections</legend>
       {choices.map((choice, index) => <label key={index}><input type="checkbox" checked={selectedValues.includes(choice.exportValue)} onChange={event => setSelectedValues(event.target.checked ? [...selectedValues, choice.exportValue] : selectedValues.filter(value => value !== choice.exportValue))} />{choice.displayValue}</label>)}

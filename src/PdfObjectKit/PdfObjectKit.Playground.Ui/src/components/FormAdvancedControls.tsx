@@ -1,34 +1,16 @@
+import { ButtonActionEditor } from './ButtonActionEditor';
 import { useRef, useState } from 'react';
 import { FileKey, FolderOpen } from 'lucide-react';
 import type { Edit, ButtonAction } from './ObjectEditor';
 import './FileNamePicker.css';
 
 export function FormAdvancedControls({ kind, name, pageNumber, action, signed, busy, onSave }: { kind?: string; name: string; pageNumber: number; action?: ButtonAction; signed?: boolean; busy: boolean; onSave: (edit: Edit) => Promise<void> }) {
-  const [actionKind, setActionKind] = useState<ButtonAction['kind'] | 'None'>(action?.kind ?? 'None');
-  const [url, setUrl] = useState(action?.url ?? '');
-  const [destination, setDestination] = useState(action?.pageNumber ?? 1);
-  const [fields, setFields] = useState(action?.fieldNames?.join('\n') ?? '');
   const [certificate, setCertificate] = useState<File>();
   const certificateInput = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState('');
   const [reason, setReason] = useState('');
   if (kind === 'PushButton') {
-    return <form className="editor inspector-section" onSubmit={event => {
-      event.preventDefault();
-      void onSave({ kind: 'button-action', value: '', fieldName: name, pageNumber, action: actionKind === 'None' ? null : {
-        kind: actionKind, url: ['OpenUrl', 'SubmitForm'].includes(actionKind) ? url : undefined,
-        pageNumber: destination, fieldNames: ['ResetForm', 'SubmitForm'].includes(actionKind) && fields.trim() ? fields.split('\n').map(name => name.trim()).filter(Boolean) : undefined,
-      } });
-    }}><fieldset disabled={busy}><legend>Button action</legend>
-      <label>Action<select aria-label="Button action" value={actionKind} onChange={event => setActionKind(event.target.value as typeof actionKind)}>
-        <option value="None">None</option><option value="OpenUrl">Open URL</option><option value="GoToPage">Go to page</option><option value="ResetForm">Reset form</option><option value="SubmitForm">Submit form (XFDF)</option>
-      </select></label>
-      {['OpenUrl', 'SubmitForm'].includes(actionKind) && <label>URL<input aria-label="Action URL" type="url" required value={url} onChange={event => setUrl(event.target.value)} /></label>}
-      {actionKind === 'GoToPage' && <label>Page<input aria-label="Action page" type="number" min={1} required value={destination} onChange={event => setDestination(Number(event.target.value))} /></label>}
-      {['ResetForm', 'SubmitForm'].includes(actionKind) && <label>Field names (one per line; empty means all)<textarea aria-label="Action fields" value={fields} onChange={event => setFields(event.target.value)} /></label>}
-      <p className="control-help">Stored in the PDF for supporting viewers. The playground does not execute actions or submit data.</p>
-      <button type="submit">Save action</button>
-    </fieldset></form>;
+    return <ButtonActionEditor name={name} pageNumber={pageNumber} action={action} busy={busy} onSave={onSave} />;
   }
   if (kind !== 'Signature') {
     return null;

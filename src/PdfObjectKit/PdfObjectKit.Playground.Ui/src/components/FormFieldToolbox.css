@@ -1,0 +1,10 @@
+.field-toolbox-toggle > span { flex: 1; text-align: left; }
+.field-toolbox-toggle > svg:last-child { transition: transform .15s ease; }
+.field-toolbox-toggle > svg.expanded { transform: rotate(180deg); }
+.field-type-tools { margin: 0 0 10px 9px; padding: 2px 0 4px 10px; border-left: 2px solid #dce6f7; display: grid; gap: 4px; }
+.field-type-tools p { margin: 4px 0 8px; color: #758398; font-size: 11px; line-height: 1.5; }
+.field-type-tools button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 6px 8px; font-size: 12px; text-align: left; border-color: transparent; background: transparent; }
+.field-type-tools button svg { flex-shrink: 0; color: #5674a4; }
+.field-type-tools button:hover:not(:disabled), .field-type-tools button[aria-pressed="true"] { background: #edf3ff; border-color: #b3c8ee; color: #2456ad; }
+.field-type-tools button:focus-visible { outline: 2px solid #326de0; outline-offset: 1px; }
+.field-type-tools button[draggable="true"] { cursor: grab; }

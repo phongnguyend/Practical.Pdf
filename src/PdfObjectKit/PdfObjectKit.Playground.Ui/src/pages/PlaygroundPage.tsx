@@ -1,10 +1,15 @@
+import { FormFieldToolbox } from '../components/FormFieldToolbox';
+import { fieldDefaults, formFieldTypes, type FormFieldType } from '../components/formFieldTypes';
+import { ObjectLayerFilters } from '../components/ObjectLayerFilters';
+import { AnnotationActions } from '../components/AnnotationActions';
+import { SelectableText, type TextSelection } from '../components/SelectableText';
 import { useRectangleSelection } from '../components/useRectangleSelection';
 import { PageAssemblyDialog } from '../components/PageAssemblyDialog';
 import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Upload, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files } from 'lucide-react';
+import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from '../geometry.mjs';
@@ -20,10 +25,10 @@ import { SelectionSummary } from '../components/SelectionSummary';
 import { ObjectEditor, type Edit } from '../components/ObjectEditor';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
-type Kind = 'text' | 'image' | 'field';
+type Kind = 'text' | 'image' | 'field' | 'annotation';
 type CanvasObject = { id: string; pageNumber: number; kind: Kind; label: string; corners: { x: number; y: number }[]; details: unknown };
 type Inspection = { pdfVersion: string; pageCount: number; objectCount: number; objects: CanvasObject[]; warnings: string[] };
-const colors: Record<Kind, string> = { text: '#2563eb', image: '#be6514', field: '#008577' };
+const colors: Record<Kind, string> = { text: '#2563eb', image: '#be6514', field: '#008577', annotation: '#a16207' };
 
 export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOpenFiles, onSaved, onViewChange, onBusyChange }: {
   initialFile?: File;
@@ -35,6 +40,9 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
   onViewChange: (view: DocumentView) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
+  const [mode, setMode] = useState<'objects' | 'text' | 'pan'>('objects');
+  const [textSelection, setTextSelection] = useState<TextSelection | null>(null);
+  const panGesture = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [renderer, setRenderer] = useState<'pdfjs' | 'native'>(initialView.renderer);
   const [renderNotes, setRenderNotes] = useState<string[]>([]);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -45,6 +53,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
   const [busy, setBusy] = useState(false);
   const [fileDrag, setFileDrag] = useState<'pdf' | 'image' | null>(null);
   const fileDragDepth = useRef(0);
+  const [creationFieldType, setCreationFieldType] = useState<FormFieldType>('Text');
   const [creationKind, setCreationKind] = useState('add-text');
   const [creationId, setCreationId] = useState(0);
   const [fieldPreview, setFieldPreview] = useState<FieldPreview>();
@@ -66,7 +75,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
     setSelection(item ? [item] : []);
   }
   const selectedIds = new Set(selection.map(item => item.id));
-  const [layers, setLayers] = useState<Record<Kind, boolean>>({ text: true, image: true, field: true });
+  const [layers, setLayers] = useState<Record<Kind, boolean>>({ text: true, image: true, field: true, annotation: true });
   const [viewport, setViewport] = useState<PageViewport | null>(null);
   const [rendering, setRendering] = useState(false);
   const host = useRef<HTMLDivElement>(null);
@@ -80,7 +89,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
   const marquee = useRectangleSelection({
     width: viewport?.width ?? 0,
     height: viewport?.height ?? 0,
-    disabled: !viewport || adding || saving || busy || rendering || exporting,
+    disabled: mode !== 'objects' || !viewport || adding || saving || busy || rendering || exporting,
     canStart: point => !!viewport && !hitTest(objects, viewport, point.x, point.y),
     onSelect: (rectangle, additive) => {
       if (!viewport) {
@@ -284,7 +293,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
   function deletionEdit(): Edit | null {
     const edits: Edit[] = [];
     for (const item of selection) {
-      const details = item.details as { isReadOnly?: boolean; imageNumber?: number; name?: string; runs?: unknown[] };
+      const details = item.details as { annotationNumber?: number; isReadOnly?: boolean; imageNumber?: number; name?: string; runs?: unknown[] };
       if (details.isReadOnly) {
         return null;
       }
@@ -292,6 +301,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
         edits.push({ kind: 'delete-text-line', value: '', pageNumber: item.pageNumber, runs: details.runs });
       } else if (item.kind === 'image' && details.imageNumber) {
         edits.push({ kind: 'delete-image', value: '', pageNumber: item.pageNumber, imageNumber: details.imageNumber });
+      } else if (item.kind === 'annotation' && details.annotationNumber) {
+        edits.push({ kind: 'delete-annotation', value: '', pageNumber: item.pageNumber, annotationNumber: details.annotationNumber });
       } else if (item.kind === 'field' && details.name) {
         edits.push({ kind: 'delete-field', value: '', pageNumber: item.pageNumber, fieldName: details.name });
       } else {
@@ -305,7 +316,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
     function deleteSelection(event: KeyboardEvent) {
       if (event.key !== 'Delete' || event.defaultPrevented || event.repeat || event.isComposing
         || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
-        || !selection.length || adding || saving || busy || rendering || exporting || deletingByKeyboard.current) {
+        || mode !== 'objects' || !selection.length || adding || saving || busy || rendering || exporting || deletingByKeyboard.current) {
         return;
       }
       const target = event.target instanceof Element ? event.target : document.activeElement;
@@ -325,7 +336,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
     }
     window.addEventListener('keydown', deleteSelection);
     return () => window.removeEventListener('keydown', deleteSelection);
-  }, [selection, adding, saving, busy, rendering, exporting, saveEdit]);
+  }, [selection, mode, adding, saving, busy, rendering, exporting, saveEdit]);
 
   async function exportImage(pageNumber: number, imageNumber: number) {
     if (!pdfBytes || exporting) {
@@ -447,7 +458,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
       context.fill();
       context.stroke();
     }
-  }, [viewport, inspection, page, layers, selection]);
+  }, [viewport, inspection, page, layers, selection, mode]);
 
   function selectObject(item: CanvasObject | null, toggle = false) {
     if (saving || busy || rendering) {
@@ -463,14 +474,22 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
     }
   }
 
-  function startCreation(kind: string, x = placement.x, y = placement.y) {
+  function startCreation(tool: string, x = placement.x, y = placement.y) {
+    const fieldType = formFieldTypes.find(item => tool === `add-field:${item.type}`)?.type ?? 'Text';
+    const kind = tool.startsWith('add-field') ? 'add-field' : tool;
+    const defaults = fieldDefaults(fieldType);
+    setCreationFieldType(fieldType);
+    setFieldPreview(undefined);
+    setMode('objects');
+    setTextSelection(null);
+    window.getSelection()?.removeAllRanges();
     setCreationKind(kind);
-    setDraftText('');
+    setDraftText(kind === 'add-field' ? defaults.value : '');
     setDraftFontSize(12);
     setDraftAlignment('Left');
     setCreationId(id => id + 1);
     setDroppedImage(undefined);
-    setPlacement({ x, y, width: 150, height: kind === 'add-image' ? 100 : 30 });
+    setPlacement({ x, y, width: kind === 'add-field' ? defaults.width : kind === 'add-comment' ? 24 : 150, height: kind === 'add-field' ? defaults.height : kind === 'add-comment' ? 24 : kind === 'add-image' ? 100 : 20 });
     setSelected(null);
     setAdding(true);
   }
@@ -481,6 +500,15 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
     setSelected(null);
     setViewport(null);
   }
+
+  const markupActions = selection.length > 0 && selection.every(item => item.kind === 'text')
+    ? <AnnotationActions label="Annotate selected text" disabled={saving || busy || rendering} onApply={kind => {
+      void saveEdit({ kind: `add-${kind}`, value: '', pageNumber: page, regions: selection.map(item => {
+        const xs = item.corners.map(point => point.x);
+        const ys = item.corners.map(point => point.y);
+        return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+      }) });
+    }} /> : null;
 
   const showFileDrop = fileDrag !== null && !busy && !saving;
   return <div className={`app${showFileDrop ? ' file-drag-active' : ''}`} onDragEnter={event => {
@@ -515,20 +543,51 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
     }
   }}>
     <header><div className="brand"><span className="logo">P</span><div><strong>PdfObjectKit</strong><span className="subtitle">OBJECT PLAYGROUND</span></div></div><label className="upload"><FolderOpen size={17} aria-hidden="true" />{busy ? 'Opening…' : 'Open PDF'}<input aria-label="Open PDF" disabled={saving || busy} type="file" multiple accept="application/pdf,.pdf" onChange={event => { openFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} /></label></header>{tabStrip}
-    <div id="document-panel" role="tabpanel" aria-labelledby={"tab-" + tabId} className="document-panel"><div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
+    <div id="document-panel" role="tabpanel" aria-labelledby={"tab-" + tabId} className="document-panel"><div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <><div className="interaction-mode" role="group" aria-label="Interaction mode">{([
+      ['objects', 'Select objects', MousePointer2], ['text', 'Select text', TextCursor], ['pan', 'Pan', Hand],
+    ] as const).map(([value, label, Icon]) => <button key={value} type="button" className="icon-button" aria-label={label} title={label} aria-pressed={mode === value} disabled={saving || busy || rendering} onClick={() => {
+      setMode(value);
+      setSelected(null);
+      setAdding(false);
+      setTextSelection(null);
+      window.getSelection()?.removeAllRanges();
+      panGesture.current = null;
+    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button><select aria-label="Zoom" disabled={saving} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></>}</div>
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}><X size={15} aria-hidden="true" />Dismiss</button></div>}
-    <main><aside className="objects"><section className="toolbox" aria-label="Object toolbox"><h2>Create objects</h2><p className="hint">Drag a type onto the page. Move and resize it, then insert.</p>{[['add-text', 'Text'], ['add-image', 'Image'], ['add-field', 'Form field']].map(([kind, label]) => <button key={kind} className="toolbox-item" disabled={!pdf || saving || busy || rendering} draggable={!!pdf && !saving && !busy && !rendering} onDragStart={event => {
+    <main><aside className="objects"><section className="toolbox" aria-label="Object toolbox"><h2>Create objects</h2><p className="hint">Drag a type onto the page. Move and resize it, then insert.</p>{[['add-text', 'Text'], ['add-image', 'Image'], ['add-comment', 'Comment']].map(([kind, label]) => <button key={kind} className="toolbox-item" disabled={!pdf || saving || busy || rendering} draggable={!!pdf && !saving && !busy && !rendering} onDragStart={event => {
       event.dataTransfer.setData('application/x-pdfobjectkit-type', kind);
       event.dataTransfer.effectAllowed = 'copy';
-    }} onClick={() => startCreation(kind)}><ObjectTypeIcon kind={kind} /><span>{label}</span></button>)}</section><h2>Page objects <span>{objects.length}</span></h2><div className="layers">{(['text', 'image', 'field'] as Kind[]).map(kind => <label key={kind} style={{ color: colors[kind] }}><input type="checkbox" checked={layers[kind]} onChange={event => { setLayers({ ...layers, [kind]: event.target.checked }); setSelected(null); }} />{kind}</label>)}</div><p className="hint">Drag on empty space to enclose objects. Ctrl/Cmd+click toggles selection; Ctrl/Cmd+drag adds objects. Escape cancels.</p><div className="object-list">{objects.map(item => <button className={selectedIds.has(item.id) ? 'object selected' : 'object'} key={item.id} aria-pressed={selectedIds.has(item.id)} onClick={event => selectObject(item, event.ctrlKey || event.metaKey)}><span className="badge" style={{ color: colors[item.kind] }}>{item.kind}</span><span>{item.label || '(empty)'}</span></button>)}{pdf && !objects.length && <p className="hint">No extracted objects on this page with the enabled layers.</p>}</div></aside>
-    <section className="workspace" aria-label="PDF canvas">{showFileDrop && <div className="file-drop-feedback"><div className="file-drop-card" role="status"><Upload size={30} aria-hidden="true" /><strong>{fileDrag === 'image' && pdf ? 'Drop image to place it' : pdf ? 'Drop PDF to open it' : 'Drop your PDF here'}</strong><span>{fileDrag === 'image' && pdf ? 'Choose its position and size on the page' : 'Release the file to upload and open it'}</span></div></div>}<div className="status" role="status">{saving ? 'Saving and rebuilding PDF?' : busy ? 'Uploading and extracting objects…' : rendering ? 'Rendering page…' : pdf ? `PDF ${inspection?.pdfVersion} · ${inspection?.objectCount} indirect objects` : 'LOCAL DEVELOPMENT PLAYGROUND'}</div>{!pdf && <div className="empty"><div className="document-icon">PDF</div><h1>Look inside your PDF.</h1><p>Drop a file here or choose Open PDF.<br />Explore text, image placements, and interactive fields.</p><span>Up to 20 MB · 100 pages</span></div>}<div className="page" onDragOver={event => {
+    }} onClick={() => startCreation(kind)}><ObjectTypeIcon kind={kind} /><span>{label}</span></button>)}<FormFieldToolbox disabled={!pdf || saving || busy || rendering} activeType={adding && creationKind === 'add-field' ? creationFieldType : undefined} onChoose={type => startCreation(`add-field:${type}`)} /></section><h2>Page objects <span>{objects.length}</span></h2><ObjectLayerFilters layers={layers} onToggle={kind => {
+      setLayers(current => ({ ...current, [kind]: !current[kind] }));
+      setSelected(null);
+    }} /><p className="hint">Drag on empty space to enclose objects. Ctrl/Cmd+click toggles selection; Ctrl/Cmd+drag adds objects. Alt+click selects annotations over text. Escape cancels.</p><div className="object-list">{objects.map(item => <button className={selectedIds.has(item.id) ? 'object selected' : 'object'} key={item.id} aria-pressed={selectedIds.has(item.id)} onClick={event => { setMode('objects'); setTextSelection(null); selectObject(item, event.ctrlKey || event.metaKey); }}><span className="badge" style={{ color: colors[item.kind] }}>{item.kind}</span><span>{item.label || '(empty)'}</span></button>)}{pdf && !objects.length && <p className="hint">No extracted objects on this page with the enabled layers.</p>}</div></aside>
+    <section className={`workspace${mode === 'pan' ? ' pan-mode' : ''}`} aria-label="PDF canvas" onPointerDown={event => {
+      if (mode !== 'pan' || event.button !== 0 || saving || busy || rendering) {
+        return;
+      }
+      event.preventDefault();
+      const surface = event.currentTarget;
+      panGesture.current = { x: event.clientX, y: event.clientY, left: surface.scrollLeft, top: surface.scrollTop };
+      surface.setPointerCapture(event.pointerId);
+    }} onPointerMove={event => {
+      const start = panGesture.current;
+      if (mode === 'pan' && start) {
+        event.currentTarget.scrollLeft = start.left - event.clientX + start.x;
+        event.currentTarget.scrollTop = start.top - event.clientY + start.y;
+      }
+    }} onPointerUp={event => {
+      panGesture.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    }} onPointerCancel={() => { panGesture.current = null; }} onLostPointerCapture={() => { panGesture.current = null; }}>{showFileDrop && <div className="file-drop-feedback"><div className="file-drop-card" role="status"><Upload size={30} aria-hidden="true" /><strong>{fileDrag === 'image' && pdf ? 'Drop image to place it' : pdf ? 'Drop PDF to open it' : 'Drop your PDF here'}</strong><span>{fileDrag === 'image' && pdf ? 'Choose its position and size on the page' : 'Release the file to upload and open it'}</span></div></div>}<div className="status" role="status">{saving ? 'Saving and rebuilding PDF?' : busy ? 'Uploading and extracting objects…' : rendering ? 'Rendering page…' : pdf ? `PDF ${inspection?.pdfVersion} · ${inspection?.objectCount} indirect objects` : 'LOCAL DEVELOPMENT PLAYGROUND'}</div>{!pdf && <div className="empty"><div className="document-icon">PDF</div><h1>Look inside your PDF.</h1><p>Drop a file here or choose Open PDF.<br />Explore text, image placements, and interactive fields.</p><span>Up to 20 MB · 100 pages</span></div>}<div className="page" onDragOver={event => {
       if (event.dataTransfer.types.includes('application/x-pdfobjectkit-type')) {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'copy';
       }
     }} onDrop={event => {
       const kind = event.dataTransfer.getData('application/x-pdfobjectkit-type');
-      if (!['add-text', 'add-image', 'add-field'].includes(kind)) {
+      if (!['add-text', 'add-image', 'add-field', 'add-comment'].includes(kind) && !formFieldTypes.some(item => kind === `add-field:${item.type}`)) {
         return;
       }
       event.preventDefault();
@@ -538,8 +597,10 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
       }
       const rect = event.currentTarget.getBoundingClientRect();
       const [x, y] = viewport.convertToPdfPoint((event.clientX - rect.left) * viewport.width / rect.width, (event.clientY - rect.top) * viewport.height / rect.height);
-      startCreation(kind, Math.round((x - 75) * 100) / 100, Math.round((y - (kind === 'add-image' ? 50 : 15)) * 100) / 100);
-    }} style={{ width: viewport?.width, height: viewport?.height, display: pdf ? 'block' : 'none' }}><div ref={host} />{viewport && !rendering && <canvas ref={overlay} className="overlay" {...marquee.handlers} aria-label="Extracted object outlines; use the object list to select with a keyboard" style={{ width: viewport.width, height: viewport.height }} onClick={event => {
+      const fieldType = formFieldTypes.find(item => kind === `add-field:${item.type}`)?.type;
+      const size = fieldType ? fieldDefaults(fieldType) : { width: 150, height: kind === 'add-image' ? 100 : 30 };
+      startCreation(kind, Math.round((x - size.width / 2) * 100) / 100, Math.round((y - size.height / 2) * 100) / 100);
+    }} style={{ width: viewport?.width, height: viewport?.height, display: pdf ? 'block' : 'none' }}><div ref={host} />{viewport && !rendering && mode === 'objects' && <canvas ref={overlay} className="overlay" {...marquee.handlers} aria-label="Extracted object outlines; use the object list to select with a keyboard" style={{ width: viewport.width, height: viewport.height }} onClick={event => {
       if (marquee.consumeClick()) {
         return;
       }
@@ -549,17 +610,20 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, tabId, onOp
         setPlacement({ ...placement, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
         return;
       }
-      selectObject(hitTest(objects, viewport, (event.clientX - bounds.left) * viewport.width / bounds.width, (event.clientY - bounds.top) * viewport.height / bounds.height) ?? null, event.ctrlKey || event.metaKey);
-    }} />}{marquee.rectangle && <div className="selection-rectangle" aria-hidden="true" style={marquee.rectangle} />}{viewport && adding && !rendering && <Placement fieldPreview={fieldPreview} alignment={draftAlignment} field={creationKind === 'add-field'} text={creationKind !== 'add-image' ? draftText : undefined} fontSize={draftFontSize} resizable={creationKind !== 'add-text'} viewport={viewport} bounds={placement} onChange={setPlacement} image={droppedImage} disabled={saving || busy} />}{viewport && selected && !adding && !rendering && (['image', 'field', 'text'].includes(selected.kind)) && !(selected.details as { isReadOnly?: boolean }).isReadOnly && <ExistingObjectDrag onToggle={() => selectObject(selected, true)} key={`${selected.id}-${zoom}-${pdf?.fingerprints[0]}`} viewport={viewport} corners={selected.corners} disabled={saving || busy} onMove={(deltaX, deltaY) => {
+      selectObject(hitTest(objects, viewport, (event.clientX - bounds.left) * viewport.width / bounds.width, (event.clientY - bounds.top) * viewport.height / bounds.height, event.altKey) ?? null, event.ctrlKey || event.metaKey);
+    }} />}{mode === 'text' && viewport && pdf && !rendering && !saving && !busy && <SelectableText pdf={pdf} pageNumber={page} viewport={viewport} onSelection={setTextSelection} />}{marquee.rectangle && <div className="selection-rectangle" aria-hidden="true" style={marquee.rectangle} />}{viewport && adding && !rendering && <Placement fieldPreview={fieldPreview} alignment={draftAlignment} field={creationKind === 'add-field'} annotation={creationKind.replace('add-', '')} text={['add-text', 'add-field'].includes(creationKind) ? draftText : undefined} fontSize={draftFontSize} resizable={creationKind !== 'add-text'} viewport={viewport} bounds={placement} onChange={setPlacement} image={droppedImage} disabled={saving || busy} />}{mode === 'objects' && viewport && selected && !adding && !rendering && (['image', 'field', 'text'].includes(selected.kind)) && !(selected.details as { isReadOnly?: boolean }).isReadOnly && <ExistingObjectDrag onAnnotationPick={(clientX, clientY) => {
+      const bounds = overlay.current!.getBoundingClientRect();
+      selectObject(hitTest(objects, viewport, (clientX - bounds.left) * viewport.width / bounds.width, (clientY - bounds.top) * viewport.height / bounds.height, true) ?? null, false);
+    }} onToggle={() => selectObject(selected, true)} key={`${selected.id}-${zoom}-${pdf?.fingerprints[0]}`} viewport={viewport} corners={selected.corners} disabled={saving || busy} onMove={(deltaX, deltaY) => {
       const details = selected.details as { imageNumber?: number; name?: string; widgetIndex?: number; runs?: unknown[] };
       return saveEdit({ kind: `move-${selected.kind}`, runs: details.runs, value: '', pageNumber: page, imageNumber: details.imageNumber, fieldName: details.name, widgetIndex: details.widgetIndex, deltaX, deltaY });
     }} />}</div></section>
-    <aside className="inspector"><div className="inspector-heading"><h2>Inspector</h2><span>{adding ? 'NEW OBJECT' : selection.length ? 'SELECTION' : 'PROPERTIES'}</span></div>{adding ? <AddObject onFieldPreviewChange={setFieldPreview} alignment={draftAlignment} onAlignmentChange={setDraftAlignment} value={draftText} setValue={setDraftText} fontSize={draftFontSize} setFontSize={setDraftFontSize} key={creationId} kind={creationKind} pageNumber={page} point={placement} onBoundsChange={setPlacement} droppedImage={droppedImage} onImageChange={setDroppedImage} busy={saving || busy || rendering} onSave={saveEdit} onCancel={() => setAdding(false)} /> : selection.length > 1 ? <MultiSelectionSummary items={selection} pageNumber={page} busy={saving || busy || rendering || exporting} canDelete={!!deletionEdit()} onClear={() => setSelected(null)} onDelete={() => {
+    <aside className="inspector"><div className="inspector-heading"><h2>Inspector</h2><span>{adding ? 'NEW OBJECT' : selection.length ? 'SELECTION' : 'PROPERTIES'}</span></div>{mode === 'text' ? <section className="editor"><h3>Select text to annotate</h3><p className="control-help">Drag across a word or passage on the page. Text selection does not move objects. Escape clears the selection.</p>{textSelection && <><p className="selected-text-preview">{textSelection.text}</p><AnnotationActions label="Annotate selected passage" disabled={saving || busy || rendering} onApply={kind => void saveEdit({ kind: `add-${kind}`, value: '', pageNumber: page, regions: textSelection.regions })} /></>}</section> : mode === 'pan' ? <p className="control-help">Drag the page to scroll. Switch to Select text or Select objects to edit.</p> : adding ? <AddObject fieldType={creationFieldType} onFieldPreviewChange={setFieldPreview} alignment={draftAlignment} onAlignmentChange={setDraftAlignment} value={draftText} setValue={setDraftText} fontSize={draftFontSize} setFontSize={setDraftFontSize} key={creationId} kind={creationKind} pageNumber={page} point={placement} onBoundsChange={setPlacement} droppedImage={droppedImage} onImageChange={setDroppedImage} busy={saving || busy || rendering} onSave={saveEdit} onCancel={() => setAdding(false)} /> : selection.length > 1 ? <><MultiSelectionSummary items={selection} pageNumber={page} busy={saving || busy || rendering || exporting} canDelete={!!deletionEdit()} onClear={() => setSelected(null)} onDelete={() => {
       const edit = deletionEdit();
       if (edit) {
         void saveEdit(edit);
       }
-    }} /> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} /><ObjectEditor item={selected} busy={saving || busy || rendering || exporting} onSave={saveEdit} onExportImage={exportImage} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, (key, value) => key === 'values' && selected.kind === 'field' && (((selected.details as { flags?: number }).flags ?? 0) & (1 << 13)) !== 0 ? (value as string[]).map(text => '*'.repeat(text.length)) : value, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
+    }} />{markupActions}</> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} />{markupActions}<ObjectEditor item={selected} busy={saving || busy || rendering || exporting} onSave={saveEdit} onExportImage={exportImage} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, (key, value) => key === 'values' && selected.kind === 'field' && (((selected.details as { flags?: number }).flags ?? 0) & (1 << 13)) !== 0 ? (value as string[]).map(text => '*'.repeat(text.length)) : value, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
     </div>{assembly && pdfBytes && pdf && <PageAssemblyDialog mode={assembly} pdf={pdfBytes} name={name} pageCount={pdf.numPages} onClose={() => setAssembly(null)} onOpenFiles={onOpenFiles} />}
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
     <footer>PdfObjectKit extracts · {renderer === 'native' ? 'PdfObjectKit renders (experimental)' : 'PDF.js renders'}<span>Add, edit and delete · Files are not saved by the API</span></footer>
