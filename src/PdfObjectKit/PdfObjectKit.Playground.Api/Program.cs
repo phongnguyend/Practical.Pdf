@@ -60,7 +60,7 @@ app.MapPost("/api/documents/merge", async (HttpRequest request, CancellationToke
                 using var stream = file.OpenReadStream();
                 using var buffer = new MemoryStream();
                 stream.CopyTo(buffer);
-                yield return PdfReader.Read(buffer.ToArray());
+                yield return ReadWorkingPdf(buffer.ToArray());
             }
         }
         var merged = PdfDocumentMerger.Merge(ReadDocuments(), new PdfObjectKit.Options.PdfPageAssemblyOptions
@@ -79,6 +79,10 @@ app.MapPost("/api/documents/merge", async (HttpRequest request, CancellationToke
             return Results.Problem("The merged PDF exceeds the playground's 20 MB document limit.", statusCode: 422);
         }
         return Results.File(bytes, "application/pdf", "merged.pdf");
+    }
+    catch (PdfObjectKit.Security.PdfPasswordException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 401);
     }
     catch (BadHttpRequestException ex)
     {
@@ -128,7 +132,7 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
 
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer, cancellation);
-        var document = PdfReader.Read(buffer.ToArray());
+        var document = ReadWorkingPdf(buffer.ToArray());
         if (PdfFormExtractor.Extract(document).Any(field => field.IsSigned))
         {
             throw new NotSupportedException("This PDF contains a signature. Editing would invalidate it; signed-document editing is disabled.");
@@ -365,6 +369,10 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
 
         return Results.File(bytes, "application/pdf", "edited.pdf");
     }
+    catch (PdfObjectKit.Security.PdfPasswordException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 401);
+    }
     catch (BadHttpRequestException ex)
     {
         return Results.Problem("The edit request could not be read.", statusCode: ex.StatusCode);
@@ -417,6 +425,10 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
         }
 
         var document = PdfReader.Read(bytes);
+        if (document.Security is not null)
+        {
+            return Results.Problem("Unlock this encrypted PDF before opening it in the playground.", statusCode: 401);
+        }
         if (request.Path == "/api/documents/split" || request.Path == "/api/documents/extract")
         {
             var options = new PdfObjectKit.Options.PdfPageAssemblyOptions
@@ -547,11 +559,15 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
         }
         return Results.Ok(new { document.PdfVersion, pageCount = images.Count, objectCount = document.Objects.Count, objects = items, warnings });
     }
+    catch (PdfObjectKit.Security.PdfPasswordException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 401);
+    }
     catch (BadHttpRequestException ex)
     {
         return Results.Problem("The upload could not be read or exceeds the upload limit.", statusCode: ex.StatusCode);
     }
-    catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or FormatException or ArgumentException or OverflowException)
+    catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or FormatException or ArgumentException or OverflowException or CryptographicException)
     {
         var operation = request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
         return Results.Problem($"Cannot {operation} this PDF: {ex.Message}", statusCode: 422);
@@ -568,7 +584,87 @@ app.MapPost("/api/documents/markdown", inspectDocument);
 app.MapPost("/api/documents/render", inspectDocument);
 app.MapPost("/api/documents/image", inspectDocument);
 
+app.MapPost("/api/documents/security/{operation}", async (string operation, HttpRequest request, CancellationToken cancellation) =>
+{
+    if (operation is not ("unlock" or "encrypt") || !request.HasFormContentType)
+    {
+        return Results.Problem("Choose unlock or encrypt with a multipart PDF upload.", statusCode: 400);
+    }
+    if (!await gate.WaitAsync(0, cancellation))
+    {
+        return Results.Problem("Another document operation is in progress.", statusCode: 429);
+    }
+    try
+    {
+        var form = await request.ReadFormAsync(cancellation);
+        var file = form.Files.GetFile("file");
+        if (file is null || file.Length == 0 || file.Length > maxBytes)
+        {
+            return Results.Problem("Provide a PDF up to 20 MB.", statusCode: 400);
+        }
+        var password = form["password"].ToString();
+        if (password.Length > 4096 || form["options"].ToString().Length > 16384)
+        {
+            return Results.Problem("Security settings exceed the allowed length.", statusCode: 400);
+        }
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, cancellation);
+        var document = PdfReader.Read(buffer.ToArray(), new() { Password = password });
+        if (PdfFormExtractor.Extract(document).Any(field => field.IsSigned))
+        {
+            throw new NotSupportedException("Changing security would invalidate existing digital signatures.");
+        }
+        if (document.Security is { OwnerAuthenticated: false } security
+            && (!security.AllowModifying || !security.AllowCopying || !security.AllowDocumentAssembly || !security.AllowAnnotations || !security.AllowFormFilling || !security.AllowHighQualityPrinting))
+        {
+            return Results.Problem("Enter the owner password to open a restricted PDF for editing.", statusCode: 403);
+        }
+        PdfObjectKit.Options.PdfWriteOptions? settings = null;
+        if (operation == "encrypt")
+        {
+            var encryption = JsonSerializer.Deserialize<PdfObjectKit.Options.PdfEncryptionOptions>(form["options"].ToString(), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (encryption is null)
+            {
+                return Results.Problem("Provide encryption settings.", statusCode: 400);
+            }
+            settings = new() { Encryption = encryption };
+        }
+        var output = PdfWriter.Write(document, settings);
+        if (output.Length > maxBytes)
+        {
+            return Results.Problem("The resulting PDF exceeds 20 MB.", statusCode: 422);
+        }
+        return Results.File(output, "application/pdf", operation == "encrypt" ? "protected.pdf" : "unlocked.pdf");
+    }
+    catch (PdfObjectKit.Security.PdfPasswordException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 401);
+    }
+    catch (BadHttpRequestException ex)
+    {
+        return Results.Problem("The upload could not be read.", statusCode: ex.StatusCode);
+    }
+    catch (Exception ex) when (ex is InvalidDataException or ArgumentException or NotSupportedException or JsonException or CryptographicException or FormatException or OverflowException)
+    {
+        return Results.Problem(ex.Message, statusCode: 422);
+    }
+    finally
+    {
+        gate.Release();
+    }
+});
+
 app.Run();
+
+static PdfObjectDocument ReadWorkingPdf(byte[] bytes)
+{
+    var document = PdfReader.Read(bytes);
+    if (document.Security is not null)
+    {
+        throw new NotSupportedException("Unlock this encrypted PDF before editing or assembling it.");
+    }
+    return document;
+}
 
 static List<PdfImagePoint> Rectangle(double left, double bottom, double right, double top)
 {

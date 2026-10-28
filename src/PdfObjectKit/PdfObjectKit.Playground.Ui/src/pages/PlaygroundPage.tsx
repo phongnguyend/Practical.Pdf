@@ -1,3 +1,4 @@
+import { PdfSecurityDialog } from '../components/PdfSecurityDialog';
 import { Modal } from '../components/Modal';
 import { FormFieldToolbox } from '../components/FormFieldToolbox';
 import { fieldDefaults, formFieldTypes, type FormFieldType } from '../components/formFieldTypes';
@@ -10,7 +11,7 @@ import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy } from 'lucide-react';
+import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from '../geometry.mjs';
@@ -68,6 +69,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
   const [droppedImage, setDroppedImage] = useState<File>();
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [securityFile, setSecurityFile] = useState<File | null>(null);
+  const [protectPdf, setProtectPdf] = useState(false);
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [confirmDeletePage, setConfirmDeletePage] = useState(false);
   const [assembly, setAssembly] = useState<'split' | 'extract' | null>(null);
@@ -156,8 +159,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     onViewChange({ page, zoom, renderer });
   }, [page, zoom, renderer]);
   useEffect(() => {
-    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || confirmDeletePage || assembly !== null);
-  }, [busy, saving, rendering, exporting, adding, showMarkdown, confirmDeletePage, assembly]);
+    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
+  }, [busy, saving, rendering, exporting, adding, showMarkdown, securityFile, protectPdf, confirmDeletePage, assembly]);
 
   function openFiles(files: File[]) {
     if (saving || busy) {
@@ -194,6 +197,10 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       const bytes = await file.arrayBuffer();
       const source = new Blob([bytes], { type: 'application/pdf' });
       const response = await fetch('/api/documents/inspect', { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: bytes, signal: controller.signal });
+      if (response.status === 401) {
+        setSecurityFile(file);
+        return;
+      }
       if (!response.ok) {
         const problem = await response.json().catch(() => null);
         throw new Error(problem?.detail ?? `Upload failed (${response.status}). Is the API running?`);
@@ -214,6 +221,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       setSelected(null);
       setViewport(null);
       setZoom(initialView.zoom);
+      return true;
     } catch (cause) {
       await task?.destroy();
       if (version === generation.current && !controller.signal.aborted) {
@@ -559,7 +567,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       setTextSelection(null);
       window.getSelection()?.removeAllRanges();
       panGesture.current = null;
-    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button>{([{ label: 'Rotate left', degrees: -90, Icon: RotateCcw }, { label: 'Rotate right', degrees: 90, Icon: RotateCw }]).map(({ label, degrees, Icon }) => <button key={label} aria-label={label} title={label + ' 90 degrees'} disabled={saving || busy || rendering || adding || exporting} onClick={() => {
+    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy || rendering} onClick={() => setProtectPdf(true)}><LockKeyhole size={16} aria-hidden="true" />Protect PDF</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button><button aria-label="Previous page" title="Previous page" disabled={saving || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button>{([{ label: 'Rotate left', degrees: -90, Icon: RotateCcw }, { label: 'Rotate right', degrees: 90, Icon: RotateCw }]).map(({ label, degrees, Icon }) => <button key={label} aria-label={label} title={label + ' 90 degrees'} disabled={saving || busy || rendering || adding || exporting} onClick={() => {
       void saveEdit({ kind: 'rotate-page', pageNumber: page, rotation: degrees, value: '' });
     }}><Icon size={16} aria-hidden="true" /></button>)}<button aria-label="Duplicate page" title={pdf.numPages >= 100 ? 'The playground supports up to 100 pages' : 'Duplicate current page'} disabled={pdf.numPages >= 100 || saving || busy || rendering || adding || exporting} onClick={() => {
       void saveEdit({ kind: 'duplicate-page', pageNumber: page, value: '' });
@@ -645,6 +653,12 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
         void saveEdit({ kind: 'delete-page', pageNumber: page, value: '' });
       }}><Trash2 size={16} aria-hidden="true" />Delete page</button></div>
     </Modal>}{assembly && pdfBytes && pdf && <PageAssemblyDialog mode={assembly} pdf={pdfBytes} name={name} pageCount={pdf.numPages} onClose={() => setAssembly(null)} onOpenFiles={onOpenFiles} />}
+    {(securityFile || (protectPdf && pdfBytes)) && <PdfSecurityDialog file={securityFile ?? new File([pdfBytes!], name, { type: 'application/pdf' })} unlock={!!securityFile} onClose={() => { setSecurityFile(null); setProtectPdf(false); }} onUnlocked={async file => {
+      if (!await openFile(file, true)) {
+        throw new Error('Could not inspect the decrypted PDF.');
+      }
+      onSaved(file);
+    }} />}
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
     <footer>PdfObjectKit extracts · {renderer === 'native' ? 'PdfObjectKit renders (experimental)' : 'PDF.js renders'}<span>Add, edit and delete · Files are not saved by the API</span></footer>
   </div>;

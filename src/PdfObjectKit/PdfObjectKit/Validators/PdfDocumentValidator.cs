@@ -6,7 +6,7 @@ namespace PdfObjectKit.Validators;
 /// <summary>Shared structural validation for reading, writing, conversion, and editing.</summary>
 internal static class PdfDocumentValidator
 {
-    public static void Validate(PdfObjectDocument document)
+    public static void Validate(PdfObjectDocument document, bool allowEncrypted = false)
     {
         ArgumentNullException.ThrowIfNull(document);
         void Require(bool condition, string message)
@@ -90,6 +90,6 @@ internal static class PdfDocumentValidator
 
         Visit(document.Trailer, 0);
         Require(document.Trailer.Type == "dictionary" && document.Trailer.Entries!.TryGetValue("Root", out var root) && root.Type == "reference", "Trailer requires a Root reference.");
-        Require(!document.Trailer.Entries!.ContainsKey("Encrypt"), "Encrypted object graphs are not supported.");
+        Require(allowEncrypted || !document.Trailer.Entries!.ContainsKey("Encrypt"), "Encrypted object graphs are not supported.");
     }
 }

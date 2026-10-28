@@ -12,9 +12,12 @@ public static class PdfWriter
 
     public static byte[] Write(PdfObjectDocument document) => WriteObjects(document);
 
-    internal static byte[] WriteObjects(PdfObjectDocument document, Action<PdfValue, long, long>? valueWritten = null)
+    /// <summary>Writes a PDF, optionally encrypted with fresh AES-256 security settings. Does not modify the source graph.</summary>
+    public static byte[] Write(PdfObjectDocument document, PdfObjectKit.Options.PdfWriteOptions? options) => WriteObjects(options?.Encryption is { } encryption ? PdfObjectKit.Security.PdfStandardSecurity.Encrypt(document, encryption) : document, allowEncrypted: options?.Encryption is not null);
+
+    internal static byte[] WriteObjects(PdfObjectDocument document, Action<PdfValue, long, long>? valueWritten = null, bool allowEncrypted = false)
     {
-        PdfDocumentValidator.Validate(document);
+        PdfDocumentValidator.Validate(document, allowEncrypted);
         using var output = new MemoryStream();
         void Write(string text) => output.Write(Encoding.ASCII.GetBytes(text));
         void Name(string name)

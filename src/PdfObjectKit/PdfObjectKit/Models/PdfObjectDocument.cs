@@ -2,6 +2,10 @@ namespace PdfObjectKit.Models;
 
 public sealed class PdfObjectDocument
 {
+    /// <summary>Authentication result for a decrypted input; does not cause re-encryption when writing.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public PdfObjectKit.Security.PdfSecurityInfo? Security { get; internal set; }
+
     public string Format { get; set; } = "pdf-object-graph";
 
     public int SchemaVersion { get; set; } = 1;

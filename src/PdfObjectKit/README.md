@@ -1031,3 +1031,41 @@ Use **Delete page** beside the page controls to remove the current page after co
 Use **Rotate left** or **Rotate right** beside the page controls to rotate the current page by 90 degrees and save it in the current tab. Library clients can call `PdfPageEditor.RotatePage(document, pageNumber, degrees)` with positive clockwise or negative counterclockwise multiples of 90. Inherited rotation is respected; sibling pages and content coordinates are unchanged.
 
 **Duplicate page** inserts a copy after the current page and selects it in the same tab (up to 100 pages). `PdfPageEditor.DuplicatePage(document, pageNumber, options)` returns a new document without changing the source. It uses page assembly preservation rules; form names are namespaced to keep copied fields independent, and conflicting destination/attachment names are renamed. Documents with JavaScript are rejected by the form-namespacing policy.
+
+## Passwords, encryption and permissions
+
+PdfObjectKit reads Standard Security Handler AES-256 revisions 5 and 6 and writes AES-256 revision 6 (PDF 2.0). It supports user/owner authentication, encrypted strings and streams (including object streams), metadata encryption settings, and declared viewer permissions. Legacy RC4/AES-128, certificate encryption, and explicit per-stream `/Crypt` filters are rejected rather than silently interpreted.
+
+```csharp
+using PdfObjectKit.Options;
+using PdfObjectKit.Readers;
+using PdfObjectKit.Writers;
+
+var document = PdfReader.Read(bytes, new PdfReadOptions
+{
+    Password = password
+});
+
+var protectedBytes = PdfWriter.Write(document, new PdfWriteOptions
+{
+    Encryption = new PdfEncryptionOptions
+    {
+        UserPassword = openPassword,
+        OwnerPassword = ownerPassword,
+        AllowPrinting = true,
+        AllowCopying = false,
+        AllowModifying = false,
+        AllowAnnotations = false,
+        AllowFormFilling = true,
+        AllowDocumentAssembly = false
+    }
+});
+```
+
+`PdfPasswordException.PasswordRequired` distinguishes a missing password from an incorrect supplied password. `document.Security` reports owner authentication and the original permission flags, with no passwords or keys. It is not serialized to JSON. The library reports permissions; client applications decide which operations to permit. PDF permissions rely on viewer cooperation and are not equivalent to encryption.
+
+**Reading returns a decrypted object graph. `PdfWriter.Write(document)` and JSON export produce unencrypted content.** Pass encryption options on each protected write. Encryption leaves the source graph unchanged, generates fresh random keys/salts/IVs, and rejects signed documents because rewriting would invalidate their signatures. Owner passwords must be nonempty and different from user passwords. Empty user passwords allow opening without a password while retaining owner permissions. Passwords use UTF-8; export limits each to 127 bytes. No SASLprep normalization is applied, so enter the same Unicode sequence that was used when creating the password.
+
+In the playground, encrypted uploads open an in-app password dialog. Restricted documents require owner authentication before creating a decrypted working copy. **Protect PDF** downloads an encrypted copy with selected permissions; the current tab and ordinary Download PDF remain unencrypted. Passwords are submitted in request bodies, never URL parameters, and are not persisted in browser storage. Deploy the API over HTTPS and avoid request-body logging. The CLI currently has no password/security switches; use the library or playground for these operations.
+
+Security regressions include independent pypdf/QPDF fixtures, wrong passwords, owner/user roles, tampered permissions, unsupported filters, Unicode and empty passwords, encrypted object streams, independent fields, and source immutability. Export interoperability was checked with pypdf, QPDF and PDF.js. The browser security tests verify PDF.js text decoding and permission flags. This implementation has not undergone an independent cryptographic security audit.

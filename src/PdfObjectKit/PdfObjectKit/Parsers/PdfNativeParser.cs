@@ -7,6 +7,8 @@ namespace PdfObjectKit.Parsers;
 /// <summary>Dependency-free, strict PDF object parser. Does not interpret page content or fonts.</summary>
 public sealed class PdfNativeParser
 {
+    private PdfObjectKit.Security.PdfStandardSecurity? security;
+    private PdfReference? encryptionId;
     private readonly byte[] bytes;
     private readonly Dictionary<long, Location> locations = [];
     private readonly Dictionary<PdfReference, PdfValue> loaded = [];
@@ -16,13 +18,23 @@ public sealed class PdfNativeParser
     private readonly Dictionary<long, Dictionary<long, PdfValue>> objectStreams = [];
     private sealed record Location(int Type, long Offset, int GenerationOrIndex);
     private PdfNativeParser(byte[] bytes) => this.bytes = bytes;
-    public static PdfObjectDocument Parse(byte[] bytes)
+    public static PdfObjectDocument Parse(byte[] bytes) => Parse(bytes, null);
+
+    public static PdfObjectDocument Parse(byte[] bytes, string? password)
     {
         ArgumentNullException.ThrowIfNull(bytes);
-        return new PdfNativeParser(bytes).ParseDocument();
+        var parser = new PdfNativeParser(bytes);
+        try
+        {
+            return parser.ParseDocument(password);
+        }
+        finally
+        {
+            parser.security?.Dispose();
+        }
     }
 
-    private PdfObjectDocument ParseDocument()
+    private PdfObjectDocument ParseDocument(string? password)
     {
         if (bytes.Length < 8 || !bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8))
         {
@@ -43,9 +55,13 @@ public sealed class PdfNativeParser
         }
 
         ReadXref(Offset(new PdfSyntaxReader(bytes, start + 9).Integer()));
+        PdfObjectKit.Security.PdfSecurityInfo? securityInfo = null;
         if (trailer.TryGetValue("Encrypt", out var encryption) && encryption.Type != "null")
         {
-            throw new NotSupportedException("Encrypted PDFs must be decrypted before parsing.");
+            encryptionId = encryption.Reference;
+            security = PdfObjectKit.Security.PdfStandardSecurity.Open(Resolve(encryption), Resolve, password, out securityInfo);
+            // Xref/encryption dependencies loaded before authentication must be read again with the key.
+            loaded.Clear();
         }
 
         if (!trailer.TryGetValue("Root", out var root) || root.Reference is null)
@@ -74,6 +90,7 @@ public sealed class PdfNativeParser
 
         var document = new PdfObjectDocument
         {
+            Security = securityInfo,
             PdfVersion = version,
             Trailer = new()
             {
@@ -89,6 +106,10 @@ public sealed class PdfNativeParser
             }
 
             var id = new PdfReference(number, location.Type == 2 ? 0 : location.GenerationOrIndex);
+            if (id == encryptionId)
+            {
+                continue;
+            }
             var value = Load(id);
             var entries = value.Entries;
             if (entries?.ContainsKey("Linearized") == true || entries?.GetValueOrDefault("Type")?.Name is "ObjStm" or "XRef")
@@ -282,6 +303,10 @@ public sealed class PdfNativeParser
                 }
 
                 value = parsed.Value;
+                if (id != encryptionId)
+                {
+                    security?.Transform(value, false, Resolve);
+                }
             }
             else
             {

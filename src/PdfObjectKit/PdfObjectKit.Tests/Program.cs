@@ -93,3 +93,5 @@ DiagnosticTests.Run();
 HeuristicTests.Run();
 
 MarkdownImageTests.Run();
+
+SecurityTests.Run();
