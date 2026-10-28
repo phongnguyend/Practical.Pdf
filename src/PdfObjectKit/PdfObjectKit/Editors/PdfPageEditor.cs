@@ -62,6 +62,50 @@ public static class PdfPageEditor
         }
     }
 
+    /// <summary>Rotates a page clockwise by a multiple of 90 degrees, relative to its inherited rotation.</summary>
+    public static void RotatePage(PdfObjectDocument document, int pageNumber, int degrees)
+    {
+        if (degrees % 90 != 0)
+        {
+            throw new ArgumentException("Rotation must be a multiple of 90 degrees.", nameof(degrees));
+        }
+        Edit(document, working =>
+        {
+            var graph = new PdfGraph(working);
+            var pages = graph.Pages();
+            if (pageNumber < 1 || pageNumber > pages.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(pageNumber));
+            }
+            var page = pages[pageNumber - 1].Dictionary;
+            var node = page;
+            var seen = new HashSet<PdfValue>();
+            double rotation = 0;
+            while (true)
+            {
+                if (!seen.Add(node) || seen.Count > 100)
+                {
+                    throw new InvalidDataException("Invalid page parent tree.");
+                }
+                if (graph.Get(node, "Rotate") is { } value)
+                {
+                    rotation = Number(value);
+                    if (!double.IsFinite(rotation) || rotation % 90 != 0)
+                    {
+                        throw new InvalidDataException("Page rotation must be a multiple of 90 degrees.");
+                    }
+                    break;
+                }
+                if (graph.Get(node, "Parent") is not { } parent)
+                {
+                    break;
+                }
+                node = parent;
+            }
+            page.Entries!["Rotate"] = Num(((rotation % 360 + degrees % 360) % 360 + 360) % 360);
+        });
+    }
+
     /// <summary>Inserts black, single-line ASCII Helvetica text at a PDF-space baseline.</summary>
     public static void InsertText(PdfObjectDocument document, int pageNumber, string text, double x, double y, double fontSize = 12)
     {

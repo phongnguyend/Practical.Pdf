@@ -1027,3 +1027,5 @@ moves it one position without changing the active document. Reordering retains
 edits, view state and merge selections; Merge selected uses the updated order.
 
 Use **Delete page** beside the page controls to remove the current page after confirmation. The current tab is updated using the saved PDF, and the nearest remaining page is selected. The last page cannot be deleted. Download the result to keep it. Library clients can call `PdfPageEditor.DeletePage(document, pageNumber, options)`; it returns an independent document and leaves the source unchanged, using the same preservation rules and limits as page extraction.
+
+Use **Rotate left** or **Rotate right** beside the page controls to rotate the current page by 90 degrees and save it in the current tab. Library clients can call `PdfPageEditor.RotatePage(document, pageNumber, degrees)` with positive clockwise or negative counterclockwise multiples of 90. Inherited rotation is respected; sibling pages and content coordinates are unchanged.

@@ -24,6 +24,29 @@ internal static class PageEditorTests
             checks++;
         }
 
+        var rotated = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Rotate"), new FixturePage("Sibling")));
+        var rotationGraph = new PdfGraph(rotated);
+        rotationGraph.Get(rotationGraph.Pages()[0].Dictionary, "Parent")!.Entries!["Rotate"] = Num(90);
+        PdfPageEditor.RotatePage(rotated, 1, 90);
+        rotationGraph = new PdfGraph(PdfReader.Read(PdfWriter.Write(rotated)));
+        Check(rotationGraph.Number(rotationGraph.Pages()[0].Dictionary, "Rotate") == 180, "Rotation includes inherited value");
+        Check(rotationGraph.Get(rotationGraph.Pages()[1].Dictionary, "Rotate") is null, "Sibling rotation remains inherited");
+        PdfPageEditor.RotatePage(rotated, 1, -270);
+        Check(new PdfGraph(rotated).Number(new PdfGraph(rotated).Pages()[0].Dictionary, "Rotate") == 270, "Negative rotation normalized");
+        var rotationBefore = PdfConverter.ToJson(rotated);
+        foreach (var invalid in new[] { (Page: 1, Degrees: 45), (Page: 0, Degrees: 90), (Page: 3, Degrees: 90) })
+        {
+            try
+            {
+                PdfPageEditor.RotatePage(rotated, invalid.Page, invalid.Degrees);
+                throw new Exception("Invalid rotation accepted");
+            }
+            catch (ArgumentException)
+            {
+                Check(PdfConverter.ToJson(rotated) == rotationBefore, "Invalid rotation is atomic");
+            }
+        }
+
         var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Original")));
         PdfPageEditor.InsertText(document, 1, "Added", 40, 40, 12);
         var text = PdfTextExtractor.Extract(document)[0];

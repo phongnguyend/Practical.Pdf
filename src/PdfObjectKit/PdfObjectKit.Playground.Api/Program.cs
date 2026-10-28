@@ -134,7 +134,11 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             throw new NotSupportedException("This PDF contains a signature. Editing would invalidate it; signed-document editing is disabled.");
         }
         byte[]? signedBytes = null;
-        if (edit.Kind == "delete-page")
+        if (edit.Kind == "rotate-page")
+        {
+            PdfPageEditor.RotatePage(document, edit.PageNumber, edit.Rotation);
+        }
+        else if (edit.Kind == "delete-page")
         {
             document = PdfPageEditor.DeletePage(document, edit.PageNumber, new PdfObjectKit.Options.PdfPageAssemblyOptions
             {
@@ -571,4 +575,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null, int AnnotationNumber = 0, List<PdfAnnotationRegion>? Regions = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null, int AnnotationNumber = 0, List<PdfAnnotationRegion>? Regions = null, int Rotation = 0);

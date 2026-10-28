@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-function pdfFile(name, texts, tagged = false) {
+function pdfFile(name, texts, tagged = false, height = 300) {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Count ' + texts.length + ' /Kids [' + texts.map((_, i) => (5 + i * 2) + ' 0 R').join(' ') + '] >>',
@@ -13,7 +13,7 @@ function pdfFile(name, texts, tagged = false) {
     }
     const stream = objects.length + 1;
     objects.push('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
-    objects.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << /Font << /F1 3 0 R >> >> /Contents ' + stream + ' 0 R >>');
+    objects.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 ' + height + '] /Resources << /Font << /F1 3 0 R >> >> /Contents ' + stream + ' 0 R >>');
   }
   if (tagged) {
     const root = objects.length + 1;
@@ -265,3 +265,30 @@ test('delete page API rejects invalid page and deleting the last page', async ({
     expect(response.status()).toBe(422);
   }
 });
+
+
+for (const renderer of ['PDF.js', 'PdfObjectKit (experimental)']) {
+  test(`rotate page updates canvas and persists in tab with ${renderer}`, async ({ page }) => {
+    await page.goto('/');
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('rotate.pdf', ['First', 'Second'], false, 400));
+    await expect(page.locator('.object')).toContainText('First');
+    await page.getByRole('button', { name: renderer, exact: true }).click();
+    const canvas = page.locator('.page > div > canvas');
+    await expect(page.getByRole('button', { name: 'Rotate right', exact: true })).toBeEnabled();
+    const size = await canvas.evaluate(c => [c.width, c.height]);
+    await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
+    await expect(canvas).toHaveJSProperty('width', size[1]);
+    await expect(canvas).toHaveJSProperty('height', size[0]);
+    await page.getByLabel('Page', { exact: true }).selectOption('2');
+    await expect(canvas).toHaveJSProperty('height', size[1]);
+    await page.getByLabel('Page', { exact: true }).selectOption('1');
+    await expect(canvas).toHaveJSProperty('width', size[1]);
+    await page.getByRole('button', { name: 'New tab', exact: true }).click();
+    await page.getByRole('tab', { name: /rotate.pdf/ }).click();
+    await expect(canvas).toHaveJSProperty('width', size[1]);
+    await page.getByRole('button', { name: 'Rotate left', exact: true }).click();
+    await expect(canvas).toHaveJSProperty('width', size[0]);
+    await expect(canvas).toHaveJSProperty('height', size[1]);
+    await expect(page.locator('.object')).toContainText('First');
+  });
+}
