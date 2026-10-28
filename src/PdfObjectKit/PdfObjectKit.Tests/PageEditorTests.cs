@@ -24,6 +24,18 @@ internal static class PageEditorTests
             checks++;
         }
 
+        var duplicateSource = PdfReader.Read(PdfFixture.Create(null, new FixturePage("First"), new FixturePage("Second")));
+        PdfFormEditor.InsertTextField(duplicateSource, 1, "Example", "Original", 20, 20, 100, 20);
+        var sourceJson = PdfConverter.ToJson(duplicateSource);
+        var duplicated = PdfPageEditor.DuplicatePage(duplicateSource, 1);
+        Check(PdfConverter.ToJson(duplicateSource) == sourceJson, "Duplication leaves source unchanged");
+        var duplicateTexts = PdfTextExtractor.Extract(PdfReader.Read(PdfWriter.Write(duplicated)));
+        Check(duplicateTexts.Count == 3 && duplicateTexts[0].Text.Contains("First") && duplicateTexts[1].Text.Contains("First") && duplicateTexts[2].Text.Contains("Second"), "Duplicate follows selected page");
+        var duplicateFields = PdfFormExtractor.Extract(duplicated);
+        Check(duplicateFields.Count == 2 && duplicateFields.Select(field => field.Name).Distinct().Count() == 2, "Copied fields have independent names");
+        PdfFormEditor.SetValue(duplicated, duplicateFields[1].Name, "Changed");
+        Check(PdfFormExtractor.Extract(duplicated)[0].Values[0] == "Original", "Editing copied field preserves original field");
+
         var rotated = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Rotate"), new FixturePage("Sibling")));
         var rotationGraph = new PdfGraph(rotated);
         rotationGraph.Get(rotationGraph.Pages()[0].Dictionary, "Parent")!.Entries!["Rotate"] = Num(90);

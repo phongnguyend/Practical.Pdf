@@ -138,15 +138,18 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         {
             PdfPageEditor.RotatePage(document, edit.PageNumber, edit.Rotation);
         }
-        else if (edit.Kind == "delete-page")
+        else if (edit.Kind is "delete-page" or "duplicate-page")
         {
-            document = PdfPageEditor.DeletePage(document, edit.PageNumber, new PdfObjectKit.Options.PdfPageAssemblyOptions
+            var assemblyOptions = new PdfObjectKit.Options.PdfPageAssemblyOptions
             {
                 MaxPages = 100,
                 MaxObjects = 250000,
                 MaxNodes = 1000000,
                 MaxEncodedStreamBytes = 64L * 1024 * 1024
-            }, cancellation);
+            };
+            document = edit.Kind == "duplicate-page"
+                ? PdfPageEditor.DuplicatePage(document, edit.PageNumber, assemblyOptions, cancellation)
+                : PdfPageEditor.DeletePage(document, edit.PageNumber, assemblyOptions, cancellation);
         }
         else if (edit.Kind == "delete-objects")
         {

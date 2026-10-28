@@ -292,3 +292,25 @@ for (const renderer of ['PDF.js', 'PdfObjectKit (experimental)']) {
     await expect(page.locator('.object')).toContainText('First');
   });
 }
+
+
+test('duplicate page opens independent copy after current page in same tab', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('duplicate.pdf', ['First', 'Second'], true));
+  await expect(page.locator('.object')).toContainText('First');
+  await page.getByRole('button', { name: 'Duplicate page', exact: true }).click();
+  await expect(page.getByLabel('Page', { exact: true })).toHaveValue('2');
+  await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(3);
+  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.locator('.object')).toContainText('First');
+  await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Duplicate page', exact: true })).toBeEnabled();
+  await page.getByLabel('Page', { exact: true }).selectOption('3');
+  await expect(page.locator('.object')).toContainText('Second');
+  await page.getByRole('button', { name: 'Duplicate page', exact: true }).click();
+  await expect(page.getByLabel('Page', { exact: true })).toHaveValue('4');
+  await expect(page.locator('.object')).toContainText('Second');
+  await page.getByRole('button', { name: 'New tab', exact: true }).click();
+  await page.getByRole('tab', { name: /duplicate.pdf/ }).click();
+  await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(4);
+});

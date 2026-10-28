@@ -62,6 +62,32 @@ public static class PdfPageEditor
         }
     }
 
+    /// <summary>Returns an independent document with a copy immediately after the specified one-based page.
+    /// Form names are namespaced so copied fields can be edited independently.</summary>
+    public static PdfObjectDocument DuplicatePage(PdfObjectDocument document, int pageNumber, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        cancellationToken.ThrowIfCancellationRequested();
+        var count = new PdfGraph(document).Pages().Count;
+        if (pageNumber < 1 || pageNumber > count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber));
+        }
+        var assemblyOptions = (options ?? new()) with
+        {
+            NamespaceFormFields = true,
+            RenameConflictingAttachments = true,
+            RenameConflictingDestinations = true
+        };
+        var copier = new PdfPageCopier(assemblyOptions, cancellationToken);
+        copier.Append(document, Enumerable.Range(1, count).ToArray());
+        copier.Append(document, [pageNumber]);
+        var appended = copier.Finish();
+        var order = Enumerable.Range(1, count).ToList();
+        order.Insert(pageNumber, count + 1);
+        return ExtractPages(appended, order, assemblyOptions with { NamespaceFormFields = false }, cancellationToken);
+    }
+
     /// <summary>Rotates a page clockwise by a multiple of 90 degrees, relative to its inherited rotation.</summary>
     public static void RotatePage(PdfObjectDocument document, int pageNumber, int degrees)
     {
