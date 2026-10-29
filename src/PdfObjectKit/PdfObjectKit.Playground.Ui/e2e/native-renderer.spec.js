@@ -1,3 +1,4 @@
+import { toolbarAction } from './toolbar.js';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -287,7 +288,7 @@ test('Delete removes selected image and whole text line but ignores editing and 
   await page.getByLabel('New value', { exact: true }).focus();
   await page.keyboard.press('Delete');
   expect(edits).toHaveLength(0);
-  await page.getByRole('button', { name: 'View Markdown', exact: true }).click();
+  await (await toolbarAction(page, 'View Markdown')).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Delete');
   expect(edits).toHaveLength(0);

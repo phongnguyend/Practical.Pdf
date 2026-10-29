@@ -99,3 +99,4 @@ WatermarkTests.Run();
 MetadataTests.Run();
 CompressionTests.Run();
 TextSearchTests.Run();
+PageReorderTests.Run();

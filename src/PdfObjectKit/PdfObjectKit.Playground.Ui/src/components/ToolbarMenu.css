@@ -1,0 +1,18 @@
+.toolbar-menu { position: relative; flex-shrink: 0; }
+.toolbar-menu summary { display: flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid #d7deea; border-radius: 6px; cursor: pointer; list-style: none; white-space: nowrap; }
+.toolbar-menu summary::-webkit-details-marker { display: none; }
+.toolbar-menu summary:hover, .toolbar-menu[open] summary { background: #eff6ff; border-color: #b7c9f0; color: #1d4ed8; }
+.toolbar-menu summary:focus-visible { outline: 2px solid #7bafff; outline-offset: 2px; }
+.toolbar-menu-panel { position: absolute; z-index: 60; right: 0; top: calc(100% + 6px); width: 232px; max-height: min(520px, 70vh); overflow-y: auto; padding: 6px; background: #fff; border: 1px solid #dbe3ef; border-radius: 9px; box-shadow: 0 8px 28px #0f172a26; }
+.toolbar .toolbar-menu-panel button { width: 100%; justify-content: flex-start; gap: 10px; border: 0; border-radius: 5px; padding: 9px 10px; background: transparent; text-align: left; }
+.toolbar .toolbar-menu-panel button:hover:not(:disabled) { background: #eff6ff; }
+.toolbar-menu-panel h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin: 9px 10px 5px; font-weight: 600; }
+.toolbar-menu-panel hr { border: 0; border-top: 1px solid #e2e8f0; margin: 6px; }
+.toolbar .toolbar-menu-panel .delete-page-action { color: #b91c1c; }
+.toolbar .toolbar-menu-panel .delete-page-action:hover:not(:disabled) { background: #fef2f2; }
+.toolbar-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-left: auto; }
+.toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.toolbar .toolbar-primary-download { white-space: nowrap; background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.toolbar .filename { max-width: 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1200px) { .toolbar .filename { display: none; } }
+@media (max-width: 600px) { .toolbar-menu-panel { left: 0; right: auto; max-width: calc(100vw - 24px); } }

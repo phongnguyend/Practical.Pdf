@@ -1,3 +1,5 @@
+import { ToolbarMenu } from '../components/ToolbarMenu';
+import { OrganizePagesDialog } from '../components/OrganizePagesDialog';
 import { useTextSearch, TextSearchBar, SearchHighlights } from '../components/TextSearch';
 import { CompressionDialog } from '../components/CompressionDialog';
 import { DocumentPropertiesDialog, type Metadata } from '../components/DocumentPropertiesDialog';
@@ -15,7 +17,7 @@ import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole, Stamp, FilePenLine, FileDown, Search } from 'lucide-react';
+import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole, Stamp, FilePenLine, FileDown, Search, LayoutGrid } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from '../geometry.mjs';
@@ -74,6 +76,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [securityFile, setSecurityFile] = useState<File | null>(null);
+  const [showOrganize, setShowOrganize] = useState(false);
   const [showCompression, setShowCompression] = useState(false);
   const [showProperties, setShowProperties] = useState(false);
   const [showWatermark, setShowWatermark] = useState(false);
@@ -172,8 +175,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     onViewChange({ page, zoom, renderer });
   }, [page, zoom, renderer]);
   useEffect(() => {
-    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || showCompression || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
-  }, [busy, saving, rendering, exporting, adding, showMarkdown, showCompression, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
+    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || showOrganize || showCompression || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
+  }, [busy, saving, rendering, exporting, adding, showMarkdown, showOrganize, showCompression, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
 
   function openFiles(files: File[]) {
     if (saving || busy) {
@@ -278,7 +281,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       task = getDocument({ data: await updated.arrayBuffer(), cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/pdfjs/standard_fonts/', wasmUrl: '/pdfjs/wasm/' });
       const loaded = await task.promise;
       // Check rendering before replacing the current document. A failed save keeps the old bytes.
-      const nextPage = Math.min(edit.kind === 'duplicate-page' ? page + 1 : page, loaded.numPages);
+      const nextPage = Math.min(edit.kind === 'reorder-pages' && edit.pageNumbers ? edit.pageNumbers.indexOf(page) + 1 : edit.kind === 'duplicate-page' ? page + 1 : page, loaded.numPages);
       const preview = await loaded.getPage(nextPage);
       const canvas = document.createElement('canvas');
       const view = preview.getViewport({ scale: zoom });
@@ -571,7 +574,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     }
   }}>
     <header><div className="brand"><span className="logo">P</span><div><strong>PdfObjectKit</strong><span className="subtitle">OBJECT PLAYGROUND</span></div></div><label className="upload"><FolderOpen size={17} aria-hidden="true" />{busy ? 'Opening…' : 'Open PDF'}<input aria-label="Open PDF" disabled={saving || busy} type="file" multiple accept="application/pdf,.pdf" onChange={event => { openFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} /></label></header>{tabStrip}
-    <div id="document-panel" role="tabpanel" aria-labelledby={"tab-" + tabId} className="document-panel"><div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <><div className="interaction-mode" role="group" aria-label="Interaction mode">{([
+    <div id="document-panel" role="tabpanel" aria-labelledby={"tab-" + tabId} className="document-panel"><div className="toolbar"><span className="filename">{name || 'No document open'}</span>{pdf && <div className="toolbar-controls"><div className="interaction-mode" role="group" aria-label="Interaction mode">{([
       ['objects', 'Select objects', MousePointer2], ['text', 'Select text', TextCursor], ['pan', 'Pan', Hand],
     ] as const).map(([value, label, Icon]) => <button key={value} type="button" className="icon-button" aria-label={label} title={label} aria-pressed={mode === value} disabled={saving || busy || rendering} onClick={() => {
       setMode(value);
@@ -580,11 +583,11 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       setTextSelection(null);
       window.getSelection()?.removeAllRanges();
       panGesture.current = null;
-    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button title="Find text (Ctrl+F)" disabled={saving || busy} onClick={() => search.setOpen(true)}><Search size={16} aria-hidden="true" />Find</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowProperties(true)}><FilePenLine size={16} aria-hidden="true" />Properties</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowWatermark(true)}><Stamp size={16} aria-hidden="true" />Watermark</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowCompression(true)}><FileDown size={16} aria-hidden="true" />Compress PDF</button><button disabled={saving || busy || rendering} onClick={() => setProtectPdf(true)}><LockKeyhole size={16} aria-hidden="true" />Protect PDF</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button>{([{ label: 'Rotate left', degrees: -90, Icon: RotateCcw }, { label: 'Rotate right', degrees: 90, Icon: RotateCw }]).map(({ label, degrees, Icon }) => <button key={label} aria-label={label} title={label + ' 90 degrees'} disabled={saving || busy || rendering || adding || exporting} onClick={() => {
+    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-label={value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'} title={value === 'pdfjs' ? 'PDF.js renderer' : 'PdfObjectKit experimental renderer'} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'Native (experimental)'}</button>)}</div><div className="toolbar-actions"><button title="Find text (Ctrl+F)" disabled={saving || busy} onClick={() => search.setOpen(true)}><Search size={16} aria-hidden="true" />Find</button><ToolbarMenu label="Pages" icon={Files}><h3>All pages</h3><button disabled={saving || busy || rendering || adding || pdf.numPages < 2} onClick={() => setShowOrganize(true)}><LayoutGrid size={16} aria-hidden="true" />Organize pages</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><hr /><h3>Current page &middot; {page}</h3>{([{ label: 'Rotate left', degrees: -90, Icon: RotateCcw }, { label: 'Rotate right', degrees: 90, Icon: RotateCw }]).map(({ label, degrees, Icon }) => <button key={label} aria-label={label} title={label + ' 90 degrees'} disabled={saving || busy || rendering || adding || exporting} onClick={() => {
       void saveEdit({ kind: 'rotate-page', pageNumber: page, rotation: degrees, value: '' });
-    }}><Icon size={16} aria-hidden="true" /></button>)}<button aria-label="Duplicate page" title={pdf.numPages >= 100 ? 'The playground supports up to 100 pages' : 'Duplicate current page'} disabled={pdf.numPages >= 100 || saving || busy || rendering || adding || exporting} onClick={() => {
+    }}><Icon size={16} aria-hidden="true" />{label}</button>)}<button aria-label="Duplicate page" title={pdf.numPages >= 100 ? 'The playground supports up to 100 pages' : 'Duplicate current page'} disabled={pdf.numPages >= 100 || saving || busy || rendering || adding || exporting} onClick={() => {
       void saveEdit({ kind: 'duplicate-page', pageNumber: page, value: '' });
-    }}><Copy size={16} aria-hidden="true" />Duplicate page</button><button aria-label="Delete page" title={pdf.numPages === 1 ? 'Cannot delete the last page' : 'Delete current page'} disabled={pdf.numPages <= 1 || saving || busy || rendering || adding || exporting} onClick={() => setConfirmDeletePage(true)}><Trash2 size={16} aria-hidden="true" />Delete page</button></>}</div>
+    }}><Copy size={16} aria-hidden="true" />Duplicate page</button><button className="delete-page-action" aria-label="Delete page" title={pdf.numPages === 1 ? 'Cannot delete the last page' : 'Delete current page'} disabled={pdf.numPages <= 1 || saving || busy || rendering || adding || exporting} onClick={() => setConfirmDeletePage(true)}><Trash2 size={16} aria-hidden="true" />Delete page</button></ToolbarMenu><ToolbarMenu label="Document" icon={FileText}><button disabled={saving || busy || rendering || adding} onClick={() => setShowProperties(true)}><FilePenLine size={16} aria-hidden="true" />Properties</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowWatermark(true)}><Stamp size={16} aria-hidden="true" />Watermark</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowCompression(true)}><FileDown size={16} aria-hidden="true" />Compress PDF</button><button disabled={saving || busy || rendering} onClick={() => setProtectPdf(true)}><LockKeyhole size={16} aria-hidden="true" />Protect PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button></ToolbarMenu><button className="toolbar-primary-download" disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button></div></div>}</div>
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}><X size={15} aria-hidden="true" />Dismiss</button></div>}
     <main><aside className="objects"><section className="toolbox" aria-label="Object toolbox"><h2>Create objects</h2><p className="hint">Drag a type onto the page. Move and resize it, then insert.</p>{[['add-text', 'Text'], ['add-image', 'Image'], ['add-comment', 'Comment']].map(([kind, label]) => <button key={kind} className="toolbox-item" disabled={!pdf || saving || busy || rendering} draggable={!!pdf && !saving && !busy && !rendering} onDragStart={event => {
       event.dataTransfer.setData('application/x-pdfobjectkit-type', kind);
@@ -672,6 +675,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       }
       onSaved(file);
     }} />}
+    {showOrganize && pdf && <OrganizePagesDialog pdf={pdf} currentPage={page} onClose={() => setShowOrganize(false)} onApply={order => { setShowOrganize(false); search.setOpen(false); void saveEdit({ kind: 'reorder-pages', pageNumber: page, value: '', pageNumbers: order }); }} />}
     {showCompression && pdfBytes && <CompressionDialog pdf={pdfBytes} name={name} onClose={() => setShowCompression(false)} onOpenFiles={onOpenFiles} />}
     {showProperties && pdf && inspection && <DocumentPropertiesDialog metadata={inspection.metadata} name={name} pageCount={pdf.numPages} pdfVersion={inspection.pdfVersion} page={page} onClose={() => setShowProperties(false)} onSave={saveEdit} />}
     {showWatermark && pdfBytes && pdf && <WatermarkDialog pdf={pdfBytes} page={page} pageCount={pdf.numPages} watermarks={inspection?.watermarks ?? []} onClose={() => setShowWatermark(false)} onSave={saveEdit} />}

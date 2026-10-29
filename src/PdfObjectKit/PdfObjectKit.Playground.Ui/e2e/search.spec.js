@@ -1,3 +1,4 @@
+import { toolbarAction } from './toolbar.js';
 import { test, expect } from '@playwright/test';
 
 function fixture() {
@@ -66,7 +67,7 @@ test('find across runs/pages, options, highlights, workspace placement and edit 
   await expect(search.getByRole('status')).toHaveText('1 of 3');
   await search.getByLabel('Whole words').check();
   await expect(search.getByRole('status')).toHaveText('1 of 2');
-  await page.getByRole('button', { name: 'Duplicate page', exact: true }).click();
+  await (await toolbarAction(page, 'Duplicate page')).click();
   await expect(search.getByRole('status')).toHaveText('1 of 3');
   await page.getByRole('button', { name: 'PdfObjectKit (experimental)', exact: true }).click();
   await expect(workspace.locator('.active-search-match').first()).toBeVisible();

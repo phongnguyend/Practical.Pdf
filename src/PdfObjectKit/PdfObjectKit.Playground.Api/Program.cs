@@ -220,7 +220,7 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         {
             PdfPageEditor.RotatePage(document, edit.PageNumber, edit.Rotation);
         }
-        else if (edit.Kind is "delete-page" or "duplicate-page")
+        else if (edit.Kind is "delete-page" or "duplicate-page" or "reorder-pages")
         {
             var assemblyOptions = new PdfObjectKit.Options.PdfPageAssemblyOptions
             {
@@ -229,9 +229,12 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
                 MaxNodes = 1000000,
                 MaxEncodedStreamBytes = 64L * 1024 * 1024
             };
-            document = edit.Kind == "duplicate-page"
-                ? PdfPageEditor.DuplicatePage(document, edit.PageNumber, assemblyOptions, cancellation)
-                : PdfPageEditor.DeletePage(document, edit.PageNumber, assemblyOptions, cancellation);
+            document = edit.Kind switch
+            {
+                "reorder-pages" => PdfPageEditor.ReorderPages(document, edit.PageNumbers ?? throw new ArgumentException("Provide a page order."), assemblyOptions, cancellation),
+                "duplicate-page" => PdfPageEditor.DuplicatePage(document, edit.PageNumber, assemblyOptions, cancellation),
+                _ => PdfPageEditor.DeletePage(document, edit.PageNumber, assemblyOptions, cancellation)
+            };
         }
         else if (edit.Kind == "delete-objects")
         {
@@ -762,4 +765,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null, int AnnotationNumber = 0, List<PdfAnnotationRegion>? Regions = null, int Rotation = 0, PdfObjectKit.Options.PdfTextWatermarkOptions? Watermark = null, string? WatermarkId = null, PdfMetadataUpdate? Metadata = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null, int AnnotationNumber = 0, List<PdfAnnotationRegion>? Regions = null, int Rotation = 0, PdfObjectKit.Options.PdfTextWatermarkOptions? Watermark = null, string? WatermarkId = null, PdfMetadataUpdate? Metadata = null, List<int>? PageNumbers = null);

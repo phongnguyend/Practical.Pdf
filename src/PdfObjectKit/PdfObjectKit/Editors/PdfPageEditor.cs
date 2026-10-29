@@ -24,6 +24,22 @@ public static class PdfPageEditor
         return copier.Finish();
     }
 
+    /// <summary>Returns an independent document in the supplied order. Every one-based page number must appear exactly once.</summary>
+    public static PdfObjectDocument ReorderPages(PdfObjectDocument document, IReadOnlyList<int> pageNumbers, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(pageNumbers);
+        cancellationToken.ThrowIfCancellationRequested();
+        PdfDocumentValidator.Validate(document);
+        var count = new PdfGraph(document).Pages().Count;
+        var order = pageNumbers.ToArray();
+        if (order.Length != count || order.Any(number => number < 1 || number > count) || order.Distinct().Count() != count)
+        {
+            throw new ArgumentException("Page order must contain every page exactly once, using one-based page numbers.", nameof(pageNumbers));
+        }
+        return ExtractPages(document, order, options, cancellationToken);
+    }
+
     /// <summary>Returns an independent document without the specified one-based page. The source is unchanged.</summary>
     public static PdfObjectDocument DeletePage(PdfObjectDocument document, int pageNumber, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
     {

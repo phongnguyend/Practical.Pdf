@@ -1,3 +1,4 @@
+import { toolbarAction } from './toolbar.js';
 import { test, expect } from '@playwright/test';
 
 function pdfFile(name, texts, tagged = false, height = 300) {
@@ -68,7 +69,7 @@ test('extract preserves requested order and split opens page tabs without replac
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('source.pdf', ['First', 'Second', 'Third']));
   await expect(page.locator('.object')).toContainText('First');
-  await page.getByRole('button', { name: 'Extract pages', exact: true }).click();
+  await (await toolbarAction(page, 'Extract pages')).click();
   await page.getByLabel('Pages to extract').fill('1,1');
   await page.getByRole('button', { name: 'Extract to new tab', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('only once');
@@ -83,7 +84,7 @@ test('extract preserves requested order and split opens page tabs without replac
   await expect(page.locator('.object')).toContainText('First');
   await page.getByRole('tab', { name: 'source.pdf', exact: true }).click();
   await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Split PDF', exact: true }).click();
+  await (await toolbarAction(page, 'Split PDF')).click();
   await page.getByRole('button', { name: 'Split into 3 tabs', exact: true }).click();
   await expect(page.getByRole('tab')).toHaveCount(5);
   await expect(page.locator('.filename')).toHaveText('source-page-1.pdf');
@@ -102,7 +103,7 @@ test('assembly failure keeps original and does not open partial tabs', async ({ 
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('source.pdf', ['First', 'Second']));
   await expect(page.locator('.object')).toContainText('First');
   await page.route('**/api/documents/split', route => route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ detail: 'Unsupported document feature.' }) }));
-  await page.getByRole('button', { name: 'Split PDF', exact: true }).click();
+  await (await toolbarAction(page, 'Split PDF')).click();
   await page.getByRole('button', { name: 'Split into 2 tabs', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Unsupported document feature');
   await expect(page.getByRole('tab')).toHaveCount(1);
@@ -115,7 +116,7 @@ for (const mode of ['split', 'extract']) {
     await page.goto('/');
     await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('tagged.pdf', ['First', 'Second'], true));
     await expect(page.locator('.object')).toContainText('First');
-    await page.getByRole('button', { name: mode === 'split' ? 'Split PDF' : 'Extract pages', exact: true }).click();
+    await (await toolbarAction(page, mode === 'split' ? 'Split PDF' : 'Extract pages')).click();
     if (mode === 'extract') {
       await page.getByLabel('Pages to extract').fill('2');
     }
@@ -232,23 +233,23 @@ test('delete current page preserves tab, remaining order and view, and protects 
   await page.getByLabel('Zoom', { exact: true }).selectOption('1.25');
   await page.getByLabel('Page', { exact: true }).selectOption('2');
   await expect(page.locator('.object')).toContainText('Second');
-  await page.getByRole('button', { name: 'Delete page', exact: true }).click();
+  await (await toolbarAction(page, 'Delete page')).click();
   await expect(page.getByRole('dialog')).toContainText('Delete page 2?');
   await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Delete page', exact: true }).click();
+  await (await toolbarAction(page, 'Delete page')).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete page', exact: true }).click();
   await expect(page.locator('.object')).toContainText('Third');
   await expect(page.getByRole('tab')).toHaveCount(1);
   await expect(page.getByLabel('Page', { exact: true })).toHaveValue('2');
   await expect(page.getByLabel('Zoom', { exact: true })).toHaveValue('1.25');
-  await page.getByRole('button', { name: 'Delete page', exact: true }).click();
+  await (await toolbarAction(page, 'Delete page')).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Delete page', exact: true }).click();
   await expect(page.locator('.object')).toContainText('First');
   await expect(page.getByLabel('Page', { exact: true })).toHaveValue('1');
-  await expect(page.getByRole('button', { name: 'Delete page', exact: true })).toBeDisabled();
+  await expect((await toolbarAction(page, 'Delete page'))).toBeDisabled();
   await page.getByRole('button', { name: 'New tab', exact: true }).click();
   await page.getByRole('tab', { name: /delete.pdf/ }).click();
   await expect(page.locator('.object')).toContainText('First');
@@ -274,9 +275,9 @@ for (const renderer of ['PDF.js', 'PdfObjectKit (experimental)']) {
     await expect(page.locator('.object')).toContainText('First');
     await page.getByRole('button', { name: renderer, exact: true }).click();
     const canvas = page.locator('.page > div > canvas');
-    await expect(page.getByRole('button', { name: 'Rotate right', exact: true })).toBeEnabled();
+    await expect((await toolbarAction(page, 'Rotate right'))).toBeEnabled();
     const size = await canvas.evaluate(c => [c.width, c.height]);
-    await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
+    await (await toolbarAction(page, 'Rotate right')).click();
     await expect(canvas).toHaveJSProperty('width', size[1]);
     await expect(canvas).toHaveJSProperty('height', size[0]);
     await page.getByLabel('Page', { exact: true }).selectOption('2');
@@ -286,7 +287,7 @@ for (const renderer of ['PDF.js', 'PdfObjectKit (experimental)']) {
     await page.getByRole('button', { name: 'New tab', exact: true }).click();
     await page.getByRole('tab', { name: /rotate.pdf/ }).click();
     await expect(canvas).toHaveJSProperty('width', size[1]);
-    await page.getByRole('button', { name: 'Rotate left', exact: true }).click();
+    await (await toolbarAction(page, 'Rotate left')).click();
     await expect(canvas).toHaveJSProperty('width', size[0]);
     await expect(canvas).toHaveJSProperty('height', size[1]);
     await expect(page.locator('.object')).toContainText('First');
@@ -298,19 +299,83 @@ test('duplicate page opens independent copy after current page in same tab', asy
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('duplicate.pdf', ['First', 'Second'], true));
   await expect(page.locator('.object')).toContainText('First');
-  await page.getByRole('button', { name: 'Duplicate page', exact: true }).click();
+  await (await toolbarAction(page, 'Duplicate page')).click();
   await expect(page.getByLabel('Page', { exact: true })).toHaveValue('2');
   await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(3);
   await expect(page.getByRole('tab')).toHaveCount(1);
   await expect(page.locator('.object')).toContainText('First');
-  await page.getByRole('button', { name: 'Rotate right', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Duplicate page', exact: true })).toBeEnabled();
+  await (await toolbarAction(page, 'Rotate right')).click();
+  await expect((await toolbarAction(page, 'Duplicate page'))).toBeEnabled();
   await page.getByLabel('Page', { exact: true }).selectOption('3');
   await expect(page.locator('.object')).toContainText('Second');
-  await page.getByRole('button', { name: 'Duplicate page', exact: true }).click();
+  await (await toolbarAction(page, 'Duplicate page')).click();
   await expect(page.getByLabel('Page', { exact: true })).toHaveValue('4');
   await expect(page.locator('.object')).toContainText('Second');
   await page.getByRole('button', { name: 'New tab', exact: true }).click();
   await page.getByRole('tab', { name: /duplicate.pdf/ }).click();
   await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(4);
+});
+
+test('organize pages reorders with drag and keyboard and retains viewed page', async ({ page, request }, testInfo) => {
+  const source = pdfFile('organize.pdf', ['First', 'Second', 'Third'], true);
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(source);
+  await page.getByRole('combobox', { name: 'Page', exact: true }).selectOption('2');
+  await (await toolbarAction(page, 'Organize pages')).click();
+  const dialog = page.getByRole('dialog', { name: 'Organize pages' });
+  await expect(dialog.getByRole('button', { name: 'Apply order' })).toBeDisabled();
+  await expect(dialog.getByRole('img', { name: 'Preview of original page 3' })).toBeVisible();
+  await dialog.locator('[data-page="3"]').dragTo(dialog.locator('[data-page="1"]'), { targetPosition: { x: 5, y: 30 } });
+
+  expect(await dialog.locator('.organize-card').evaluateAll(cards => cards.map(card => card.dataset.page))).toEqual(['3', '1', '2']);
+  await dialog.getByRole('button', { name: 'Move original page 3', exact: true }).focus();
+  await page.keyboard.press('Alt+ArrowRight');
+  expect(await dialog.locator('.organize-card').evaluateAll(cards => cards.map(card => card.dataset.page))).toEqual(['1', '3', '2']);
+  await dialog.getByRole('button', { name: 'Reset order' }).click();
+  await expect(dialog.getByRole('button', { name: 'Apply order' })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Move page 3 earlier' }).click();
+  await dialog.getByRole('button', { name: 'Move page 3 earlier' }).click();
+  await dialog.screenshot({ path: testInfo.outputPath('organize-pages.png') });
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Page', exact: true })).toHaveValue('2');
+  await (await toolbarAction(page, 'Organize pages')).click();
+  await expect(dialog.getByRole('button', { name: 'Apply order' })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Move page 3 earlier' }).click();
+  await dialog.getByRole('button', { name: 'Move page 3 earlier' }).click();
+  await dialog.getByRole('button', { name: 'Apply order' }).click();
+  await expect(page.getByRole('combobox', { name: 'Page', exact: true })).toHaveValue('3');
+  await expect(page.locator('.object')).toContainText('Second');
+  await page.getByRole('combobox', { name: 'Page', exact: true }).selectOption('1');
+  await expect(page.locator('.object')).toContainText('Third');
+  await page.getByRole('combobox', { name: 'Page', exact: true }).selectOption('2');
+  await expect(page.locator('.object')).toContainText('First');
+  const invalid = await request.post('/api/documents/edit', { multipart: { file: source, edit: JSON.stringify({ kind: 'reorder-pages', value: '', pageNumber: 1, pageNumbers: [1, 1, 2] }) } });
+  expect(invalid.status()).toBe(422);
+});
+
+test('toolbar groups actions and menus support dismissal and focus', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('toolbar.pdf', ['First', 'Second']));
+  const toolbar = page.locator('.toolbar');
+  await expect(toolbar.getByRole('button', { name: 'Find', exact: true })).toBeEnabled();
+  await expect(toolbar.getByRole('button', { name: 'Download PDF', exact: true })).toBeVisible();
+  const pages = toolbar.locator('summary').filter({ hasText: /^Pages$/ });
+  const document = toolbar.locator('summary').filter({ hasText: /^Document$/ });
+  await pages.click();
+  await expect(toolbar.getByRole('button', { name: 'Delete page', exact: true })).toBeVisible();
+  await document.click();
+  await expect(toolbar.getByRole('button', { name: 'Delete page', exact: true })).toBeHidden();
+  await expect(toolbar.getByRole('button', { name: 'Properties', exact: true })).toBeVisible();
+  await document.press('Escape');
+  await expect(document).toBeFocused();
+  await expect(toolbar.getByRole('button', { name: 'Properties', exact: true })).toBeHidden();
+  await pages.click();
+  await page.screenshot({ path: testInfo.outputPath('toolbar-actions.png') });
+  await (await toolbarAction(page, 'Organize pages')).click();
+  await expect(page.getByRole('dialog', { name: 'Organize pages' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(pages).toBeFocused();
+  await pages.click();
+  await toolbar.getByRole('button', { name: 'Find', exact: true }).click();
+  await expect(toolbar.getByRole('button', { name: 'Organize pages', exact: true })).toBeHidden();
 });

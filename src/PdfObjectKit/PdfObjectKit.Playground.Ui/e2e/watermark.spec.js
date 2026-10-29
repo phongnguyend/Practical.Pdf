@@ -1,3 +1,4 @@
+import { toolbarAction } from './toolbar.js';
 import { test, expect } from '@playwright/test';
 function source() {
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Count 2 /Kids [4 0 R 5 0 R] >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 400] /Rotate 90 /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>'];
@@ -16,7 +17,7 @@ test('watermark preview, add, update and remove survive PDF round trips', async 
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles(source());
   await expect(page.locator('.object')).toContainText('Original');
-  await page.getByRole('button', { name: 'Watermark', exact: true }).click();
+  await (await toolbarAction(page, 'Watermark')).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Watermark text').fill('DRAFT');
   await dialog.getByLabel('Font size', { exact: true }).fill('30');
@@ -28,12 +29,12 @@ test('watermark preview, add, update and remove survive PDF round trips', async 
   await dialog.getByRole('button', { name: 'Add watermark', exact: true }).click();
   await expect(page.locator('.object').filter({ hasText: 'DRAFT' })).toHaveCount(0);
   await expect(page.getByRole('tab')).toHaveAccessibleName('watermark.pdf Modified');
-  await expect(page.getByRole('button', { name: 'Watermark', exact: true })).toBeEnabled();
+  await expect((await toolbarAction(page, 'Watermark'))).toBeEnabled();
   const originalText = page.locator('.object').filter({ hasText: 'Original' });
   await originalText.click();
   await expect(originalText).toHaveAttribute('aria-pressed', 'true');
   const canvas = page.locator('.page > div > canvas');
-  await expect(page.getByRole('button', { name: 'Watermark', exact: true })).toBeEnabled();
+  await expect((await toolbarAction(page, 'Watermark'))).toBeEnabled();
   const redPixels = await canvas.evaluate(c => {
     const data = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
     let count = 0;
@@ -47,7 +48,7 @@ test('watermark preview, add, update and remove survive PDF round trips', async 
   expect(redPixels).toBeGreaterThan(30);
   await page.getByLabel('Page', { exact: true }).selectOption('2');
   await expect(page.getByLabel('Page', { exact: true })).toHaveValue('2');
-  await expect(page.getByRole('button', { name: 'Watermark', exact: true })).toBeEnabled();
+  await expect((await toolbarAction(page, 'Watermark'))).toBeEnabled();
   expect(await canvas.evaluate(c => {
     const pixels = c.getContext('2d').getImageData(Math.floor(c.width / 4), Math.floor(c.height / 4), Math.floor(c.width / 2), Math.floor(c.height / 2)).data;
     let red = 0;
@@ -58,16 +59,16 @@ test('watermark preview, add, update and remove survive PDF round trips', async 
     }
     return red;
   })).toBeGreaterThan(30);
-  await page.getByRole('button', { name: 'Watermark', exact: true }).click();
+  await (await toolbarAction(page, 'Watermark')).click();
   await dialog.getByLabel('Watermark to edit').selectOption({ label: 'DRAFT (pages 1, 2)' });
   await dialog.getByLabel('Watermark text').fill('FINAL');
   await dialog.getByLabel('Watermark pages', { exact: true }).selectOption('current');
   await dialog.getByRole('button', { name: 'Update watermark', exact: true }).click();
   await expect(page.locator('.object').filter({ hasText: 'DRAFT' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Watermark', exact: true }).click();
+  await (await toolbarAction(page, 'Watermark')).click();
   await dialog.getByLabel('Watermark to edit').selectOption({ label: 'FINAL (pages 2)' });
   await dialog.getByRole('button', { name: 'Remove watermark', exact: true }).click();
-  await page.getByRole('button', { name: 'Watermark', exact: true }).click();
+  await (await toolbarAction(page, 'Watermark')).click();
   await expect(dialog.getByLabel('Watermark to edit').locator('option')).toHaveCount(1);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.locator('.object')).toContainText('Original');

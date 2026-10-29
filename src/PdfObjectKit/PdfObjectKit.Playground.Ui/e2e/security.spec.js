@@ -1,3 +1,4 @@
+import { toolbarAction } from './toolbar.js';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +17,7 @@ test('password prompt retries, opens decrypted working copy and exports PDF.js-r
   await dialog.getByRole('button', { name: 'Unlock and open' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.object')).toContainText('Independent encryption fixture');
-  await page.getByRole('button', { name: 'Protect PDF', exact: true }).click();
+  await (await toolbarAction(page, 'Protect PDF')).click();
   await dialog.getByLabel('Open password (optional)', { exact: true }).fill('export-reader');
   await dialog.getByLabel('Owner password', { exact: true }).fill('export-owner');
   await dialog.getByLabel('Copy text and images', { exact: true }).uncheck();

@@ -1,3 +1,4 @@
+import { toolbarAction } from './toolbar.js';
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
@@ -440,7 +441,7 @@ test('view current PDF as Markdown, inspect source and download', async ({ page,
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles(path.resolve('../PdfObjectKit.SnapshotTests/Fixtures/input.pdf'));
   await expect(page.getByRole('status')).toContainText('indirect objects');
-  await page.getByRole('button', { name: 'View Markdown', exact: true }).click();
+  await (await toolbarAction(page, 'View Markdown')).click();
   await expect(page.locator('.markdown-preview')).toBeVisible();
   await expect(page.locator('.markdown-preview table').first()).toBeVisible();
   await page.screenshot({ path: 'test-results/markdown-view.png' });
@@ -477,7 +478,7 @@ test('Markdown viewer retries errors and sanitizes rendered HTML', async ({ page
     calls++;
     return route.fulfill({ status: calls === 1 ? 422 : 200, contentType: 'application/json', body: JSON.stringify(calls === 1 ? { detail: 'Conversion unavailable' } : { markdown: '# Safe heading\n\n<script>window.badMarkdown=true</script><img src="/unexpected-image" onerror="window.badMarkdown=true"><a href="javascript:alert(1)">Bad link</a>', warnings: ['Example conversion note'] }) });
   });
-  await page.getByRole('button', { name: 'View Markdown', exact: true }).click();
+  await (await toolbarAction(page, 'View Markdown')).click();
   await expect(page.getByRole('alert')).toContainText('Conversion unavailable');
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Safe heading' })).toBeVisible();

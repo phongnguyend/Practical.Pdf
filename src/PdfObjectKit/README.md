@@ -1167,3 +1167,18 @@ var results = index.Search("Staff Code", new PdfTextSearchOptions
 `POST /api/documents/search?query=Staff%20Code&matchCase=false&wholeWord=true` accepts the current PDF bytes as `application/pdf` and returns `{ matches, truncated, warnings }`. The endpoint is stateless and rebuilds its index per request. The UI debounces typing, cancels superseded requests, and caches up to ten query/option results for the current saved PDF; edits invalidate that cache. Server processing uses the existing document-operation gate and 20 MB upload limit. Queries are limited to 256 UTF-16 characters, results to 500 in the playground (up to 2000 in the library), and indexing to two million characters per page / five million per document.
 
 Reading order is inferred top-to-bottom, then left-to-right for horizontal text; large gaps between columns prevent phrase matching across that gap. Rotated runs are searchable with transformed highlights, but their ordering follows drawing order and phrases spanning separate rotated runs are not reconstructed. Glyph highlight height is an approximate font-size box, not an exact outline. Multi-column semantic reading order, vertical writing, missing font mappings, OCR, form-widget values, and annotation comments are not fully supported. Managed decorative watermarks are excluded. Search may include hidden or clipped source text; it is not a visibility or redaction guarantee. Partial extraction and pages without searchable text are reported in Search notes.
+
+## Reorder pages
+
+Use **Organize pages** in the playground toolbar to preview and reorder all pages in the current PDF. Drag a thumbnail before or after another page, use the earlier/later buttons, or focus a page and press **Alt+Left / Alt+Right**. Each card keeps its original page number and displays its new position. Thumbnails render sequentially at a small resolution. Reset order restores the initial arrangement; Cancel discards it. Apply order updates the current tab and keeps the previously viewed content page selected at its new position. A failed save keeps the original PDF. The action is disabled for single-page documents.
+
+```csharp
+var reordered = PdfPageEditor.ReorderPages(document, [3, 1, 2, 4]);
+File.WriteAllBytes("reordered.pdf", PdfWriter.Write(reordered));
+```
+
+`ReorderPages` returns an independent document and leaves the source unchanged. The order must contain every one-based page number exactly once; missing, repeated, extra, or out-of-range numbers are rejected. It accepts the same assembly options and cancellation token as `ExtractPages`, and uses the existing assembly pipeline to preserve supported forms, annotations, links, bookmarks, metadata, page geometry and tagged structure while remapping page references. Existing page-assembly limitations still apply; unsupported features are rejected rather than silently discarded.
+
+The playground edit API accepts `{ "kind": "reorder-pages", "value": "", "pageNumber": 2, "pageNumbers": [3, 1, 2] }` in the existing multipart `edit` field alongside `file`. Signed-document editing is rejected and the normal 100-page assembly limits apply.
+
+The playground toolbar groups less-frequent actions into **Pages** (organize, split, extract, rotate, duplicate, delete) and **Document** (properties, watermark, compress, protect, Markdown). Selection modes, renderer switching, Find, and Download remain directly accessible. Menus close after choosing an action, clicking outside, or pressing Escape; Escape and closing a dialog restore focus to the menu trigger.

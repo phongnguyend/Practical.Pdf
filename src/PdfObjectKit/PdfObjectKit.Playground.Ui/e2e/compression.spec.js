@@ -1,3 +1,4 @@
+import { toolbarAction } from './toolbar.js';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -29,7 +30,7 @@ test('compress compares sizes, downloads a readable PDF and opens a separate tab
   const source = fixture();
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'large.pdf', mimeType: 'application/pdf', buffer: source });
-  await page.getByRole('button', { name: 'Compress PDF', exact: true }).click();
+  await (await toolbarAction(page, 'Compress PDF')).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Compress', exact: true }).click();
   await expect(dialog.getByRole('region', { name: 'Compression result' })).toContainText('% smaller');
@@ -47,7 +48,7 @@ test('compress compares sizes, downloads a readable PDF and opens a separate tab
   await expect(page.getByRole('tab', { name: 'large.pdf', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'large-compressed.pdf', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.object').filter({ hasText: 'Compression keeps text' })).toBeVisible();
-  await page.getByRole('button', { name: 'Compress PDF', exact: true }).click();
+  await (await toolbarAction(page, 'Compress PDF')).click();
   await dialog.getByRole('button', { name: 'Compress', exact: true }).click();
   await expect(dialog).toContainText('Already compact');
 });
