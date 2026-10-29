@@ -98,3 +98,4 @@ SecurityTests.Run();
 WatermarkTests.Run();
 MetadataTests.Run();
 CompressionTests.Run();
+TextSearchTests.Run();

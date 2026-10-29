@@ -507,6 +507,15 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
         {
             return Results.Problem("Unlock this encrypted PDF before opening it in the playground.", statusCode: 401);
         }
+        if (request.Path == "/api/documents/search")
+        {
+            return Results.Ok(PdfTextSearcher.Search(document, request.Query["query"].ToString(), new()
+            {
+                MatchCase = request.Query["matchCase"] == "true",
+                WholeWord = request.Query["wholeWord"] == "true",
+                MaxResults = 500
+            }, cancellation));
+        }
         if (request.Path == "/api/documents/split" || request.Path == "/api/documents/extract")
         {
             var options = new PdfObjectKit.Options.PdfPageAssemblyOptions
@@ -661,6 +670,7 @@ app.MapPost("/api/documents/extract", inspectDocument);
 app.MapPost("/api/documents/markdown", inspectDocument);
 app.MapPost("/api/documents/render", inspectDocument);
 app.MapPost("/api/documents/image", inspectDocument);
+app.MapPost("/api/documents/search", inspectDocument);
 
 app.MapPost("/api/documents/security/{operation}", async (string operation, HttpRequest request, CancellationToken cancellation) =>
 {

@@ -1147,3 +1147,23 @@ The compressor rebuilds the PDF from the parsed graph, traverses references from
 `POST /api/documents/compress` accepts multipart `file` and optional JSON `options` with `removeUnusedObjects`, `compressStreams`, and `deduplicateResources`. It returns the PDF as `base64`, size statistics and notes. The playground enforces its 20 MB input limit, processing gate, server-side decode budget and no-growth policy.
 
 This is lossless compression: image resolution and quality, font glyphs, text, and retained document features are unchanged. JPEG, JPEG2000, JBIG2 and other unsupported stream codecs remain encoded as-is. External streams, metadata stream encoding, and indirect filter settings are preserved. Streams that cannot be decoded are preserved with a note. Signed PDFs are rejected because rewriting invalidates their signatures; encrypted PDFs must be unlocked first and the result protected again if required. No lossy image downsampling, JPEG quality reduction, font subsetting, or object-stream generation is performed. Already optimized/scanned PDFs may have little or no size reduction. Cleanup is not a redaction or sanitization guarantee.
+
+## Text search
+
+Choose **Find** or press **Ctrl+F / Cmd+F** to open the floating search panel in the top-right of the PDF workspace. The panel stays visible while scrolling and does not shift the canvas. It supports Match case, Whole words, a scrollable result list with page numbers, wrapped snippets and highlighted matches, and Previous/Next navigation (Shift+Enter / Enter). Click a result to jump to its text; use Arrow Up/Down or Home/End while focused on a result to navigate the list. Escape closes search. Matches are temporary, noninteractive overlays in both renderers; the active match is orange and other matches on the page are yellow. Searching does not change the PDF or create annotations.
+
+```csharp
+var index = PdfTextSearcher.CreateIndex(document, cancellationToken);
+var results = index.Search("Staff Code", new PdfTextSearchOptions
+{
+    MatchCase = false,
+    WholeWord = true,
+    MaxResults = 500
+}, cancellationToken);
+```
+
+`PdfTextSearcher.Search(document, query, options, cancellationToken)` is a one-shot alternative. Reuse an index for repeated searches and rebuild it after edits. Results include the one-based page number, normalized match text, snippet, normalized-text start offset, and per-glyph quadrilaterals in unrotated PDF coordinates. Matches can span adjacent drawing runs, TJ arrays, and lines; repeated Form placements have their own geometry. Whitespace is collapsed and Unicode compatibility normalization handles ligatures and combining sequences while retaining source-glyph mappings. Matching is literal (not regex), with ordinal case handling and Unicode letter/digit/mark/connector word boundaries. Overlapping matches are supported.
+
+`POST /api/documents/search?query=Staff%20Code&matchCase=false&wholeWord=true` accepts the current PDF bytes as `application/pdf` and returns `{ matches, truncated, warnings }`. The endpoint is stateless and rebuilds its index per request. The UI debounces typing, cancels superseded requests, and caches up to ten query/option results for the current saved PDF; edits invalidate that cache. Server processing uses the existing document-operation gate and 20 MB upload limit. Queries are limited to 256 UTF-16 characters, results to 500 in the playground (up to 2000 in the library), and indexing to two million characters per page / five million per document.
+
+Reading order is inferred top-to-bottom, then left-to-right for horizontal text; large gaps between columns prevent phrase matching across that gap. Rotated runs are searchable with transformed highlights, but their ordering follows drawing order and phrases spanning separate rotated runs are not reconstructed. Glyph highlight height is an approximate font-size box, not an exact outline. Multi-column semantic reading order, vertical writing, missing font mappings, OCR, form-widget values, and annotation comments are not fully supported. Managed decorative watermarks are excluded. Search may include hidden or clipped source text; it is not a visibility or redaction guarantee. Partial extraction and pages without searchable text are reported in Search notes.
