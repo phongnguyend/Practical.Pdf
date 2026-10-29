@@ -1205,3 +1205,5 @@ Flattening rejects signed documents, XFA forms, missing or ambiguous current-sta
 `POST /api/documents/flatten?forms=true&annotations=true` accepts raw PDF bytes as `application/pdf` and returns the flattened PDF. Both options default to true; selecting neither is rejected. The endpoint uses the existing upload limit and operation gate. The playground keeps the original document on failure.
 
 Flattening removes interactivity, not editability. It is not redaction or sanitization: sensitive text, metadata, attachments and other reachable data can remain.
+
+Blank pages can be inserted from **Pages > Blank page after current** or **Blank page at end**. The playground opens the new page in the current document tab. The new page matches the preceding page's size, crop box, rotation and user unit without copying content, annotations or fields. Library callers can use `PdfPageEditor.InsertBlankPage(document, afterPageNumber, options, cancellationToken)` with a one-based insertion position; the source document is unchanged and page-assembly limits and feature validation apply.

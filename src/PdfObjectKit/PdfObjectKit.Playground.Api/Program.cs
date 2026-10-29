@@ -220,7 +220,7 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         {
             PdfPageEditor.RotatePage(document, edit.PageNumber, edit.Rotation);
         }
-        else if (edit.Kind is "delete-page" or "duplicate-page" or "reorder-pages")
+        else if (edit.Kind is "delete-page" or "duplicate-page" or "reorder-pages" or "insert-blank-page")
         {
             var assemblyOptions = new PdfObjectKit.Options.PdfPageAssemblyOptions
             {
@@ -231,6 +231,7 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
             };
             document = edit.Kind switch
             {
+                "insert-blank-page" => PdfPageEditor.InsertBlankPage(document, edit.PageNumber, assemblyOptions, cancellation),
                 "reorder-pages" => PdfPageEditor.ReorderPages(document, edit.PageNumbers ?? throw new ArgumentException("Provide a page order."), assemblyOptions, cancellation),
                 "duplicate-page" => PdfPageEditor.DuplicatePage(document, edit.PageNumber, assemblyOptions, cancellation),
                 _ => PdfPageEditor.DeletePage(document, edit.PageNumber, assemblyOptions, cancellation)

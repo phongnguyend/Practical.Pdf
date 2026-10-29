@@ -104,6 +104,49 @@ public static class PdfPageEditor
         return ExtractPages(appended, order, assemblyOptions with { NamespaceFormFields = false }, cancellationToken);
     }
 
+    /// <summary>Returns an independent document with a blank page after the specified one-based page.
+    /// The blank page uses that page's size, crop box, rotation and user unit, without its content or annotations.</summary>
+    public static PdfObjectDocument InsertBlankPage(PdfObjectDocument document, int afterPageNumber, PdfPageAssemblyOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        cancellationToken.ThrowIfCancellationRequested();
+        var limits = options ?? new();
+        limits.Validate();
+        var count = new PdfGraph(document).Pages().Count;
+        if (afterPageNumber < 1 || afterPageNumber > count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(afterPageNumber));
+        }
+        if (count >= limits.MaxPages)
+        {
+            throw new InvalidOperationException("Inserting a blank page exceeds the page limit.");
+        }
+        // Normalize inherited page attributes and retain document navigation, forms and tags.
+        var working = ExtractPages(document, Enumerable.Range(1, count).ToArray(), limits, cancellationToken);
+        var graph = new PdfGraph(working);
+        var template = graph.Pages()[afterPageNumber - 1].Dictionary;
+        var root = graph.Resolve(working.Trailer.Entries!["Root"]);
+        var pagesReference = root.Entries!["Pages"];
+        var pages = graph.Resolve(pagesReference);
+        var blank = Dict(("Type", Name("Page")), ("Parent", pagesReference), ("Resources", Dict()));
+        foreach (var key in new[] { "MediaBox", "CropBox", "Rotate", "UserUnit" })
+        {
+            if (template.Entries!.TryGetValue(key, out var value))
+            {
+                blank.Entries![key] = value;
+            }
+        }
+        if (working.Objects.Count >= limits.MaxObjects)
+        {
+            throw new InvalidOperationException("Inserting a blank page exceeds the object limit.");
+        }
+        graph.Get(pages, "Kids")!.Items!.Add(Add(working, blank));
+        pages.Entries!["Count"] = Num(count + 1);
+        var order = Enumerable.Range(1, count).ToList();
+        order.Insert(afterPageNumber, count + 1);
+        return ExtractPages(working, order, limits with { NamespaceFormFields = false }, cancellationToken);
+    }
+
     /// <summary>Rotates a page clockwise by a multiple of 90 degrees, relative to its inherited rotation.</summary>
     public static void RotatePage(PdfObjectDocument document, int pageNumber, int degrees)
     {

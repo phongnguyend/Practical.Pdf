@@ -36,6 +36,47 @@ internal static class PageEditorTests
         PdfFormEditor.SetValue(duplicated, duplicateFields[1].Name, "Changed");
         Check(PdfFormExtractor.Extract(duplicated)[0].Values[0] == "Original", "Editing copied field preserves original field");
 
+        var blankSource = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Before"), new FixturePage("After")));
+        PdfFormEditor.InsertTextField(blankSource, 2, "Retained", "Value", 20, 20, 100, 20);
+        var blankGraph = new PdfGraph(blankSource);
+        blankGraph.Get(blankGraph.Pages()[0].Dictionary, "Parent")!.Entries!["Rotate"] = Num(90);
+        blankGraph.Pages()[0].Dictionary.Entries!["CropBox"] = PdfObjectKit.Primitives.PdfPrimitives.Array(Num(10), Num(20), Num(300), Num(400));
+        var blankBefore = PdfConverter.ToJson(blankSource);
+        var inserted = PdfPageEditor.InsertBlankPage(blankSource, 1);
+        var insertedRoundTrip = PdfReader.Read(PdfWriter.Write(inserted));
+        var insertedPages = new PdfGraph(insertedRoundTrip).Pages();
+        var insertedText = PdfTextExtractor.Extract(insertedRoundTrip);
+        Check(insertedText.Count == 3 && insertedText[0].Text.Contains("Before") && string.IsNullOrWhiteSpace(insertedText[1].Text) && insertedText[2].Text.Contains("After"), "Blank inserted between original pages");
+        Check(PdfConverter.ToJson(blankSource) == blankBefore, "Blank insertion leaves source unchanged");
+        Check(Number(insertedPages[1].Dictionary.Entries!["Rotate"]) == 90, "Blank inherits rotation");
+        Check(insertedPages[1].Dictionary.Entries!["CropBox"].Items!.Select(Number).SequenceEqual(new double[] { 10, 20, 300, 400 }), "Blank retains crop box");
+        Check(insertedPages[1].Streams.Count == 0 && !insertedPages[1].Dictionary.Entries!.ContainsKey("Annots"), "Blank has no content or annotations");
+        Check(PdfFormExtractor.Extract(insertedRoundTrip).Single().Values.Single() == "Value", "Existing form value survives insertion");
+        var appended = PdfPageEditor.InsertBlankPage(insertedRoundTrip, 3);
+        Check(new PdfGraph(appended).Pages().Count == 4 && string.IsNullOrWhiteSpace(PdfTextExtractor.Extract(appended)[3].Text), "Blank can be appended after last page");
+        foreach (var invalidPage in new[] { 0, 3 })
+        {
+            try
+            {
+                PdfPageEditor.InsertBlankPage(blankSource, invalidPage);
+                throw new Exception("Invalid insertion position accepted");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                Check(PdfConverter.ToJson(blankSource) == blankBefore, "Invalid blank insertion is atomic");
+            }
+        }
+
+        try
+        {
+            PdfPageEditor.InsertBlankPage(blankSource, 1, new PdfObjectKit.Options.PdfPageAssemblyOptions { MaxPages = 2 });
+            throw new Exception("Blank insertion exceeded page limit");
+        }
+        catch (InvalidOperationException)
+        {
+            Check(PdfConverter.ToJson(blankSource) == blankBefore, "Page limit failure leaves source unchanged");
+        }
+
         var rotated = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Rotate"), new FixturePage("Sibling")));
         var rotationGraph = new PdfGraph(rotated);
         rotationGraph.Get(rotationGraph.Pages()[0].Dictionary, "Parent")!.Entries!["Rotate"] = Num(90);

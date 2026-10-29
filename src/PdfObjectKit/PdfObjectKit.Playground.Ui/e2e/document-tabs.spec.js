@@ -379,3 +379,23 @@ test('toolbar groups actions and menus support dismissal and focus', async ({ pa
   await toolbar.getByRole('button', { name: 'Find', exact: true }).click();
   await expect(toolbar.getByRole('button', { name: 'Organize pages', exact: true })).toBeHidden();
 });
+
+test('insert blank pages after current and at end preserves tagged content', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles(pdfFile('blank.pdf', ['First', 'Second'], true));
+  await expect(page.locator('.object')).toContainText('First');
+  await (await toolbarAction(page, 'Blank page after current')).click();
+  await expect(page.getByLabel('Page', { exact: true })).toHaveValue('2');
+  await expect(page.getByLabel('Page', { exact: true }).locator('option')).toHaveCount(3);
+  await expect(page.locator('.object')).toHaveCount(0);
+  await page.getByLabel('Page', { exact: true }).selectOption('3');
+  await expect(page.locator('.object')).toContainText('Second');
+  await page.getByLabel('Page', { exact: true }).selectOption('1');
+  await expect(page.locator('.object')).toContainText('First');
+  await (await toolbarAction(page, 'Blank page at end')).click();
+  await expect(page.getByLabel('Page', { exact: true })).toHaveValue('4');
+  await expect(page.locator('.object')).toHaveCount(0);
+  await expect(page.getByRole('tab')).toHaveCount(1);
+  await page.getByLabel('Page', { exact: true }).selectOption('3');
+  await expect(page.locator('.object')).toContainText('Second');
+});
