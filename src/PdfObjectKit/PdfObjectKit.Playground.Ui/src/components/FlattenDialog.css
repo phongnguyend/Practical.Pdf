@@ -1,0 +1,7 @@
+.flatten-options { display: grid; gap: 10px; margin: 18px 0; }
+.flatten-options label { display: flex; gap: 12px; align-items: flex-start; border: 1px solid #dbe3ef; border-radius: 8px; padding: 14px; cursor: pointer; }
+.flatten-options label:has(input:checked) { background: #eff6ff; border-color: #bfdbfe; }
+.flatten-options label:focus-within { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.flatten-options input { accent-color: #2563eb; width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+.flatten-options strong { display: block; font-size: 13px; margin-bottom: 5px; }
+.flatten-options small { display: block; color: #64748b; line-height: 1.5; }

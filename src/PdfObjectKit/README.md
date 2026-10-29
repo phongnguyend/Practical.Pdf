@@ -1182,3 +1182,26 @@ File.WriteAllBytes("reordered.pdf", PdfWriter.Write(reordered));
 The playground edit API accepts `{ "kind": "reorder-pages", "value": "", "pageNumber": 2, "pageNumbers": [3, 1, 2] }` in the existing multipart `edit` field alongside `file`. Signed-document editing is rejected and the normal 100-page assembly limits apply.
 
 The playground toolbar groups less-frequent actions into **Pages** (organize, split, extract, rotate, duplicate, delete) and **Document** (properties, watermark, compress, protect, Markdown). Selection modes, renderer switching, Find, and Download remain directly accessible. Menus close after choosing an action, clicking outside, or pressing Escape; Escape and closing a dialog restore focus to the menu trigger.
+
+## Flatten forms and annotations
+
+Choose **Document > Flatten PDF**, select **Form fields**, **Annotations**, or both, then choose **Flatten to new tab**. The original tab stays unchanged. The result paints saved normal appearances into page content, retaining vector graphics, fonts and selectable appearance text; it does not rasterize pages.
+
+```csharp
+var flattened = PdfFlattenEditor.Flatten(document, new PdfFlattenOptions
+{
+    FormFields = true,
+    Annotations = true
+}, cancellationToken);
+File.WriteAllBytes("flattened.pdf", PdfWriter.Write(flattened));
+```
+
+The method returns an independent document. It selects the active `/AS` appearance for checkbox/radio state dictionaries, maps transformed appearance `/BBox` bounds into annotation `/Rect`, clips to the target rectangle, preserves appearance resources and isolates the overlay from existing page graphics state. Selected widgets/annotations and associated popups are removed from page arrays. Form flattening removes the AcroForm root. Unreachable objects are removed from the output graph; metadata and unrelated page resources are retained.
+
+Supported saved appearances include AcroForm widgets and Text, Highlight, Underline, StrikeOut, Squiggly, FreeText, Stamp, Ink, Square, Circle, Line, Polygon, PolyLine and Caret annotations. Hyperlinks are intentionally retained. Comment icons become page graphics; their popup messages are not converted to printed text. Hidden/invisible selected annotations are removed without painting. Visible flattened content prints as ordinary page content, regardless of the original annotation Print flag. With selective flattening, remaining live annotations still render above the flattened page content.
+
+Flattening rejects signed documents, XFA forms, missing or ambiguous current-state appearances, forms requesting `NeedAppearances`, malformed geometry, external appearance streams, unbalanced page graphics state, and unsupported annotation types such as Redact or multimedia. NoZoom, NoRotate, NoView, ToggleNoView, annotation-level optional-content settings and non-default annotation-level opacity are also rejected; transparency and blend modes already inside saved appearance streams are retained. Missing appearances are not regenerated automatically because doing so can change fonts or styling. Save/regenerate their appearances in a supporting editor first. Tagged annotation OBJR entries are converted to MCR references in marked appearance wrappers, with new StructParents keys and updated reverse parent-tree entries. Existing page tags, structure elements, labels, role maps and metadata are retained. Hidden tagged annotations, appearances carrying their own structure-parent keys, repeated/direct structure parents and inconsistent structure references are still rejected explicitly.
+
+`POST /api/documents/flatten?forms=true&annotations=true` accepts raw PDF bytes as `application/pdf` and returns the flattened PDF. Both options default to true; selecting neither is rejected. The endpoint uses the existing upload limit and operation gate. The playground keeps the original document on failure.
+
+Flattening removes interactivity, not editability. It is not redaction or sanitization: sensitive text, metadata, attachments and other reachable data can remain.

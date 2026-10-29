@@ -519,6 +519,20 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
                 MaxResults = 500
             }, cancellation));
         }
+        if (request.Path == "/api/documents/flatten")
+        {
+            var flattened = PdfFlattenEditor.Flatten(document, new()
+            {
+                FormFields = request.Query["forms"] != "false",
+                Annotations = request.Query["annotations"] != "false"
+            }, cancellation);
+            var output = PdfWriter.Write(flattened);
+            if (output.Length > maxBytes)
+            {
+                return Results.Problem("The flattened PDF exceeds the playground's 20 MB document limit.", statusCode: 422);
+            }
+            return Results.File(output, "application/pdf", "flattened.pdf");
+        }
         if (request.Path == "/api/documents/split" || request.Path == "/api/documents/extract")
         {
             var options = new PdfObjectKit.Options.PdfPageAssemblyOptions
@@ -659,7 +673,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
     }
     catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or FormatException or ArgumentException or OverflowException or CryptographicException or JsonException)
     {
-        var operation = request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
+        var operation = request.Path == "/api/documents/flatten" ? "flatten" : request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
         return Results.Problem($"Cannot {operation} this PDF: {ex.Message}", statusCode: 422);
     }
     finally
@@ -674,6 +688,7 @@ app.MapPost("/api/documents/markdown", inspectDocument);
 app.MapPost("/api/documents/render", inspectDocument);
 app.MapPost("/api/documents/image", inspectDocument);
 app.MapPost("/api/documents/search", inspectDocument);
+app.MapPost("/api/documents/flatten", inspectDocument);
 
 app.MapPost("/api/documents/security/{operation}", async (string operation, HttpRequest request, CancellationToken cancellation) =>
 {

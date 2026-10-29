@@ -146,7 +146,7 @@ public static class PdfDocumentCompressor
         }
     }
 
-    private static int Prune(PdfObjectDocument document, CancellationToken cancellationToken)
+    internal static int Prune(PdfObjectDocument document, CancellationToken cancellationToken)
     {
         var objects = document.Objects.ToDictionary(item => item.Id);
         var live = new HashSet<PdfReference>();
