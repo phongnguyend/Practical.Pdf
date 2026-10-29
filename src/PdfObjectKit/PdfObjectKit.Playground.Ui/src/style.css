@@ -151,3 +151,36 @@ footer { padding: 9px 20px; background: white; border-top: 1px solid #dfe5ee; fo
 .document-panel > .toolbar button { display: inline-flex; align-items: center; gap: 6px; }
 
 .selection-move-hint { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; font-size: 11px; color: #758398; }
+
+.page-navigation-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 8px 16px;
+  border-top: 1px solid #dfe5ee;
+  background: #fff;
+  font-size: 12px;
+}
+
+.page-navigation-controls,
+.page-navigation-controls label,
+.page-zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-navigation-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.page-navigation-bar select {
+  min-height: 32px;
+}

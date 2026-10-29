@@ -96,3 +96,4 @@ MarkdownImageTests.Run();
 
 SecurityTests.Run();
 WatermarkTests.Run();
+MetadataTests.Run();

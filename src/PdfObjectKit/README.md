@@ -1100,3 +1100,27 @@ Placement is relative to the rotated visible page (CropBox intersected with Medi
 Changes are atomic and reject signed documents or unbalanced content streams. Watermarks use marked Form XObjects and placement streams, so identity survives save/reopen and content-stream consolidation. Removal preserves unrelated content and later edits, but is visual removal, not secure redaction or object-table compaction. Only PdfObjectKit watermarks retaining their custom metadata can be managed; arbitrary pre-existing watermarks are not detected. A watermark is a visual marking, not a copying restriction.
 
 PdfObjectKit watermark text is excluded from paragraph grouping so diagonal watermarks do not disable selection of the underlying document text. Raw text extraction and PDF rendering still include watermark text; use the Watermark dialog to manage it.
+
+## Document properties and metadata
+
+Use **Properties** in the playground to view and edit title, author, subject, keywords, creator, producer, creation date and modification date. Page count and PDF version are also displayed. Only changed fields are submitted; clearing a field removes it. The dialog shows readable dates with their original timezone, for example `2026-04-02 11:44:20 +07:00`. Incomplete dates keep their original precision. Changed dates require a full timestamp and explicit timezone; ISO 8601 is also accepted. Untouched stored dates are preserved.
+
+```csharp
+var metadata = PdfMetadataExtractor.Extract(document);
+var title = metadata.Values.GetValueOrDefault("Title");
+
+PdfMetadataEditor.Update(document, new PdfMetadataUpdate
+{
+    Fields = new()
+    {
+        ["Title"] = "Quarterly report",
+        ["Author"] = "Phong Nguyen",
+        ["CreationDate"] = DateTimeOffset.Now.ToString("O"),
+        ["Keywords"] = null // remove; omitted keys remain unchanged
+    }
+});
+```
+
+The extractor prefers Document Info values and falls back to XMP; conflicting text values and unreadable XMP are reported in `Warnings`. Updates synchronize supported fields across Info and XMP and preserve unrelated properties/custom Info keys. Title/subject updates retain non-default language alternatives; removal clears the whole corresponding property. Modification date updates automatically unless explicitly supplied or removed. Unicode text is written using UTF-16BE in Info and UTF-8 in XMP. Date strings retain their timezone offsets; incomplete or timezone-less existing dates are preserved without inventing missing information.
+
+Updates are atomic. Signed documents and malformed XMP are rejected for editing rather than silently dropping metadata. Removal is logical metadata removal, not secure erasure of unreferenced objects. Saving unrelated edits does not automatically change metadata dates.
