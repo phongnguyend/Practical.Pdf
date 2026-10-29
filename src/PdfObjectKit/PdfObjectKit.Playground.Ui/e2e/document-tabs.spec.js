@@ -402,6 +402,7 @@ test('insert blank pages after current and at end preserves tagged content', asy
 
 test('compare two selected tabs shows visual changes and missing pages without editing originals', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Dark theme', exact: true }).click();
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles([pdfFile('before.pdf', ['Same', 'Before', 'Extra']), pdfFile('after.pdf', ['Same', 'After'])]);
   await expect(page.locator('.object')).toContainText('Same');
   await expect(page.getByRole('button', { name: 'Compare selected' })).toBeDisabled();

@@ -1,0 +1,45 @@
+:root { color-scheme: light; }
+.app-header-actions { display: flex; align-items: center; gap: 16px; }
+.theme-switcher { display: inline-flex; gap: 2px; padding: 3px; background: #eef2f8; border: 1px solid #d7deea; border-radius: 8px; }
+.theme-switcher button { display: grid; place-items: center; padding: 7px; border-color: transparent; background: transparent; color: #536781; }
+.theme-switcher button[aria-pressed="true"] { background: #fff; border-color: #b7c9f0; color: #2358d3; }
+:root[data-theme="dark"] { color-scheme: dark; color: #e2e8f0; background: #111827; --theme-panel: #1b2535; --theme-raised: #253247; --theme-border: #3c4c63; --theme-muted: #a6b5cb; --theme-accent: #9fc4ff; }
+html[data-theme="dark"] :is(header, footer, aside, .toolbar, .page-navigation-bar, .modal, .toolbar-menu-panel, .pdf-search, .compare-controls) { background: var(--theme-panel); color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(.workspace, .compare-body, .browser-tabs-bar, .organize-thumbnail, .watermark-preview, .qr-preview) { background: #111827; color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(button, select, textarea, input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="color"])), .modal input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="color"])), .modal select, .modal textarea) { background: var(--theme-raised); color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(button:hover:not(:disabled), summary:hover, .toolbar-menu[open] summary) { background: #304461; color: #dbeafe; }
+html[data-theme="dark"] :is(.object.selected, button[aria-pressed="true"], .renderer-switch button[aria-pressed="true"], .interaction-mode button[aria-pressed="true"], .object-layer-filters button[aria-pressed="true"], .markdown-view-switch button[aria-pressed="true"], .pdf-search-results li button[aria-current="true"], .toolbar .toolbar-primary-download, .browser-tab.merge-selected, .organize-card.current-page, .flatten-options label:has(input:checked), .button-action-choice input:checked + span) { background: #263f63; color: #bfdbfe; border-color: #628cca; }
+html[data-theme="dark"] :is(.renderer-switch, .interaction-mode, .theme-switcher, .markdown-view-switch, .browser-tab, .organize-card, .multi-selection-counts, .button-action-choice > span, .action-viewer-note, .file-name-selected, .compression-result, .markdown-source, .markdown-preview pre, .markdown-preview th, pre, .pdf-search-input, .selection-icon, .multi-selection-icon) { background: var(--theme-raised); color: #dbe5f5; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(.browser-tab.active, .browser-tab.merge-selected.active) { background: var(--theme-panel); border-color: #628cca; }
+html[data-theme="dark"] .browser-tab > [role="tab"] { background: transparent; color: #e2e8f0; }
+html[data-theme="dark"] .browser-tab.active > [role="tab"] { color: #bfdbfe; }
+html[data-theme="dark"] :is(.hint, .subtitle, .status, .empty p, .empty > span, .unit-label, .inspector-heading > span, .selection-heading div > span, .compare-help, .compare-body section > span, .organize-help, .toolbar-menu-panel h3, .pdf-search-options, .pdf-search-status, .assembly-help) { color: var(--theme-muted); }
+html[data-theme="dark"] :is(.editor label, .modal label, .modal legend, .modal h2, .modal h3, .compare-status, .compare-dialog .compare-controls, .inspector h3) { color: #e2e8f0; }
+html[data-theme="dark"] :is(.modal small, .modal .hint, .modal p:not([role="alert"]):not(.compare-status)) { color: var(--theme-muted); }
+html[data-theme="dark"] :is(.toolbox, .objects, .inspector, .inspector-heading, .selection-summary, .editor fieldset, .toolbar-menu summary, .toolbar-menu-panel hr, .compare-header, .assembly-heading, .markdown-preview td, .markdown-preview th) { border-color: var(--theme-border); }
+html[data-theme="dark"] :is(.object-type-icon, .browser-tab svg, .field-type-tools svg, .file-name-picker .file-name-choose, .inspector .image-drop-zone, .markdown-source-block .markdown-copy) { color: var(--theme-accent); }
+html[data-theme="dark"] :is(.file-name-picker .file-name-choose, .inspector .image-drop-zone, .merge-order-hint, .pdf-search-options label.enabled) { background: #233651; color: #bfdbfe; border-color: #628cca; }
+html[data-theme="dark"] :is(.error, .assembly-error, .merge-error, .modal [role="alert"]) { background: #44282e; color: #fecaca; }
+html[data-theme="dark"] :is(.danger-action, .delete-page-action, .toolbar .toolbar-menu-panel .delete-page-action, .compare-removed) { color: #fca5a5; }
+html[data-theme="dark"] :is(.renderer-notes, .markdown-notes) { background: #3b3321; border-color: #74613a; color: #fde68a; }
+html[data-theme="dark"] .compare-added { color: #86efac; }
+html[data-theme="dark"] .compare-changed { color: #fcd34d; }
+html[data-theme="dark"] a { color: #9fc4ff; }
+html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder { color: #9baec7; }
+html[data-theme="dark"] :is(input[type="checkbox"], input[type="radio"]) { accent-color: #78a9fa; }
+html[data-theme="dark"] .modal::backdrop { background: #020617b3; }
+/* Document pixels and drawing surfaces retain their own colors in either theme. */
+html[data-theme="dark"] .page { background: white; color-scheme: light; }
+html[data-theme="dark"] .pdf-search .pdf-search-input input { background: transparent; border: 0; }
+@media (max-width: 600px) {
+  .app-header-actions { gap: 8px; }
+  .app > header { flex-wrap: wrap; gap: 12px; }
+}
+html[data-theme="dark"] :is(.security-permissions, .selection-meta span, .text-font-details, .inspector-notice, .multi-selection kbd) { background: var(--theme-raised); color: var(--theme-muted); border-color: var(--theme-border); }
+html[data-theme="dark"] :is(.security-permission:hover, .security-permission:focus-within) { background: #304461; }
+html[data-theme="dark"] .inspector .editor :is(input, select, textarea) { background: var(--theme-raised); color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] .inspector button.danger-action { background: #44282e; color: #fecaca; border-color: #875158; }
+html[data-theme="dark"] :is(.selection-icon.image, .selection-icon.field) { background: var(--theme-raised); }
+html[data-theme="dark"] :is(.selection-icon svg, .selection-text, .inspector .editor label, .text-font-details dd) { color: #bfdbfe; }
+
+html[data-theme="dark"] .app .theme-switcher button[aria-pressed="true"] { background: #315581; color: #fff; border-color: #80aff2; box-shadow: inset 0 -2px 0 #80aff2; }
