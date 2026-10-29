@@ -1,0 +1,13 @@
+.compression-options {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 18px 0;
+}
+.compression-options legend { padding: 0 6px; font-weight: 600; }
+.compression-options label { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.compression-options input { width: 16px; height: 16px; accent-color: #2563eb; }
+.compression-result { border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; padding: 16px; margin-top: 16px; }
+.compression-result strong { font-size: 20px; color: #1d4ed8; }
+.compression-result p { margin-bottom: 0; }
+.compression-dialog .assembly-actions { flex-wrap: wrap; }

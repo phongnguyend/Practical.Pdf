@@ -19,6 +19,68 @@ var app = builder.Build();
 using var gate = new SemaphoreSlim(1);
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
+app.MapPost("/api/documents/compress", async (HttpRequest request, CancellationToken cancellation) =>
+{
+    if (!request.HasFormContentType)
+    {
+        return Results.Problem("Send a PDF file and compression options as multipart form data.", statusCode: 415);
+    }
+    if (!await gate.WaitAsync(0, cancellation))
+    {
+        return Results.Problem("Another document operation is running. Try again shortly.", statusCode: 429);
+    }
+    try
+    {
+        var form = await request.ReadFormAsync(cancellation);
+        var file = form.Files.GetFile("file");
+        if (file is null || file.Length is <= 0 or > maxBytes)
+        {
+            return Results.Problem("Provide a PDF file up to 20 MB.", statusCode: 400);
+        }
+        var options = string.IsNullOrWhiteSpace(form["options"])
+            ? new PdfObjectKit.Options.PdfCompressionOptions()
+            : JsonSerializer.Deserialize<PdfObjectKit.Options.PdfCompressionOptions>(form["options"].ToString(), new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                ?? throw new ArgumentException("Provide compression options.");
+        // Server limits and the no-growth guarantee cannot be overridden by the client.
+        options = new()
+        {
+            RemoveUnusedObjects = options.RemoveUnusedObjects,
+            CompressStreams = options.CompressStreams,
+            DeduplicateResources = options.DeduplicateResources
+        };
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, cancellation);
+        var result = PdfDocumentCompressor.Compress(buffer.ToArray(), options, cancellation);
+        return Results.Ok(new
+        {
+            base64 = Convert.ToBase64String(result.Bytes),
+            result.OriginalBytes,
+            outputBytes = result.Bytes.Length,
+            result.OptimizedBytes,
+            result.RemovedObjects,
+            result.CompressedStreams,
+            result.DeduplicatedResources,
+            result.UsedOriginal,
+            result.Notes
+        });
+    }
+    catch (PdfObjectKit.Security.PdfPasswordException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: 401);
+    }
+    catch (BadHttpRequestException ex)
+    {
+        return Results.Problem("The upload could not be read or exceeds the upload limit.", statusCode: ex.StatusCode);
+    }
+    catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or ArgumentException or FormatException or OverflowException or JsonException)
+    {
+        return Results.Problem($"Cannot compress this PDF: {ex.Message}", statusCode: 422);
+    }
+    finally
+    {
+        gate.Release();
+    }
+});
 app.MapPost("/api/documents/merge", async (HttpRequest request, CancellationToken cancellation) =>
 {
     const long maxMergeBytes = 64L * 1024 * 1024;

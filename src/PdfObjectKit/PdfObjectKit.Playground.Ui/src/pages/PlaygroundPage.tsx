@@ -1,3 +1,4 @@
+import { CompressionDialog } from '../components/CompressionDialog';
 import { DocumentPropertiesDialog, type Metadata } from '../components/DocumentPropertiesDialog';
 import { WatermarkDialog, type WatermarkInfo } from '../components/WatermarkDialog';
 import { PdfSecurityDialog } from '../components/PdfSecurityDialog';
@@ -13,7 +14,7 @@ import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole, Stamp, FilePenLine } from 'lucide-react';
+import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole, Stamp, FilePenLine, FileDown } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from '../geometry.mjs';
@@ -72,6 +73,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [securityFile, setSecurityFile] = useState<File | null>(null);
+  const [showCompression, setShowCompression] = useState(false);
   const [showProperties, setShowProperties] = useState(false);
   const [showWatermark, setShowWatermark] = useState(false);
   const [protectPdf, setProtectPdf] = useState(false);
@@ -163,8 +165,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     onViewChange({ page, zoom, renderer });
   }, [page, zoom, renderer]);
   useEffect(() => {
-    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
-  }, [busy, saving, rendering, exporting, adding, showMarkdown, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
+    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || showCompression || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
+  }, [busy, saving, rendering, exporting, adding, showMarkdown, showCompression, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
 
   function openFiles(files: File[]) {
     if (saving || busy) {
@@ -571,7 +573,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       setTextSelection(null);
       window.getSelection()?.removeAllRanges();
       panGesture.current = null;
-    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowProperties(true)}><FilePenLine size={16} aria-hidden="true" />Properties</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowWatermark(true)}><Stamp size={16} aria-hidden="true" />Watermark</button><button disabled={saving || busy || rendering} onClick={() => setProtectPdf(true)}><LockKeyhole size={16} aria-hidden="true" />Protect PDF</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button>{([{ label: 'Rotate left', degrees: -90, Icon: RotateCcw }, { label: 'Rotate right', degrees: 90, Icon: RotateCw }]).map(({ label, degrees, Icon }) => <button key={label} aria-label={label} title={label + ' 90 degrees'} disabled={saving || busy || rendering || adding || exporting} onClick={() => {
+    }}><Icon size={19} aria-hidden="true" /></button>)}</div><div className="renderer-switch" role="group" aria-label="Page renderer">{(['pdfjs', 'native'] as const).map(value => <button key={value} aria-pressed={renderer === value} disabled={saving || busy || rendering} onClick={() => { setRenderer(value); setError(''); }}>{value === 'pdfjs' ? 'PDF.js' : 'PdfObjectKit (experimental)'}</button>)}</div><button disabled={saving || busy || rendering} onClick={() => setAssembly('split')}><Scissors size={16} aria-hidden="true" />Split PDF</button><button disabled={saving || busy || rendering} onClick={() => setAssembly('extract')}><Files size={16} aria-hidden="true" />Extract pages</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowProperties(true)}><FilePenLine size={16} aria-hidden="true" />Properties</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowWatermark(true)}><Stamp size={16} aria-hidden="true" />Watermark</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowCompression(true)}><FileDown size={16} aria-hidden="true" />Compress PDF</button><button disabled={saving || busy || rendering} onClick={() => setProtectPdf(true)}><LockKeyhole size={16} aria-hidden="true" />Protect PDF</button><button disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button>{([{ label: 'Rotate left', degrees: -90, Icon: RotateCcw }, { label: 'Rotate right', degrees: 90, Icon: RotateCw }]).map(({ label, degrees, Icon }) => <button key={label} aria-label={label} title={label + ' 90 degrees'} disabled={saving || busy || rendering || adding || exporting} onClick={() => {
       void saveEdit({ kind: 'rotate-page', pageNumber: page, rotation: degrees, value: '' });
     }}><Icon size={16} aria-hidden="true" /></button>)}<button aria-label="Duplicate page" title={pdf.numPages >= 100 ? 'The playground supports up to 100 pages' : 'Duplicate current page'} disabled={pdf.numPages >= 100 || saving || busy || rendering || adding || exporting} onClick={() => {
       void saveEdit({ kind: 'duplicate-page', pageNumber: page, value: '' });
@@ -663,6 +665,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       }
       onSaved(file);
     }} />}
+    {showCompression && pdfBytes && <CompressionDialog pdf={pdfBytes} name={name} onClose={() => setShowCompression(false)} onOpenFiles={onOpenFiles} />}
     {showProperties && pdf && inspection && <DocumentPropertiesDialog metadata={inspection.metadata} name={name} pageCount={pdf.numPages} pdfVersion={inspection.pdfVersion} page={page} onClose={() => setShowProperties(false)} onSave={saveEdit} />}
     {showWatermark && pdfBytes && pdf && <WatermarkDialog pdf={pdfBytes} page={page} pageCount={pdf.numPages} watermarks={inspection?.watermarks ?? []} onClose={() => setShowWatermark(false)} onSave={saveEdit} />}
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}

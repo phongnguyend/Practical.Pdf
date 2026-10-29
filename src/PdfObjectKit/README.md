@@ -1124,3 +1124,26 @@ PdfMetadataEditor.Update(document, new PdfMetadataUpdate
 The extractor prefers Document Info values and falls back to XMP; conflicting text values and unreadable XMP are reported in `Warnings`. Updates synchronize supported fields across Info and XMP and preserve unrelated properties/custom Info keys. Title/subject updates retain non-default language alternatives; removal clears the whole corresponding property. Modification date updates automatically unless explicitly supplied or removed. Unicode text is written using UTF-16BE in Info and UTF-8 in XMP. Date strings retain their timezone offsets; incomplete or timezone-less existing dates are preserved without inventing missing information.
 
 Updates are atomic. Signed documents and malformed XMP are rejected for editing rather than silently dropping metadata. Removal is logical metadata removal, not secure erasure of unreferenced objects. Saving unrelated edits does not automatically change metadata dates.
+
+## Lossless PDF compression
+
+Use **Compress PDF** in the playground toolbar to compare the original and optimized file sizes, download the result, or open it in a new tab. The source tab remains unchanged. The available checkout includes this UI in the React playground; it does not contain the Blazor WebAssembly project.
+
+```csharp
+var result = PdfDocumentCompressor.Compress(File.ReadAllBytes("input.pdf"), new PdfCompressionOptions
+{
+    RemoveUnusedObjects = true,
+    CompressStreams = true,
+    DeduplicateResources = true,
+    KeepOriginalIfLarger = true
+});
+File.WriteAllBytes("compressed.pdf", result.Bytes);
+```
+
+The compressor rebuilds the PDF from the parsed graph, traverses references from the trailer (including metadata, forms, annotations, attachments and structure trees), and removes unreachable objects. Eligible streams are decoded and recompressed with Flate at the smallest-size compression level only when this saves space. Compatible identical image streams and embedded font programs are shared; tagged images and resources with indirect dependencies are excluded from deduplication. Cross-reference table sections are compacted without allocating for missing object numbers.
+
+`PdfCompressionResult` reports original bytes, candidate optimized bytes, removed objects, compressed streams, shared resources, notes, and whether the original was retained. Statistics describe the optimization attempt; when `UsedOriginal` is true, `Bytes` is an exact copy of the input. The default never returns a larger file. The input is not modified. Cancellation is checked between objects; the cumulative decoded-stream budget defaults to 512 MiB and the decoder also enforces its per-stream limit.
+
+`POST /api/documents/compress` accepts multipart `file` and optional JSON `options` with `removeUnusedObjects`, `compressStreams`, and `deduplicateResources`. It returns the PDF as `base64`, size statistics and notes. The playground enforces its 20 MB input limit, processing gate, server-side decode budget and no-growth policy.
+
+This is lossless compression: image resolution and quality, font glyphs, text, and retained document features are unchanged. JPEG, JPEG2000, JBIG2 and other unsupported stream codecs remain encoded as-is. External streams, metadata stream encoding, and indirect filter settings are preserved. Streams that cannot be decoded are preserved with a note. Signed PDFs are rejected because rewriting invalidates their signatures; encrypted PDFs must be unlocked first and the result protected again if required. No lossy image downsampling, JPEG quality reduction, font subsetting, or object-stream generation is performed. Already optimized/scanned PDFs may have little or no size reduction. Cleanup is not a redaction or sanitization guarantee.

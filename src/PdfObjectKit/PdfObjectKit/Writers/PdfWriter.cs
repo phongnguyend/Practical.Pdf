@@ -15,7 +15,7 @@ public static class PdfWriter
     /// <summary>Writes a PDF, optionally encrypted with fresh AES-256 security settings. Does not modify the source graph.</summary>
     public static byte[] Write(PdfObjectDocument document, PdfObjectKit.Options.PdfWriteOptions? options) => WriteObjects(options?.Encryption is { } encryption ? PdfObjectKit.Security.PdfStandardSecurity.Encrypt(document, encryption) : document, allowEncrypted: options?.Encryption is not null);
 
-    internal static byte[] WriteObjects(PdfObjectDocument document, Action<PdfValue, long, long>? valueWritten = null, bool allowEncrypted = false)
+    internal static byte[] WriteObjects(PdfObjectDocument document, Action<PdfValue, long, long>? valueWritten = null, bool allowEncrypted = false, bool compactXref = false)
     {
         PdfDocumentValidator.Validate(document, allowEncrypted);
         using var output = new MemoryStream();
@@ -114,14 +114,26 @@ public static class PdfWriter
         var xrefOffset = output.Position;
         Write("xref\n0 1\n0000000000 65535 f \n");
         // Sparse subsections avoid allocating an array up to the highest object number.
-        foreach (var(id, offset)in offsets)
+        for (var index = 0; index < offsets.Count;)
         {
-            if (offset > 9_999_999_999)
+            var end = index + 1;
+            if (compactXref)
             {
-                throw new InvalidDataException("PDF exceeds classic xref offset range.");
+                while (end < offsets.Count && offsets[end].Id.ObjectNumber == offsets[end - 1].Id.ObjectNumber + 1)
+                {
+                    end++;
+                }
             }
-
-            Write(FormattableString.Invariant($"{id.ObjectNumber} 1\n{offset:D10} {id.Generation:D5} n \n"));
+            Write(FormattableString.Invariant($"{offsets[index].Id.ObjectNumber} {end - index}\n"));
+            while (index < end)
+            {
+                var (id, offset) = offsets[index++];
+                if (offset > 9_999_999_999)
+                {
+                    throw new InvalidDataException("PDF exceeds classic xref offset range.");
+                }
+                Write(FormattableString.Invariant($"{offset:D10} {id.Generation:D5} n \n"));
+            }
         }
 
         var trailerEntries = new Dictionary<string, PdfValue>(document.Trailer.Entries!);
