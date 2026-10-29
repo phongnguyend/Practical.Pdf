@@ -399,3 +399,82 @@ test('insert blank pages after current and at end preserves tagged content', asy
   await page.getByLabel('Page', { exact: true }).selectOption('3');
   await expect(page.locator('.object')).toContainText('Second');
 });
+
+test('compare two selected tabs shows visual changes and missing pages without editing originals', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles([pdfFile('before.pdf', ['Same', 'Before', 'Extra']), pdfFile('after.pdf', ['Same', 'After'])]);
+  await expect(page.locator('.object')).toContainText('Same');
+  await expect(page.getByRole('button', { name: 'Compare selected' })).toBeDisabled();
+  await page.getByLabel('Select before.pdf for merge', { exact: true }).check();
+  await expect(page.getByRole('button', { name: 'Compare selected' })).toBeDisabled();
+  await page.getByLabel('Select after.pdf for merge', { exact: true }).check();
+  await page.getByRole('button', { name: 'Compare selected' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Compare PDFs' });
+  await expect(dialog.getByRole('status')).toHaveText('No visual differences detected.');
+  await expect(dialog.getByRole('img')).toHaveCount(3);
+  await dialog.getByRole('button', { name: 'Next comparison page' }).click();
+  await expect(dialog.getByRole('status')).toContainText('changed pixels');
+  await expect(dialog.getByText('+ Added in B', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('- Removed from A', { exact: true })).toBeVisible();
+  const colors = await dialog.getByRole('img', { name: 'Visual differences on page 2' }).evaluate(async image => {
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let added = 0;
+    let removed = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] === 22 && pixels[i + 1] === 163 && pixels[i + 2] === 74) {
+        added++;
+      }
+      if (pixels[i] === 220 && pixels[i + 1] === 38 && pixels[i + 2] === 38) {
+        removed++;
+      }
+    }
+    return { added, removed };
+  });
+  expect(colors.added).toBeGreaterThan(0);
+  expect(colors.removed).toBeGreaterThan(0);
+  await dialog.screenshot({ path: 'test-results/comparison-preview.png' });
+  await dialog.getByLabel('Show differences').uncheck();
+  await expect(dialog.getByRole('img')).toHaveCount(2);
+  await dialog.getByRole('button', { name: 'Next comparison page' }).click();
+  await expect(dialog.getByRole('status')).toHaveText('Page exists only in the left document.');
+  await expect(dialog.getByText('No page 3', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Next comparison page' })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Swap A/B' }).click();
+  await expect(dialog.getByRole('heading', { name: 'A: after.pdf', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'B: before.pdf', exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Comparison page', { exact: true })).toHaveValue('3');
+  await expect(dialog.getByRole('status')).toHaveText('Page exists only in the right document.');
+  await dialog.getByRole('button', { name: 'Swap A/B' }).click();
+  await expect(dialog.getByRole('status')).toHaveText('Page exists only in the left document.');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Compare selected' })).toBeFocused();
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.locator('.object')).toContainText('Same');
+});
+
+test('comparison uses saved tab edits and requires exactly two selected PDFs', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles([pdfFile('edited.pdf', ['Same']), pdfFile('original.pdf', ['Same']), pdfFile('third.pdf', ['Other'])]);
+  await expect(page.locator('.object')).toContainText('Same');
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await page.getByLabel('Text to insert').fill('New text');
+  await page.getByRole('button', { name: 'Insert object', exact: true }).click();
+  await expect(page.locator('.object').filter({ hasText: 'New text' })).toHaveCount(1);
+  for (const name of ['edited.pdf', 'original.pdf', 'third.pdf']) {
+    await page.getByLabel(`Select ${name} for merge`, { exact: true }).check();
+  }
+  await expect(page.getByRole('button', { name: 'Compare selected' })).toBeDisabled();
+  await page.getByLabel('Select third.pdf for merge', { exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Compare selected' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Compare PDFs' });
+  await expect(dialog.getByRole('status')).toContainText('changed pixels');
+  await dialog.getByRole('button', { name: 'Close comparison' }).click();
+  await expect(page.locator('.object').filter({ hasText: 'New text' })).toHaveCount(1);
+});

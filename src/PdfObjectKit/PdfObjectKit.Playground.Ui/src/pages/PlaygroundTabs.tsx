@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileText, Plus, X, Combine, LoaderCircle } from 'lucide-react';
+import { FileText, Plus, X, Combine, LoaderCircle, Columns2 } from 'lucide-react';
+import { CompareDialog } from '../components/CompareDialog';
 import { PlaygroundPage } from './PlaygroundPage';
 import './PlaygroundTabs.css';
 
@@ -17,7 +18,8 @@ export function PlaygroundTabs() {
   const [mergeError, setMergeError] = useState('');
   const mergeInFlight = useRef(false);
   const [locked, setLocked] = useState(false);
-  const disabled = locked || merging;
+  const [comparison, setComparison] = useState<[File, File] | null>(null);
+  const disabled = locked || merging || comparison !== null;
   const selectedTabs = tabs.filter(tab => tab.file && mergeIds.has(tab.id));
   const draggedTab = useRef<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; after: boolean } | null>(null);
@@ -184,7 +186,7 @@ export function PlaygroundTabs() {
           draggedTab.current = null;
           setDropTarget(null);
         }}>
-        {tab.file && <input className="tab-merge-check" type="checkbox" aria-label={`Select ${tab.file.name} for merge`} title="Select for merge (or Ctrl/Cmd+click the tab)" checked={mergeIds.has(tab.id)} disabled={disabled} onChange={() => toggleMerge(tab.id)} />}
+        {tab.file && <input className="tab-merge-check" type="checkbox" aria-label={`Select ${tab.file.name} for merge`} title="Select for merge or comparison (or Ctrl/Cmd+click the tab)" checked={mergeIds.has(tab.id)} disabled={disabled} onChange={() => toggleMerge(tab.id)} />}
         <button type="button" role="tab" draggable={!disabled} aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
           onDragStart={event => {
             if (disabled) {
@@ -229,17 +231,18 @@ export function PlaygroundTabs() {
       setActiveId(tab.id);
     }}><Plus size={18} aria-hidden="true" /></button>
     <div className="tab-merge-actions">
+      <button type="button" disabled={disabled || selectedTabs.length !== 2} title="Select exactly two PDFs to compare their current saved versions" onClick={() => setComparison([selectedTabs[0].file!, selectedTabs[1].file!])}><Columns2 size={16} aria-hidden="true" />Compare selected</button>
       <button type="button" disabled={disabled || selectedTabs.length < 2} title="Merge checked PDFs in left-to-right tab order" onClick={() => void mergeSelected()}>
         {merging ? <LoaderCircle size={16} className="merge-spinner" aria-hidden="true" /> : <Combine size={16} aria-hidden="true" />}
         {merging ? 'Merging...' : `Merge selected${selectedTabs.length ? ` (${selectedTabs.length})` : ''}`}
       </button>
       {selectedTabs.length > 0 && <button type="button" className="tab-clear-merge" disabled={disabled} aria-label="Clear merge selection" title="Clear merge selection" onClick={() => setMergeIds(new Set())}><X size={14} aria-hidden="true" /></button>}
     </div>
-  </div>{selectedTabs.length > 0 && <div className="merge-order-hint">{selectedTabs.length} selected. Merge follows left-to-right tab order and uses saved edits.</div>}
+  </div>{selectedTabs.length > 0 && <div className="merge-order-hint">{selectedTabs.length} selected. Select two to compare. Merge and comparison use saved edits in left-to-right tab order.</div>}
   {mergeError && <div className="merge-error" role="alert"><span>{mergeError}</span><button type="button" aria-label="Dismiss merge error" onClick={() => setMergeError('')}><X size={15} aria-hidden="true" /></button></div>}</>;
-  return <PlaygroundPage key={active.id} initialFile={active.file} initialView={active.view} tabStrip={strip} externalBusy={merging} tabId={active.id}
+  return <><PlaygroundPage key={active.id} initialFile={active.file} initialView={active.view} tabStrip={strip} externalBusy={merging} tabId={active.id}
     onOpenFiles={openFiles}
     onSaved={file => setTabs(current => current.map(tab => tab.id === active.id ? { ...tab, file, modified: true } : tab))}
     onViewChange={view => setTabs(current => current.map(tab => tab.id === active.id ? { ...tab, view } : tab))}
-    onBusyChange={setLocked} />;
+    onBusyChange={setLocked} />{comparison && <CompareDialog files={comparison} onClose={() => setComparison(null)} />}</>;
 }
