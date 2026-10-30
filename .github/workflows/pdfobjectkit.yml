@@ -23,7 +23,55 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/releases/pdfobjectkit/v') }}
 
 jobs:
+  e2e:
+    name: Playground end-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: src/PdfObjectKit/PdfObjectKit.Playground.Ui
+    env:
+      CI: 'true'
+      PLAYGROUND_API_URL: http://localhost:5080
+      PLAYGROUND_UI_PORT: '5173'
+      PLAYGROUND_CONFIGURATION: Release
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.100
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/PdfObjectKit/PdfObjectKit.Playground.Ui/package-lock.json
+      - name: Install UI dependencies
+        run: npm ci
+      - name: Install Chrome and system dependencies
+        run: npx playwright install --with-deps chrome
+      - name: Build playground API
+        run: dotnet build ../PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.csproj --configuration Release
+      - name: Build UI
+        run: npm run build
+      - name: Test UI helpers
+        run: npm test
+      - name: Run all playground end-to-end tests
+        run: npm run test:e2e
+      - name: Upload Playwright report and failure artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playground-playwright-results
+          path: |
+            src/PdfObjectKit/PdfObjectKit.Playground.Ui/playwright-report/
+            src/PdfObjectKit/PdfObjectKit.Playground.Ui/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
   build:
+    needs: e2e
     defaults:
       run:
         working-directory: src/PdfObjectKit

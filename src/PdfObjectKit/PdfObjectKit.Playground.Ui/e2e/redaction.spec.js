@@ -21,6 +21,71 @@ function fixture(fontName = 'Helvetica') {
   return Buffer.from(pdf);
 }
 
+test('image-only conversion preserves visible content and rotated dimensions in a new tab', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'convert.pdf', mimeType: 'application/pdf', buffer: fixture() });
+  await expect(page.locator('.object').filter({ hasText: 'SECRET' })).toBeVisible();
+  await (await toolbarAction(page, 'Convert to image-only PDF')).click();
+  const dialog = page.getByRole('dialog', { name: 'Convert to image-only PDF', exact: true });
+  await expect(dialog.getByLabel('Image resolution')).toHaveValue('144');
+  await dialog.getByLabel('Image resolution').selectOption('72');
+  await dialog.screenshot({ path: 'test-results/image-only-conversion.png' });
+  const responsePromise = page.waitForResponse(response => response.url().includes('/redact-raster'));
+  await dialog.getByRole('button', { name: 'Convert to new tab' }).click();
+  const response = await responsePromise;
+  expect(response.ok()).toBe(true);
+  const bytes = await response.body();
+  expect(bytes.includes(Buffer.from('METADATA SECRET'))).toBe(false);
+  await expect(page.getByRole('tab', { name: 'convert-image-only.pdf', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.object .badge', { hasText: /^text$/ })).toHaveCount(0);
+  const canvas = page.locator('.page > div > canvas').first();
+  await expect(canvas).toHaveJSProperty('width', 300);
+  const darkPixels = await canvas.evaluate(canvas => {
+    const pixels = canvas.getContext('2d').getImageData(20, 30, 100, 30).data;
+    let count = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] < 100 && pixels[i + 1] < 100 && pixels[i + 2] < 100) {
+        count++;
+      }
+    }
+    return count;
+  });
+  expect(darkPixels).toBeGreaterThan(100);
+  expect(darkPixels).toBeLessThan(1500);
+  await page.getByLabel('Page', { exact: true }).selectOption('2');
+  await expect(canvas).toHaveJSProperty('width', 200);
+  await expect(canvas).toHaveJSProperty('height', 300);
+  await page.getByRole('tab', { name: 'convert.pdf', exact: true }).click();
+  await expect(page.locator('.object').filter({ hasText: 'SECRET' })).toBeVisible();
+});
+
+test('image-only conversion reports errors and cancels without opening a result', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'convert.pdf', mimeType: 'application/pdf', buffer: fixture() });
+  await (await toolbarAction(page, 'Convert to image-only PDF')).click();
+  const dialog = page.getByRole('dialog');
+  await page.route('**/api/documents/redact-raster', route => route.fulfill({ status: 422, contentType: 'application/problem+json', body: JSON.stringify({ detail: 'Choose a lower resolution.' }) }));
+  await dialog.getByRole('button', { name: 'Convert to new tab' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Choose a lower resolution.');
+  await expect(page.getByRole('tab')).toHaveCount(1);
+  await page.unroute('**/api/documents/redact-raster');
+  let release;
+  const gate = new Promise(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/documents/redact-raster', async route => {
+    await gate;
+    await route.abort().catch(() => {});
+  });
+  await dialog.getByRole('button', { name: 'Convert to new tab' }).click();
+  await dialog.getByRole('button', { name: 'Cancel conversion' }).click();
+  release();
+  await expect(dialog.getByRole('button', { name: 'Convert to new tab' })).toBeEnabled();
+  await expect(page.getByRole('tab')).toHaveCount(1);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.locator('.object').filter({ hasText: 'SECRET' })).toBeVisible();
+});
+
 test('image-only redaction removes pixels and hidden structures in a separate tab', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'sensitive.pdf', mimeType: 'application/pdf', buffer: fixture() });

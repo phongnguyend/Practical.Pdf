@@ -1262,3 +1262,9 @@ Redaction indexes text slots and caches rebuilt fonts and retained images. Unrel
 Content-preserving redaction previews use `PdfContentRedactor.Preview` and `/api/documents/redact-content/preview`, running the same validation and removal decisions as export without changing the source. Amber bounds show affected glyphs, image placements and painted paths, including shared placements outside marks or on other pages. Red dashed rectangles remain the user marks. Analysis refreshes after marking; page links expose all impacted pages. Review/export is enabled after successful analysis. Bounds are conservative removal bounds, not exact ink outlines; the preview is limited to 20,000 areas. Image-only mode continues to display its pixel-region marks.
 
 Standard font bounding metrics are embedded from Adobe Core 14 AFM data (Helvetica, Times and Courier variants). The vendored `Fonts/StandardMetrics` resources retain Adobe notices and their redistribution license; kerning/composite sections are omitted. Source: https://github.com/tecnickcom/tc-font-core14-afms .
+
+### Convert to image-only PDF
+
+In the playground, choose **Document > Convert to image-only PDF**, select 72, 144 (default), or 216 DPI, then **Convert to new tab**. Every page is rasterized, preserving its displayed size and rotation. The original stays open unchanged. Progress and cancellation are available.
+
+The result contains page images, without searchable text or interactive fields, annotations, links, attachments, original metadata, accessibility tags, signature validity, or password protection. Visible sensitive information remains visible; use redaction to remove it. Conversion shares the raster-redaction pipeline and limits: 100 pages, 16 million pixels per page, 64 MB total RGB pixels, and 20 MB output. Lower the resolution or extract fewer pages if a limit is exceeded.
