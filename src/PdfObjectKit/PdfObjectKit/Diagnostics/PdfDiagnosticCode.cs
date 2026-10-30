@@ -11,5 +11,6 @@ public enum PdfDiagnosticCode
     OcrRequired = 1003,
     TextExtractionFailed = 2001,
     UnsupportedTextLayout = 2002,
-    AmbiguousReadingOrder = 3001
+    AmbiguousReadingOrder = 3001,
+    TableColumnCrossesText = 3002
 }

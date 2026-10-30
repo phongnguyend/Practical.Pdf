@@ -69,9 +69,10 @@ public static class PdfDocumentAnalyzer
 
             try
             {
-                var lines = PdfParagraphExtractor.Extract(page, parsed, columnGapFactor: h.MarkdownColumnGapFactor, heuristics: h).SelectMany(p => p.Lines)
+                var lines = PdfParagraphExtractor.Extract(page, parsed, columnGapFactor: h.MarkdownColumnGapFactor, heuristics: h, tableHints: options.TableHints).SelectMany(p => p.Lines)
                     .OrderByDescending(l => l.Baseline).ThenBy(l => l.Left).ToList();
-                var hinted = PdfHintedTables.Build(lines, options.TableHints.Where(hint => hint.PageNumber == page.Number), h);
+                var hinted = PdfHintedTables.Build(lines, options.TableHints.Where(hint => hint.PageNumber == page.Number), h,
+                    message => Report(PdfDiagnosticCode.TableColumnCrossesText, message));
                 var hintedLines = hinted.SelectMany(table => table.SourceLines).ToHashSet();
                 var ordinary = JoinFieldValues(lines.Where(line => !hintedLines.Contains(line)).ToList(), h);
                 lines = ordinary.Concat(hintedLines).OrderByDescending(line => line.Baseline).ThenBy(line => line.Left).ToList();

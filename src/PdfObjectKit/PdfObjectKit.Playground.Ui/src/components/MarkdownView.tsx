@@ -6,12 +6,13 @@ import { Modal } from './Modal';
 import './MarkdownView.css';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { Download, X, Copy, Check, Eye, Code2, Settings2, RefreshCw } from 'lucide-react';
+import { Download, X, Copy, Check, Eye, Code2, Settings2, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
 
 type Options = { tableHints: TableHint[]; includeImages: boolean; joinHyphenatedWords: boolean; bodyTextHeight: number | null; heuristics: Record<string, number | boolean> };
 const defaults: Options = { tableHints: [], includeImages: true, joinHyphenatedWords: false, bodyTextHeight: null, heuristics: {} };
 type Result = { markdown: string; warnings: string[]; options?: Options };
 export function MarkdownView({ pdf, name, onClose }: { pdf: Blob; name: string; onClose: () => void }) {
+  const [maximized, setMaximized] = useState(false);
   const [result, setResult] = useState<Result>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -85,12 +86,15 @@ export function MarkdownView({ pdf, name, onClose }: { pdf: Blob; name: string; 
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  return <Modal className="markdown-dialog" labelledBy="markdown-title" onClose={onClose}>
+  return <Modal className={`markdown-dialog${maximized ? ' markdown-dialog-maximized' : ''}`} labelledBy="markdown-title" onClose={onClose}>
     <header><div className="markdown-heading"><h2 id="markdown-title">Markdown</h2><p title={name}>{name} &middot; Current saved PDF</p></div>
       <div className="markdown-toolbar"><div className="markdown-view-switch" role="group" aria-label="Markdown display"><button type="button" aria-pressed={!source} onClick={() => setSource(false)}><Eye size={15} aria-hidden="true" />Preview</button><button type="button" aria-pressed={source} onClick={() => setSource(true)}><Code2 size={15} aria-hidden="true" />Source</button></div>
         <div className="markdown-actions"><button type="button" aria-expanded={showOptions} aria-controls="markdown-options" onClick={() => setShowOptions(value => !value)}><Settings2 size={16} />Options</button><button type="button" aria-label="Download Markdown" title="Download .md file" disabled={!result} onClick={download}><Download size={16} aria-hidden="true" />Download</button></div>
       </div>
-      <button type="button" aria-label="Close Markdown" onClick={onClose}><X size={20} /></button>
+      <div className="markdown-window-actions">
+        <button type="button" aria-label={maximized ? 'Restore Markdown size' : 'Maximize Markdown'} title={maximized ? 'Restore size' : 'Maximize'} onClick={() => setMaximized(value => !value)}>{maximized ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}</button>
+        <button type="button" aria-label="Close Markdown" title="Close" onClick={onClose}><X size={18} aria-hidden="true" /></button>
+      </div>
       <Toast message={copyStatus} />
     </header>
     <div className="markdown-body">

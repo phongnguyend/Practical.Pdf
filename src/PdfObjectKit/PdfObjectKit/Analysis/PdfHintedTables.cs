@@ -29,10 +29,26 @@ internal static class PdfHintedTables
             {
                 throw new ArgumentException("Table hints on the same page must not overlap.");
             }
+            if (hint.ColumnBoundaries is { } boundaries)
+            {
+                var previous = hint.X;
+                if (boundaries.Count > 50)
+                {
+                    throw new ArgumentException("Provide at most 50 column separators per table.");
+                }
+                foreach (var boundary in boundaries)
+                {
+                    if (!double.IsFinite(boundary) || boundary <= previous || boundary >= hint.X + hint.Width)
+                    {
+                        throw new ArgumentException("Column separators must be strictly increasing and inside the table region.");
+                    }
+                    previous = boundary;
+                }
+            }
         }
     }
 
-    public static List<PdfContentBlock> Build(List<PdfParagraphLine> lines, IEnumerable<PdfTableHint> hints, PdfHeuristicOptions h)
+    public static List<PdfContentBlock> Build(List<PdfParagraphLine> lines, IEnumerable<PdfTableHint> hints, PdfHeuristicOptions h, Action<string>? warn = null)
     {
         var result = new List<PdfContentBlock>();
         foreach (var hint in hints)
@@ -57,14 +73,19 @@ internal static class PdfHintedTables
                 rows[^1].Add(line);
             }
             var seed = rows.OrderByDescending(row => row.Count).First().OrderBy(line => line.Left).ToList();
-            var boundaries = seed.Zip(seed.Skip(1), (left, right) => (left.Right + right.Left) / 2).ToArray();
+            var boundaries = hint.ColumnBoundaries?.ToArray()
+                ?? seed.Zip(seed.Skip(1), (left, right) => (left.Right + right.Left) / 2).ToArray();
+            if (hint.ColumnBoundaries is not null && selected.Any(line => boundaries.Any(boundary => line.Left < boundary && boundary < line.Right)))
+            {
+                warn?.Invoke("A manual table column separator crosses a text fragment. The whole fragment was assigned by its center; adjust the separators and review the table.");
+            }
             var table = new PdfTable();
             foreach (var row in rows)
             {
                 var output = new PdfTableRow
                 {
                     IsHeader = table.Rows.Count == 0 && hint.FirstRowIsHeader,
-                    Cells = seed.Select(_ => new PdfTableCell()).ToList(),
+                    Cells = Enumerable.Range(0, boundaries.Length + 1).Select(_ => new PdfTableCell()).ToList(),
                 };
                 foreach (var line in row.OrderBy(line => line.Left))
                 {

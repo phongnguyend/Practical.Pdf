@@ -14,4 +14,7 @@ public sealed class PdfTableHint
     public double Height { get; init; }
 
     public bool FirstRowIsHeader { get; init; } = true;
+
+    /// <summary>Interior separators in ascending unrotated PDF X coordinates. Null infers columns; empty means one column.</summary>
+    public IReadOnlyList<double>? ColumnBoundaries { get; init; }
 }

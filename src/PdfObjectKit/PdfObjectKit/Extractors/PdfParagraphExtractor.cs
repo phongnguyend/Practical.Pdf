@@ -33,7 +33,7 @@ public static class PdfParagraphExtractor
         return Extract(page, new PdfPageInterpreter(graph, page), h.TextColumnGapFactor, h);
     }
 
-    internal static List<PdfParagraph> Extract(NativePage page, PdfPageInterpreter parsed, double columnGapFactor = 2, PdfHeuristicOptions? heuristics = null)
+    internal static List<PdfParagraph> Extract(NativePage page, PdfPageInterpreter parsed, double columnGapFactor = 2, PdfHeuristicOptions? heuristics = null, IReadOnlyList<PdfTableHint>? tableHints = null)
     {
         var h = heuristics ?? new();
         h.Validate();
@@ -72,13 +72,22 @@ public static class PdfParagraphExtractor
         }
 
         var lines = new List<PdfParagraphLine>();
+        (PdfTableHint? Table, int Column) Cell(NativeSlot slot)
+        {
+            var x = (slot.BaselineStart.X + slot.BaselineEnd.X) / 2;
+            var y = slot.BaselineStart.Y + slot.Height / 2;
+            var hint = tableHints?.FirstOrDefault(hint => hint.PageNumber == pageNumber
+                && x >= hint.X && x < hint.X + hint.Width && y >= hint.Y && y < hint.Y + hint.Height);
+            return (hint, hint?.ColumnBoundaries?.Count(boundary => x > boundary) ?? 0);
+        }
         foreach (var row in rows)
         {
             var segment = new List<NativeSlot>();
             foreach (var slot in row.OrderBy(s => s.BaselineStart.X))
             {
-                if (segment.Count > 0 && slot.BaselineStart.X - segment[^1].BaselineEnd.X
-                    > Math.Max(slot.Height, segment[^1].Height) * columnGapFactor)
+                if (segment.Count > 0 && (Cell(slot) != Cell(segment[^1])
+                    || slot.BaselineStart.X - segment[^1].BaselineEnd.X
+                    > Math.Max(slot.Height, segment[^1].Height) * columnGapFactor))
                 {
                     lines.Add(BuildLine(segment, hashes, h));
                     segment = [];

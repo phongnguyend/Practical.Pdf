@@ -34,6 +34,45 @@ internal static class TableHintTests
         {
             TableHints = [new PdfTableHint { PageNumber = 1, X = 10, Y = 220, Width = 230, Height = 50, FirstRowIsHeader = false }],
         });
+        var manual = PdfMarkdownConverter.Convert(doc, new PdfMarkdownOptions
+        {
+            TableHints = [new PdfTableHint { PageNumber = 1, X = 10, Y = 220, Width = 230, Height = 50, ColumnBoundaries = [100, 140] }],
+        });
+        if (!manual.Markdown.Contains("| Name |  | City |") || !manual.Markdown.Contains("| Alice |  | Paris |"))
+        {
+            throw new Exception("Manual columns must preserve empty cells.");
+        }
+        var single = PdfMarkdownConverter.Convert(doc, new PdfMarkdownOptions
+        {
+            TableHints = [new PdfTableHint { PageNumber = 1, X = 10, Y = 220, Width = 230, Height = 50, ColumnBoundaries = [] }],
+        });
+        if (!single.Markdown.Contains("| Name City |"))
+        {
+            throw new Exception("Empty manual boundaries must force one column.");
+        }
+        var crossing = PdfMarkdownConverter.Convert(doc, new PdfMarkdownOptions
+        {
+            TableHints = [new PdfTableHint { PageNumber = 1, X = 10, Y = 220, Width = 230, Height = 50, ColumnBoundaries = [30] }],
+        });
+        if (!crossing.Warnings.Any(message => message.Contains("crosses a text fragment")) || crossing.Markdown.Split("Alice").Length != 2)
+        {
+            throw new Exception("Crossing separators must warn without losing or duplicating text.");
+        }
+        foreach (var boundaries in new double[][] { [10], [240], [140, 100], [100, 100], [double.NaN] })
+        {
+            try
+            {
+                PdfMarkdownConverter.Convert(doc, new PdfMarkdownOptions
+                {
+                    TableHints = [new PdfTableHint { PageNumber = 1, X = 10, Y = 220, Width = 230, Height = 50, ColumnBoundaries = boundaries }],
+                });
+                throw new Exception("Invalid manual separators must be rejected.");
+            }
+            catch (ArgumentException)
+            {
+                // Manual boundaries must be finite, interior and strictly ordered.
+            }
+        }
         if (!noHeader.Markdown.Contains("|  |  |\n| --- | --- |\n| Name | City |"))
         {
             throw new Exception("Headerless table hints must retain the first data row.");
@@ -75,6 +114,22 @@ internal static class TableHintTests
         if (PdfConverter.ToJson(doc) != before)
         {
             throw new Exception("Table hints must not modify source PDF objects.");
+        }
+        var currencyDoc = PdfReader.Read(PdfFixture.Create(null, new FixturePage("Original")));
+        var currencyStream = PdfTextExtractor.Extract(currencyDoc)[0].ContentStreams.Single();
+        var currencyContent = "BT /F1 12 Tf 1 0 0 1 20 250 Tm (Refund) Tj 1 0 0 1 160 250 Tm (4,493,336) Tj "
+            + "1 0 0 1 218 250 Tm (VND) Tj 1 0 0 1 20 230 Tm (Payable) Tj 1 0 0 1 206 230 Tm (-) Tj "
+            + "1 0 0 1 218 230 Tm (VND) Tj ET";
+        currencyDoc.Objects.Single(o => o.Id == currencyStream).Value.Base64 = Convert.ToBase64String(Encoding.ASCII.GetBytes(currencyContent));
+        var currency = PdfMarkdownConverter.Convert(currencyDoc, new PdfMarkdownOptions
+        {
+            TableHints = [new PdfTableHint { PageNumber = 1, X = 10, Y = 220, Width = 250, Height = 50, ColumnBoundaries = [140, 216], FirstRowIsHeader = false }],
+        });
+        if (!currency.Markdown.Contains("| Refund | 4,493,336 | VND |")
+            || !currency.Markdown.Contains("| Payable | - | VND |")
+            || currency.Warnings.Any(warning => warning.Contains("crosses a text fragment")))
+        {
+            throw new Exception("Manual separators must prevent neighboring amount/currency runs from being merged before table assignment.");
         }
         Console.WriteLine("Table hint checks passed.");
     }
