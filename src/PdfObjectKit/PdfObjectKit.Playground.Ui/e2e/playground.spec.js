@@ -46,7 +46,8 @@ test('upload, render, inspect, zoom and navigate a real PDF', async ({ page }) =
   await page.getByLabel('Page', { exact: true }).selectOption('2');
   await expect(page.getByRole('status')).toContainText('indirect objects');
   await expect(page.locator('.inspector pre')).toHaveCount(0);
-  await page.getByLabel('text', { exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Text visibility', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Text visibility', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('.object .badge').filter({ hasText: 'text' })).toHaveCount(0);
   await page.screenshot({ path: 'test-results/playground.png' });
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles(path.resolve('../PdfObjectKit.SnapshotTests/Fixtures/images.pdf'));

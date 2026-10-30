@@ -199,13 +199,19 @@ export function PlaygroundTabs() {
           }} onDragEnd={() => {
             draggedTab.current = null;
             setDropTarget(null);
-          }} id={'tab-' + tab.id} aria-controls="document-panel" aria-selected={tab.id === active.id} tabIndex={tab.id === active.id ? 0 : -1} disabled={disabled} title={`${tab.file?.name ?? 'New tab'} - Drag to reorder; Alt+Left/Right moves this tab`} onClick={event => {
+          }} id={'tab-' + tab.id} aria-controls="document-panel" aria-selected={tab.id === active.id} tabIndex={tab.id === active.id ? 0 : -1} aria-disabled={disabled} title={`${tab.file?.name ?? 'New tab'} - Drag to reorder; Alt+Left/Right moves this tab`} onClick={event => {
+          if (disabled) {
+            return;
+          }
           if (event.ctrlKey || event.metaKey) {
             toggleMerge(tab.id, true);
           } else {
             setActiveId(tab.id);
           }
         }} onKeyDown={event => {
+          if (disabled) {
+            return;
+          }
           if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
             event.preventDefault();
             event.stopPropagation();

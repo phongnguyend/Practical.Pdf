@@ -32,3 +32,4 @@
 .browser-tab.drop-before::before { left: 0; }
 .browser-tab.drop-after::after { right: 0; }
 .tab-reorder-announcement { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.browser-tab > [role="tab"][aria-disabled="true"] { cursor: default; opacity: .6; }

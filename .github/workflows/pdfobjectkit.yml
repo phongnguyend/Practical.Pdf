@@ -55,6 +55,8 @@ jobs:
         run: dotnet build ../PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.csproj --configuration Release
       - name: Build UI
         run: npm run build
+      - name: Build signing test fixture generator
+        run: dotnet build ../PdfObjectKit.Tests/PdfObjectKit.Tests.csproj --configuration SigningBrowserFixture
       - name: Test UI helpers
         run: npm test
       - name: Run all playground end-to-end tests
