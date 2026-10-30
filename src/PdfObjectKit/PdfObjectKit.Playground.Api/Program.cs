@@ -602,8 +602,18 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
 
         if (request.Path == "/api/documents/markdown")
         {
-            var result = PdfMarkdownConverter.Convert(document);
-            return Results.Ok(new { result.Markdown, result.Warnings });
+            var json = request.Query["options"].ToString();
+            if (json.Length > 16384)
+            {
+                return Results.Problem("Markdown options exceed the size limit.", statusCode: 400);
+            }
+            var options = string.IsNullOrEmpty(json) ? new MarkdownConversionOptions()
+                : JsonSerializer.Deserialize<MarkdownConversionOptions>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)
+                {
+                    UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
+                }) ?? throw new ArgumentException("Provide a Markdown options object.");
+            var result = PdfMarkdownConverter.Convert(document, options.ToConverterOptions());
+            return Results.Ok(new { result.Markdown, result.Warnings, options, defaultOptions = new MarkdownConversionOptions() });
         }
 
         var warnings = new List<string>();
@@ -675,7 +685,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
     }
     catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or FormatException or ArgumentException or OverflowException or CryptographicException or JsonException)
     {
-        var operation = request.Path == "/api/documents/flatten" ? "flatten" : request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
+        var operation = request.Path == "/api/documents/markdown" ? "convert" : request.Path == "/api/documents/flatten" ? "flatten" : request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
         return Results.Problem($"Cannot {operation} this PDF: {ex.Message}", statusCode: 422);
     }
     finally

@@ -34,3 +34,22 @@
 .markdown-source-block .markdown-source { margin: 0; padding: 20px 54px 20px 16px; }
 .markdown-source-block .markdown-copy { position: absolute; top: 8px; right: 8px; height: 32px; display: inline-flex; align-items: center; background: #fff; color: #64748b; }
 .markdown-source-block .markdown-copy:hover:not(:disabled) { background: #eaf1ff; color: #2358d3; }
+.markdown-options { padding: 16px; margin-bottom: 20px; border: 1px solid #dbe2ec; border-radius: 10px; background: #f8faff; }
+.markdown-options-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.markdown-options-heading h3 { margin: 0; font-size: 14px; }
+.markdown-options-heading span { font-size: 12px; color: #64748b; }
+.markdown-options fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.markdown-options-basic, .markdown-heuristics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 20px; align-items: center; }
+.markdown-options label { display: flex; gap: 8px; align-items: center; font-size: 12px; }
+.markdown-options label:has(input[type="number"]) { display: grid; gap: 6px; }
+.markdown-options input[type="number"] { width: 100%; min-width: 0; box-sizing: border-box; }
+.markdown-options summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 8px 0; }
+.markdown-options-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.markdown-options-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.markdown-options-actions button[type="submit"] { background: #2358d3; color: white; border-color: #2358d3; }
+html[data-theme="dark"] .markdown-options { background: var(--theme-raised); border-color: var(--theme-border); }
+html[data-theme="dark"] .markdown-options-heading span { color: var(--theme-muted); }
+.markdown-options-basic, .markdown-heuristics { align-items: start; }
+.markdown-option { min-width: 0; }
+.markdown-option p { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: #64748b; }
+html[data-theme="dark"] .markdown-option p { color: var(--theme-muted); }
