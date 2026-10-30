@@ -1,0 +1,7 @@
+.table-hint-scroll { max-height: 480px; overflow: auto; margin: 12px 0; background: #dce3ed; padding: 12px; border-radius: 8px; }
+.table-hint-page { position: relative; width: fit-content; max-width: 100%; margin: auto; cursor: crosshair; touch-action: none; user-select: none; }
+.table-hint-page img { display: block; max-width: 100%; }
+.table-hint-box { position: absolute; border: 2px solid #2358d3; background: #2358d325; color: #173b8e; font-size: 12px; pointer-events: none; box-sizing: border-box; }
+.table-hint-list > div { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 0; font-size: 12px; }
+.table-hint-list button { display: inline-flex; margin-left: auto; }
+html[data-theme="dark"] .table-hint-scroll { background: var(--theme-panel); }

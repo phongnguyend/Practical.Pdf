@@ -12,6 +12,9 @@ public sealed class PdfMarkdownOptions
     /// </summary>
     public Func<PdfStructuredImage, int, int, string> ImageRender { get; init; } = DefaultMarkDownImageRender.Render;
 
+    /// <summary>Explicit table regions in unrotated PDF coordinates. Regions must not overlap.</summary>
+    public IReadOnlyList<PdfTableHint> TableHints { get; init; } = [];
+
     public PdfHeuristicOptions Heuristics { get; init; } = new();
 
     /// <summary>Optional body text height in PDF user space; otherwise estimated by character-weighted frequency.</summary>

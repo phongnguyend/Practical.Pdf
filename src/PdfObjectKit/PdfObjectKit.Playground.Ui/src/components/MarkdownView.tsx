@@ -1,3 +1,4 @@
+import { TableHints, type TableHint } from './TableHints';
 import { markdownOptionHelp } from './markdownOptionHelp';
 import { Toast } from './Toast';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -7,8 +8,8 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { Download, X, Copy, Check, Eye, Code2, Settings2, RefreshCw } from 'lucide-react';
 
-type Options = { includeImages: boolean; joinHyphenatedWords: boolean; bodyTextHeight: number | null; heuristics: Record<string, number | boolean> };
-const defaults: Options = { includeImages: true, joinHyphenatedWords: false, bodyTextHeight: null, heuristics: {} };
+type Options = { tableHints: TableHint[]; includeImages: boolean; joinHyphenatedWords: boolean; bodyTextHeight: number | null; heuristics: Record<string, number | boolean> };
+const defaults: Options = { tableHints: [], includeImages: true, joinHyphenatedWords: false, bodyTextHeight: null, heuristics: {} };
 type Result = { markdown: string; warnings: string[]; options?: Options };
 export function MarkdownView({ pdf, name, onClose }: { pdf: Blob; name: string; onClose: () => void }) {
   const [result, setResult] = useState<Result>();
@@ -104,6 +105,7 @@ export function MarkdownView({ pdf, name, onClose }: { pdf: Blob; name: string; 
           <div className="markdown-option"><label><input aria-describedby="markdown-hyphens-help" type="checkbox" checked={draft.joinHyphenatedWords} onChange={event => setDraft({ ...draft, joinHyphenatedWords: event.target.checked })} />Join hyphenated words</label><p id="markdown-hyphens-help">Remove hyphens between alphabetic words split across lines. This can also change legitimate compound words.</p></div>
           <div className="markdown-option"><label>Body text height<input aria-describedby="markdown-height-help" type="number" min="0.01" step="any" placeholder="Automatic" value={draft.bodyTextHeight ?? ''} onChange={event => setDraft({ ...draft, bodyTextHeight: event.target.value === '' ? null : Number(event.target.value) })} /></label><p id="markdown-height-help">Body text height in PDF units, used to identify headings. Leave empty to estimate it automatically.</p></div>
         </div>
+        <TableHints file={pdf} hints={draft.tableHints ?? []} disabled={loading} onChange={tableHints => setDraft({ ...draft, tableHints })} />
         <details><summary>Advanced layout heuristics</summary><p className="control-help">Distances are relative to text height unless the setting specifies a count or rounding digits. Defaults work for most documents.</p>
           <div className="markdown-heuristics">{Object.entries(draft.heuristics).map(([key, value]) => {
             const label = key.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^./, letter => letter.toUpperCase());

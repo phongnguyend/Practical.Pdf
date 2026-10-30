@@ -35,7 +35,9 @@ public static class PdfDocumentAnalyzer
         var tableStarts = new Dictionary<PdfParagraphLine, PdfContentBlock>();
         var tableLines = new HashSet<PdfParagraphLine>();
         var pageImages = new Dictionary<PdfContentPage, Queue<PdfImageOccurrence>>();
-        foreach (var page in graph.Pages())
+        var pages = graph.Pages();
+        PdfHintedTables.Validate(options.TableHints, pages.Count);
+        foreach (var page in pages)
         {
             var output = new PdfContentPage { PageNumber = page.Number };
             result.Pages.Add(output);
@@ -69,8 +71,11 @@ public static class PdfDocumentAnalyzer
             {
                 var lines = PdfParagraphExtractor.Extract(page, parsed, columnGapFactor: h.MarkdownColumnGapFactor, heuristics: h).SelectMany(p => p.Lines)
                     .OrderByDescending(l => l.Baseline).ThenBy(l => l.Left).ToList();
-                lines = JoinFieldValues(lines, h);
-                foreach (var table in PdfTableDetector.Detect(lines, h))
+                var hinted = PdfHintedTables.Build(lines, options.TableHints.Where(hint => hint.PageNumber == page.Number), h);
+                var hintedLines = hinted.SelectMany(table => table.SourceLines).ToHashSet();
+                var ordinary = JoinFieldValues(lines.Where(line => !hintedLines.Contains(line)).ToList(), h);
+                lines = ordinary.Concat(hintedLines).OrderByDescending(line => line.Baseline).ThenBy(line => line.Left).ToList();
+                foreach (var table in hinted.Concat(PdfTableDetector.Detect(ordinary, h)))
                 {
                     tableStarts.Add(table.SourceLines[0], table);
                     tableLines.UnionWith(table.SourceLines);
@@ -91,6 +96,10 @@ public static class PdfDocumentAnalyzer
             }
             catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)
             {
+                if (options.TableHints.Any(hint => hint.PageNumber == page.Number))
+                {
+                    throw new ArgumentException($"Cannot apply table hints on page {page.Number}: {ex.Message}", ex);
+                }
                 Report(parsed.TextWarning is not null ? PdfDiagnosticCode.TextExtractionFailed : PdfDiagnosticCode.UnsupportedTextLayout,
                     $"text omitted. {ex.Message}");
             }

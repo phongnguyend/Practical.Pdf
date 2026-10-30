@@ -85,6 +85,7 @@ CanvasRenderingTests.Run();
 AnnotationTests.Run();
 
 MarkdownTests.Run();
+TableHintTests.Run();
 
 TableTests.Run();
 
