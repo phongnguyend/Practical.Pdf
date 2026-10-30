@@ -1,3 +1,4 @@
+import { RedactionDialog } from '../components/RedactionDialog';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { FlattenDialog } from '../components/FlattenDialog';
 import { ToolbarMenu } from '../components/ToolbarMenu';
@@ -19,7 +20,7 @@ import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
 import { renderNative } from '../renderers/nativeRenderer';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole, Stamp, FilePenLine, FileDown, Search, LayoutGrid, Layers, FilePlus2 } from 'lucide-react';
+import { Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole, Stamp, FilePenLine, FileDown, Search, LayoutGrid, Layers, FilePlus2, ScanLine } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { hitTest } from '../geometry.mjs';
@@ -78,6 +79,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [securityFile, setSecurityFile] = useState<File | null>(null);
+  const [showRedaction, setShowRedaction] = useState(false);
   const [showFlatten, setShowFlatten] = useState(false);
   const [showOrganize, setShowOrganize] = useState(false);
   const [showCompression, setShowCompression] = useState(false);
@@ -178,8 +180,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     onViewChange({ page, zoom, renderer });
   }, [page, zoom, renderer]);
   useEffect(() => {
-    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || showFlatten || showOrganize || showCompression || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
-  }, [busy, saving, rendering, exporting, adding, showMarkdown, showFlatten, showOrganize, showCompression, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
+    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || showRedaction || showFlatten || showOrganize || showCompression || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
+  }, [busy, saving, rendering, exporting, adding, showMarkdown, showRedaction, showFlatten, showOrganize, showCompression, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
 
   function openFiles(files: File[]) {
     if (saving || busy) {
@@ -593,7 +595,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       void saveEdit({ kind: 'insert-blank-page', pageNumber: after, value: '' });
     }}><FilePlus2 size={16} aria-hidden="true" />{label}</button>)}<button aria-label="Duplicate page" title={pdf.numPages >= 100 ? 'The playground supports up to 100 pages' : 'Duplicate current page'} disabled={pdf.numPages >= 100 || saving || busy || rendering || adding || exporting} onClick={() => {
       void saveEdit({ kind: 'duplicate-page', pageNumber: page, value: '' });
-    }}><Copy size={16} aria-hidden="true" />Duplicate page</button><button className="delete-page-action" aria-label="Delete page" title={pdf.numPages === 1 ? 'Cannot delete the last page' : 'Delete current page'} disabled={pdf.numPages <= 1 || saving || busy || rendering || adding || exporting} onClick={() => setConfirmDeletePage(true)}><Trash2 size={16} aria-hidden="true" />Delete page</button></ToolbarMenu><ToolbarMenu label="Document" icon={FileText}><button disabled={saving || busy || rendering || adding} onClick={() => setShowFlatten(true)}><Layers size={16} aria-hidden="true" />Flatten PDF</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowProperties(true)}><FilePenLine size={16} aria-hidden="true" />Properties</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowWatermark(true)}><Stamp size={16} aria-hidden="true" />Watermark</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowCompression(true)}><FileDown size={16} aria-hidden="true" />Compress PDF</button><button disabled={saving || busy || rendering} onClick={() => setProtectPdf(true)}><LockKeyhole size={16} aria-hidden="true" />Protect PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button></ToolbarMenu><button className="toolbar-primary-download" disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button></div></div>}</div>
+    }}><Copy size={16} aria-hidden="true" />Duplicate page</button><button className="delete-page-action" aria-label="Delete page" title={pdf.numPages === 1 ? 'Cannot delete the last page' : 'Delete current page'} disabled={pdf.numPages <= 1 || saving || busy || rendering || adding || exporting} onClick={() => setConfirmDeletePage(true)}><Trash2 size={16} aria-hidden="true" />Delete page</button></ToolbarMenu><ToolbarMenu label="Document" icon={FileText}><button disabled={saving || busy || rendering || adding} onClick={() => setShowRedaction(true)}><ScanLine size={16} aria-hidden="true" />Redact PDF</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowFlatten(true)}><Layers size={16} aria-hidden="true" />Flatten PDF</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowProperties(true)}><FilePenLine size={16} aria-hidden="true" />Properties</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowWatermark(true)}><Stamp size={16} aria-hidden="true" />Watermark</button><button disabled={saving || busy || rendering || adding} onClick={() => setShowCompression(true)}><FileDown size={16} aria-hidden="true" />Compress PDF</button><button disabled={saving || busy || rendering} onClick={() => setProtectPdf(true)}><LockKeyhole size={16} aria-hidden="true" />Protect PDF</button><button disabled={saving || busy} onClick={() => setShowMarkdown(true)}><FileText size={16} aria-hidden="true" />View Markdown</button></ToolbarMenu><button className="toolbar-primary-download" disabled={saving || busy} onClick={download}><Download size={16} aria-hidden="true" />Download PDF</button></div></div>}</div>
     {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}><X size={15} aria-hidden="true" />Dismiss</button></div>}
     <main><aside className="objects"><section className="toolbox" aria-label="Object toolbox"><h2>Create objects</h2><p className="hint">Drag a type onto the page. Move and resize it, then insert.</p>{[['add-text', 'Text'], ['add-image', 'Image'], ['add-comment', 'Comment']].map(([kind, label]) => <button key={kind} className="toolbox-item" disabled={!pdf || saving || busy || rendering} draggable={!!pdf && !saving && !busy && !rendering} onDragStart={event => {
       event.dataTransfer.setData('application/x-pdfobjectkit-type', kind);
@@ -681,6 +683,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       }
       onSaved(file);
     }} />}
+    {showRedaction && pdf && <RedactionDialog pdf={pdf} name={name} onClose={() => setShowRedaction(false)} onOpenFiles={onOpenFiles} />}
     {showFlatten && pdfBytes && <FlattenDialog pdf={pdfBytes} name={name} onClose={() => setShowFlatten(false)} onOpenFiles={onOpenFiles} />}
     {showOrganize && pdf && <OrganizePagesDialog pdf={pdf} currentPage={page} onClose={() => setShowOrganize(false)} onApply={order => { setShowOrganize(false); search.setOpen(false); void saveEdit({ kind: 'reorder-pages', pageNumber: page, value: '', pageNumbers: order }); }} />}
     {showCompression && pdfBytes && <CompressionDialog pdf={pdfBytes} name={name} onClose={() => setShowCompression(false)} onOpenFiles={onOpenFiles} />}

@@ -112,7 +112,7 @@ internal sealed class PdfTrueTypeFont
         cmap = candidates.OrderByDescending(c => c.Score).First().Offset;
     }
 
-    private int Glyph(int code)
+    internal int Glyph(int code)
     {
         if (U16(cmap) == 12)
         {

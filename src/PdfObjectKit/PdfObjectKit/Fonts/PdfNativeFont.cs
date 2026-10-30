@@ -178,7 +178,7 @@ internal sealed class PdfNativeFont
         }
     }
 
-    private static string? GlyphName(string name)
+    internal static string? GlyphName(string name)
     {
         if (name.Length == 1)
         {

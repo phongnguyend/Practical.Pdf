@@ -101,3 +101,5 @@ CompressionTests.Run();
 TextSearchTests.Run();
 PageReorderTests.Run();
 FlattenTests.Run();
+RedactionTests.Run();
+ContentRedactionTests.Run();

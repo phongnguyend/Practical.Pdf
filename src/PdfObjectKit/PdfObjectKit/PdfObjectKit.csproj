@@ -19,6 +19,9 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="../README.md" Pack="true" PackagePath="/" />
+    <EmbeddedResource Include="Fonts/StandardMetrics/*.afm" />
+    <EmbeddedResource Include="Fonts/StandardMetrics/LICENSE" LogicalName="PdfObjectKit.Fonts.StandardMetrics.LICENSE" />
+    <None Update="Fonts/StandardMetrics/LICENSE" Pack="true" PackagePath="licenses/Adobe-AFM-LICENSE" />
     <None Include="../../../LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

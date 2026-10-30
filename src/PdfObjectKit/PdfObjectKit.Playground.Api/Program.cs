@@ -17,6 +17,7 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 var app = builder.Build();
 using var gate = new SemaphoreSlim(1);
+PdfRedactionEndpoint.Map(app, gate);
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapPost("/api/documents/compress", async (HttpRequest request, CancellationToken cancellation) =>

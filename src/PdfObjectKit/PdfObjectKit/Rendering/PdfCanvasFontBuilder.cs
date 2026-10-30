@@ -21,7 +21,9 @@ internal sealed class PdfCanvasFontBuilder
 
     public Dictionary<string, string> Characters { get; } = [];
 
-    public PdfCanvasFontBuilder(PdfGraph graph, PdfNativeFont font, IEnumerable<NativeGlyph> glyphs)
+    public Dictionary<string, PdfGlyphBounds> GlyphBounds { get; } = [];
+
+    public PdfCanvasFontBuilder(PdfGraph graph, PdfNativeFont font, IEnumerable<NativeGlyph> glyphs, bool redactionSubset = false)
     {
         var source = font.Source;
         var composite = graph.Get(source, "Subtype")?.Name == "Type0";
@@ -114,6 +116,31 @@ internal sealed class PdfCanvasFontBuilder
                 mapping.Add(gid, character);
             }
             Characters.Add(key, char.ConvertFromUtf32(character));
+            var units = U16(tables["head"], 18);
+            var format = U16(tables["head"], 50);
+            if (units == 0 || format > 1)
+            {
+                throw new InvalidDataException("Invalid TrueType glyph units or locations.");
+            }
+            var first = format == 0 ? U16(tables["loca"], gid * 2) * 2 : U32(tables["loca"], gid * 4);
+            var end = format == 0 ? U16(tables["loca"], (gid + 1) * 2) * 2 : U32(tables["loca"], (gid + 1) * 4);
+            if (first > end || end > tables["glyf"].Length || first != end && end - first < 10)
+            {
+                throw new InvalidDataException("Invalid TrueType glyph extent.");
+            }
+            var bounds = first == end ? new PdfGlyphBounds(0, 0, 0, 0) : new PdfGlyphBounds(
+                BinaryPrimitives.ReadInt16BigEndian(tables["glyf"].AsSpan(first + 2, 2)) / (double)units,
+                BinaryPrimitives.ReadInt16BigEndian(tables["glyf"].AsSpan(first + 4, 2)) / (double)units,
+                BinaryPrimitives.ReadInt16BigEndian(tables["glyf"].AsSpan(first + 6, 2)) / (double)units,
+                BinaryPrimitives.ReadInt16BigEndian(tables["glyf"].AsSpan(first + 8, 2)) / (double)units);
+            if (bounds.Left > bounds.Right || bounds.Bottom > bounds.Top)
+            {
+                throw new InvalidDataException("Invalid TrueType glyph bounds.");
+            }
+            if (!tables.ContainsKey("gvar") && !tables.ContainsKey("fvar"))
+            {
+                GlyphBounds.Add(key, bounds);
+            }
         }
         // One format-12 Unicode cmap; each used PDF glyph gets an independent code.
         var cmap = new byte[28 + mapping.Count * 12];
@@ -137,6 +164,10 @@ internal sealed class PdfCanvasFontBuilder
         foreach (var tag in new[] { "DSIG", "GSUB", "GPOS", "GDEF", "kern" })
         {
             tables.Remove(tag);
+        }
+        if (redactionSubset)
+        {
+            PdfRedactionFontSubset.Apply(tables, mapping.Keys);
         }
         W32(tables["head"], 8, 0);
         var output = new byte[12 + tables.Count * 16 + tables.Values.Sum(data => (data.Length + 3) & ~3)];
