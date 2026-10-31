@@ -2,6 +2,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY Directory.Build.props ./
 COPY PdfObjectKit/PdfObjectKit.csproj PdfObjectKit/
+COPY PdfObjectKit.Application/PdfObjectKit.Application.csproj PdfObjectKit.Application/
 COPY PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.csproj PdfObjectKit.Playground.Api/
 RUN dotnet restore PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.csproj
 COPY . ./

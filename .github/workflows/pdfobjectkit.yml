@@ -59,6 +59,10 @@ jobs:
         run: dotnet build ../PdfObjectKit.Tests/PdfObjectKit.Tests.csproj --configuration SigningBrowserFixture
       - name: Test UI helpers
         run: npm test
+      - name: Install CLI visual dependencies
+        run: npm ci --prefix ../PdfObjectKit.Cli/visual
+      - name: Test CLI document and visual commands
+        run: dotnet run --project ../PdfObjectKit.Cli.Tests --configuration Release -- --visual ../PdfObjectKit.Cli/visual/visual.mjs
       - name: Run all playground end-to-end tests
         run: npm run test:e2e
       - name: Upload Playwright report and failure artifacts

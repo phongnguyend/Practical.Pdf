@@ -1,6 +1,6 @@
 # PdfObjectKit
 
-C# / .NET 10 library and CLI for reading, editing, and writing PDF object graphs. They load a PDF's current indirect objects into memory, serialize them to JSON, and rebuild a PDF from that JSON. Reconstruction operates at the PDF object level, without re-rendering pages or embedding the entire original file. The CLI writes derived text, image, and paragraph data to separate JSON files by default.
+C# / .NET 10 library and CLI for reading, editing, and writing PDF object graphs. They load a PDF's current indirect objects into memory, serialize them to JSON, and rebuild a PDF from that JSON. Reconstruction operates at the PDF object level, without re-rendering pages or embedding the entire original file. The CLI writes derived text, image, and paragraph data to separate JSON files by default. It also supports the Playground document operations offline: editing, page assembly, forms, annotations, metadata, watermarks, signing, security, flattening, compression, search, redaction, Markdown options/table hints, image export, rendering, comparison, OCR and QR generation. See the [CLI command guide](PdfObjectKit.Cli/README.md). Shared edit/inspection behavior lives in `PdfObjectKit.Application`; visual CLI commands use an optional local Node.js helper.
 
 ## Docker Compose
 
@@ -152,7 +152,7 @@ Reference `PdfObjectKit/PdfObjectKit.csproj`:
 | `PdfConverter.ToJson(document)` | Serialize an object graph to JSON. |
 | `PdfConverter.FromJson(json)` | Deserialize and validate an object graph. |
 
-These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json`, `to-pdf`, and `to-markdown`; the legacy text-only conversion and original-file restoration commands have been removed.
+These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json`, `to-pdf`, `to-markdown`, and the [document-operation commands](PdfObjectKit.Cli/README.md); the legacy text-only conversion and original-file restoration commands have been removed.
 
 ```csharp
 using PdfObjectKit.Readers;
@@ -244,7 +244,7 @@ The `PdfObjectKit.Demo` console project uses QRCoder 1.8.0 to generate a QR code
 dotnet run --project src/PdfObjectKit/PdfObjectKit.Demo
 ```
 
-The demo inserts the QR code on page 1 at `(50, 600)`, with a square size of `100 x 100` points, and writes `output.pdf` in the current directory (replacing it if present). No `logo.png` is needed. QRCoder is a demo-only dependency; the main library and CLI remain dependency-free. The default QR renderer's 1-bit grayscale PNG is supported.
+The demo inserts the QR code on page 1 at `(50, 600)`, with a square size of `100 x 100` points, and writes `output.pdf` in the current directory (replacing it if present). No `logo.png` is needed. QRCoder is a demo-only dependency; the main library and core CLI remain free of NuGet dependencies. The optional CLI visual helper uses npm packages for rendering, OCR and QR generation. The default QR renderer's 1-bit grayscale PNG is supported.
 
 Use `PdfImageEditor.InsertImage` with JPEG or PNG file bytes:
 
@@ -276,7 +276,7 @@ The method returns the new image object's reference and updates the supplied doc
 
 Supported input is 8-bit grayscale or three-component DCT JPEG (baseline, extended sequential, or progressive), and non-interlaced PNG (1-bit grayscale, or 8-bit grayscale, RGB, palette, grayscale-alpha, or RGBA). PNG transparency becomes a PDF soft mask; PDF versions older than 1.4 are upgraded when needed. PNG pixels are decoded and recompressed; JPEG bytes are embedded intact after header validation, without decoding the JPEG entropy data. Images are limited to 16 million pixels. CMYK JPEG, other PNG sample depths, interlaced/animated PNG, and other image formats are rejected. Embedded color profiles and image metadata are not imported; color management is not implemented.
 
-The target page's content must be readable by the native content parser, with balanced `q`/`Q` and `BT`/`ET` operations. Unsupported filters or filtered inline images can prevent insertion. The helper adds content streams around the original sequence. Consequently, the existing text editor's one-content-stream restriction applies afterward: apply text edits before insertion. Rebuilding the page index reports this through `runWarning`. Other pages retain their editable runs where supported. Image insertion is currently a C# API, not a CLI command.
+The target page's content must be readable by the native content parser, with balanced `q`/`Q` and `BT`/`ET` operations. Unsupported filters or filtered inline images can prevent insertion. The helper adds content streams around the original sequence. Consequently, the existing text editor's one-content-stream restriction applies afterward: apply text edits before insertion. Rebuilding the page index reports this through `runWarning`. Other pages retain their editable runs where supported. The CLI exposes image insertion through `edit --options edit.json --image-file image.png` with `kind: "add-image"`.
 
 ### Detecting paragraphs
 
@@ -442,7 +442,7 @@ var paragraphJson = PdfConverter.ToParagraphsJson(document, heuristics);
 
 `PdfHeuristicOptions` also controls baseline and superscript grouping, inferred spaces, font-size compatibility, alignment, list indentation, column evidence, and table evidence. Distance factors use transformed text heights, not fixed pixels; each property documents its scale. Standalone paragraphs use `TextColumnGapFactor` (default 2), while Markdown uses `MarkdownColumnGapFactor` (default 0.8) to retain smaller table fragments. `MinimumNumericCells` counts numeric cells below the first row; lowering `MinimumTableRows` may also require lowering this threshold. Styled single-row tables have a separate opt-in rule, enabled by default.
 
-Options are immutable after initialization and validated before processing. Factors must be finite and positive; smaller/larger size ratios must be at most 1. Minimum line gap must be less than maximum line gap. Invalid values throw `ArgumentException` or `ArgumentOutOfRangeException`. CLI commands currently use the defaults; custom thresholds are available through the library API. Adjustments can trade missed structure for false positives, so verify them against representative documents.
+Options are immutable after initialization and validated before processing. Factors must be finite and positive; smaller/larger size ratios must be at most 1. Minimum line gap must be less than maximum line gap. Invalid values throw `ArgumentException` or `ArgumentOutOfRangeException`. The CLI accepts the same Markdown settings through `to-markdown --options markdown.json`, including `heuristics` and table hints. Adjustments can trade missed structure for false positives, so verify them against representative documents.
 
 Images and vector graphics are not exported as assets in this version. Detected images or unsupported image interpretation produce warnings; image-only pages report the lack of OCR. Rotated/skewed text or failed text interpretation causes that page's text to be skipped with a warning. After table detection, `PdfLayoutAnalyzer` separates regions at table boundaries and large vertical gaps. A continuous horizontal gutter wider than twice the typical text height can separate columns when each has at least two lines and their vertical ranges overlap. Resolved regions are read left-to-right, with each column read top-to-bottom. Paragraph joins cannot cross region boundaries. Unresolved parallel fragments remain separate in spatial order and produce warnings containing page number, coordinates, and a text preview. This fallback does not infer column reading order or uncertain table structure; review the output. Other complex layouts may still be misclassified. Complex column layouts (including spanning headings without separating whitespace), ruled-table geometry, automatic merged-cell detection, nested lists, image decoding/assets, OCR, and repeated header/footer removal remain future work.
 

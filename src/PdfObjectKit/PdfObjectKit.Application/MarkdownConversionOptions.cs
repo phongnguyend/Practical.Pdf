@@ -2,7 +2,9 @@ using PdfObjectKit.Converters;
 using PdfObjectKit.Options;
 using PdfObjectKit.Models;
 
-internal sealed class MarkdownConversionOptions
+namespace PdfObjectKit.Application;
+
+public sealed class MarkdownConversionOptions
 {
     public bool IncludeImages { get; init; } = true;
 

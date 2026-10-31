@@ -6,6 +6,6 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../PdfObjectKit/PdfObjectKit.csproj" />
+    <ProjectReference Include="../PdfObjectKit.Application/PdfObjectKit.Application.csproj" />
   </ItemGroup>
 </Project>

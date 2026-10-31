@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../PdfObjectKit/PdfObjectKit.csproj" />
+    <ProjectReference Include="../PdfObjectKit.Application/PdfObjectKit.Application.csproj" />
+    <None Update="visual/visual.mjs;visual/package.json;visual/package-lock.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
