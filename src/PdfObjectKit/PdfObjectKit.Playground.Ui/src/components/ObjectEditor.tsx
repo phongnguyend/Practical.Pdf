@@ -2,14 +2,14 @@ import { FormAdvancedControls } from './FormAdvancedControls';
 import { ImagePicker } from './ImagePicker';
 import { TextAlignment, type Alignment } from './TextAlignment';
 import { useState } from 'react';
-import { Check, Pencil, Save, Trash2, RefreshCw, Download } from 'lucide-react';
+import { Check, Pencil, Save, Trash2, RefreshCw, Download, ScanText } from 'lucide-react';
 
 export type ButtonAction = { kind: 'OpenUrl' | 'GoToPage' | 'ResetForm' | 'SubmitForm'; url?: string; pageNumber?: number; fieldNames?: string[] };
-export type Edit = { pageNumbers?: number[]; metadata?: { fields: Record<string, string | null> }; watermark?: import("./WatermarkDialog").WatermarkOptions; watermarkId?: string; rotation?: number; annotationNumber?: number; regions?: { x: number; y: number; width: number; height: number }[]; deletions?: Edit[]; action?: ButtonAction | null; certificate?: File; certificatePassword?: string; richText?: boolean; fileSelect?: boolean; password?: boolean; comb?: boolean; maxLength?: number; multiSelect?: boolean; values?: string[]; multiline?: boolean; listBox?: boolean; fieldType?: 'Text' | 'CheckBox' | 'RadioButton' | 'Choice' | 'PushButton' | 'Signature'; choices?: { exportValue: string; displayValue: string }[]; kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; runs?: unknown[]; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
+export type Edit = { ocrFont?: File; replaceOcrImage?: boolean; ocrLines?: { text: string; x: number; y: number; width: number; height: number; baseline: number }[]; pageNumbers?: number[]; metadata?: { fields: Record<string, string | null> }; watermark?: import("./WatermarkDialog").WatermarkOptions; watermarkId?: string; rotation?: number; annotationNumber?: number; regions?: { x: number; y: number; width: number; height: number }[]; deletions?: Edit[]; action?: ButtonAction | null; certificate?: File; certificatePassword?: string; richText?: boolean; fileSelect?: boolean; password?: boolean; comb?: boolean; maxLength?: number; multiSelect?: boolean; values?: string[]; multiline?: boolean; listBox?: boolean; fieldType?: 'Text' | 'CheckBox' | 'RadioButton' | 'Choice' | 'PushButton' | 'Signature'; choices?: { exportValue: string; displayValue: string }[]; kind: string; value: string; textAlignment?: Alignment; pageNumber: number; run?: unknown; runs?: unknown[]; fieldName?: string; imageNumber?: number; widgetIndex?: number; deltaX?: number; deltaY?: number; imageFit?: 'Fit' | 'Fill' | 'Stretch'; image?: File; x?: number; y?: number; width?: number; height?: number; fontSize?: number };
 type Run = { text: string; fontName?: string | null; fontSize?: number; formOccurrenceId?: number | null };
 type Details = { annotationNumber?: number; contents?: string; maxLength?: number; richText?: string; isSigned?: boolean; widget?: { caption?: string; action?: ButtonAction }; flags?: number; corners?: { x: number; y: number }[]; textAlignment?: Alignment; imageNumber?: number; runs?: Run[]; name?: string; kind?: string; values?: string[]; isReadOnly?: boolean; choices?: { exportValue: string; displayValue: string }[]; states?: string[] };
 
-export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { kind: string; pageNumber: number; details: unknown }; busy: boolean; onSave: (edit: Edit) => Promise<void>; onExportImage: (page: number, image: number) => Promise<void> }) {
+export function ObjectEditor({ item, busy, onSave, onExportImage, onOcrImage }: { item: { kind: string; pageNumber: number; details: unknown }; busy: boolean; onSave: (edit: Edit) => Promise<void>; onOcrImage: (page: number, image: number) => void; onExportImage: (page: number, image: number) => Promise<void> }) {
   const details = item.details as Details;
   const runs = details.runs ?? [];
   const [replacementImage, setReplacementImage] = useState<File>();
@@ -43,6 +43,7 @@ export function ObjectEditor({ item, busy, onSave, onExportImage }: { item: { ki
   return <div className="object-editor">
     {item.kind === 'image' && <section className="editor inspector-section image-export-section">
       <div className="section-heading"><h3>Current image</h3><button className="secondary-action" aria-label="Download image" title="Save the full image at original resolution, without page cropping or rotation" disabled={busy} onClick={() => void onExportImage(item.pageNumber, details.imageNumber!)}><Download size={15} aria-hidden="true" />Download</button></div>
+      <button type="button" className="secondary-action" disabled={busy} onClick={() => onOcrImage(item.pageNumber, details.imageNumber!)}><ScanText size={16} aria-hidden="true" />Extract text (OCR)</button>
       <p className="control-help">Original resolution · JPEG or transparent PNG</p>
     </section>}
     {item.kind === 'image' && <form className="editor" onSubmit={event => {

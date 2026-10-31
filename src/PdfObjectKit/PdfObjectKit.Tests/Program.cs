@@ -78,6 +78,7 @@ ParagraphTests.Run();
 FormParagraphTests.Run();
 FormTests.Run();
 PageEditorTests.Run();
+ImageOcrTests.Run();
 PageAssemblyTests.Run();
 TaggedAssemblyTests.Run();
 TextMovementTests.Run();

@@ -336,6 +336,17 @@ app.MapPost("/api/documents/edit", async (HttpRequest request, CancellationToken
         {
             PdfFormEditor.MoveWidget(document, edit.FieldName, edit.WidgetIndex, edit.DeltaX, edit.DeltaY);
         }
+        else if (edit.Kind == "apply-image-ocr")
+        {
+            var font = form.Files.GetFile("ocrFont");
+            if (font is null || font.Length is 0 or > 5000000 || edit.OcrLines is null)
+            {
+                throw new ArgumentException("Provide OCR lines and a TrueType font up to 5 MB.");
+            }
+            using var fontBuffer = new MemoryStream();
+            await font.CopyToAsync(fontBuffer, cancellation);
+            PdfImageOcrEditor.Apply(document, edit.PageNumber, edit.ImageNumber, edit.OcrLines, fontBuffer.ToArray(), edit.ReplaceOcrImage);
+        }
         else if (edit.Kind == "add-text")
         {
             PdfPageEditor.InsertText(document, edit.PageNumber, edit.Value, edit.X, edit.Y, edit.FontSize);
@@ -792,4 +803,4 @@ static List<PdfImagePoint> Rectangle(double left, double bottom, double right, d
 internal sealed record CanvasObject(string Id, int PageNumber, string Kind, string Label, List<PdfImagePoint> Corners, object Details);
 
 internal sealed record EditRequest(string Kind, string? Value, int PageNumber, PdfTextRun? Run, string? FieldName,
-    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null, int AnnotationNumber = 0, List<PdfAnnotationRegion>? Regions = null, int Rotation = 0, PdfObjectKit.Options.PdfTextWatermarkOptions? Watermark = null, string? WatermarkId = null, PdfMetadataUpdate? Metadata = null, List<int>? PageNumbers = null);
+    double X = 40, double Y = 40, double Width = 150, double Height = 50, double FontSize = 12, int ImageNumber = 0, PdfTextAlignment? TextAlignment = null, PdfImageFit ImageFit = PdfImageFit.Fit, int WidgetIndex = 0, double DeltaX = 0, double DeltaY = 0, List<PdfTextRun>? Runs = null, PdfFormFieldKind FieldType = PdfFormFieldKind.Text, List<PdfFormChoice>? Choices = null, bool Multiline = false, bool ListBox = false, bool MultiSelect = false, List<string>? Values = null, int? MaxLength = null, bool Password = false, bool Comb = false, bool FileSelect = false, bool RichText = false, PdfButtonAction? Action = null, string? CertificatePassword = null, List<EditRequest>? Deletions = null, int AnnotationNumber = 0, List<PdfAnnotationRegion>? Regions = null, int Rotation = 0, PdfObjectKit.Options.PdfTextWatermarkOptions? Watermark = null, string? WatermarkId = null, PdfMetadataUpdate? Metadata = null, List<int>? PageNumbers = null, List<PdfOcrTextLine>? OcrLines = null, bool ReplaceOcrImage = false);

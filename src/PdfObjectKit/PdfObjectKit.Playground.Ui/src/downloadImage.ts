@@ -1,9 +1,9 @@
 import { decodeCanvasImage } from './renderers/decodeCanvasImage';
 import type { Command } from './renderers/nativeRenderer';
 
-export async function downloadImage(pdf: Blob, page: number, imageNumber: number, documentName: string) {
+export async function extractImage(pdf: Blob, page: number, imageNumber: number, signal?: AbortSignal) {
   const response = await fetch(`/api/documents/image?page=${page}&image=${imageNumber}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: pdf,
+    signal, method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: pdf,
   });
   if (!response.ok) {
     throw new Error((await response.json()).detail ?? 'Unable to export this image.');
@@ -29,6 +29,11 @@ export async function downloadImage(pdf: Blob, page: number, imageNumber: number
     }, 'image/png'));
     extension = 'png';
   }
+  return { blob, extension };
+}
+
+export async function downloadImage(pdf: Blob, page: number, imageNumber: number, documentName: string) {
+  const { blob, extension } = await extractImage(pdf, page, imageNumber);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

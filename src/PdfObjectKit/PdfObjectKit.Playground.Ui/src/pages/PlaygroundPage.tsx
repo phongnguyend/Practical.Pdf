@@ -1,3 +1,4 @@
+import { ImageOcrDialog } from '../components/ImageOcrDialog';
 import { RasterizeDialog } from '../components/RasterizeDialog';
 import { RedactionDialog } from '../components/RedactionDialog';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
@@ -88,6 +89,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
   const [showProperties, setShowProperties] = useState(false);
   const [showWatermark, setShowWatermark] = useState(false);
   const [protectPdf, setProtectPdf] = useState(false);
+  const [ocrImage, setOcrImage] = useState<{ page: number; image: number } | null>(null);
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [confirmDeletePage, setConfirmDeletePage] = useState(false);
   const [assembly, setAssembly] = useState<'split' | 'extract' | null>(null);
@@ -182,8 +184,8 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     onViewChange({ page, zoom, renderer });
   }, [page, zoom, renderer]);
   useEffect(() => {
-    onBusyChange(busy || saving || rendering || exporting || adding || showMarkdown || showRedaction || showRasterize || showFlatten || showOrganize || showCompression || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
-  }, [busy, saving, rendering, exporting, adding, showMarkdown, showRedaction, showRasterize, showFlatten, showOrganize, showCompression, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
+    onBusyChange(busy || saving || rendering || exporting || adding || ocrImage !== null || showMarkdown || showRedaction || showRasterize || showFlatten || showOrganize || showCompression || showProperties || showWatermark || securityFile !== null || protectPdf || confirmDeletePage || assembly !== null);
+  }, [busy, saving, rendering, exporting, adding, ocrImage, showMarkdown, showRedaction, showRasterize, showFlatten, showOrganize, showCompression, showProperties, showWatermark, securityFile, protectPdf, confirmDeletePage, assembly]);
 
   function openFiles(files: File[]) {
     if (saving || busy) {
@@ -267,8 +269,11 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     try {
       const body = new FormData();
       body.append('file', pdfBytes, 'document.pdf');
-      const { image, certificate, ...command } = edit;
+      const { image, certificate, ocrFont, ...command } = edit;
       body.append('edit', JSON.stringify(command));
+      if (ocrFont) {
+        body.append('ocrFont', ocrFont);
+      }
       if (certificate) {
         body.append('certificate', certificate);
       }
@@ -323,6 +328,9 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     } catch (cause) {
       await task?.destroy();
       setError(cause instanceof Error ? cause.message : 'Edit failed.');
+      if (edit.kind === 'apply-image-ocr') {
+        throw cause;
+      }
     } finally {
       setSaving(false);
     }
@@ -668,7 +676,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
       if (edit) {
         void saveEdit(edit);
       }
-    }} />{markupActions}</> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} />{markupActions}<ObjectEditor item={selected} busy={saving || busy || rendering || exporting} onSave={saveEdit} onExportImage={exportImage} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, (key, value) => key === 'values' && selected.kind === 'field' && (((selected.details as { flags?: number }).flags ?? 0) & (1 << 13)) !== 0 ? (value as string[]).map(text => '*'.repeat(text.length)) : value, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
+    }} />{markupActions}</> : selected ? <div key={selected.id} className="selected-object-editor"><SelectionSummary item={selected} disabled={saving} onClose={() => setSelected(null)} />{markupActions}<ObjectEditor item={selected} busy={saving || busy || rendering || exporting} onSave={saveEdit} onExportImage={exportImage} onOcrImage={(page, image) => setOcrImage({ page, image })} /><details className="technical-details"><summary>Technical details</summary><pre>{JSON.stringify(selected.details, (key, value) => key === 'values' && selected.kind === 'field' && (((selected.details as { flags?: number }).flags ?? 0) & (1 << 13)) !== 0 ? (value as string[]).map(text => '*'.repeat(text.length)) : value, 2)}</pre></details></div> : <div className="inspector-empty"><MousePointer2 size={28} aria-hidden="true" /><h3>Select an object</h3><p>Click an outline on the page or an item in the object list to edit its properties.</p><span>Drag a tool onto the page to create something new.</span></div>}{renderer === 'native' && pdf && <details className="renderer-notes"><summary>Experimental renderer - Rendering notes ({renderNotes.length})</summary>{renderNotes.map((note, index) => <p key={index}>{note}</p>)}</details>}{!!inspection?.warnings.length && <details className="warnings"><summary>Extraction notes ({inspection.warnings.length})</summary>{inspection.warnings.map((warning, i) => <p key={i}>{warning}</p>)}</details>}</aside></main>
     </div>{confirmDeletePage && <Modal labelledBy="delete-page-title" initialFocus="[data-delete-cancel]" className="page-assembly-dialog" onClose={() => setConfirmDeletePage(false)}>
       <div className="assembly-heading"><div><Trash2 size={22} aria-hidden="true" /><h2 id="delete-page-title">Delete page {page}?</h2></div><button type="button" className="icon-button" aria-label="Close delete page confirmation" onClick={() => setConfirmDeletePage(false)}><X size={18} aria-hidden="true" /></button></div>
       <p className="assembly-document">{name}</p>
@@ -692,6 +700,7 @@ export function PlaygroundPage({ initialFile, initialView, tabStrip, externalBus
     {showCompression && pdfBytes && <CompressionDialog pdf={pdfBytes} name={name} onClose={() => setShowCompression(false)} onOpenFiles={onOpenFiles} />}
     {showProperties && pdf && inspection && <DocumentPropertiesDialog metadata={inspection.metadata} name={name} pageCount={pdf.numPages} pdfVersion={inspection.pdfVersion} page={page} onClose={() => setShowProperties(false)} onSave={saveEdit} />}
     {showWatermark && pdfBytes && pdf && <WatermarkDialog pdf={pdfBytes} page={page} pageCount={pdf.numPages} watermarks={inspection?.watermarks ?? []} onClose={() => setShowWatermark(false)} onSave={saveEdit} />}
+    {ocrImage && pdfBytes && <ImageOcrDialog pdf={pdfBytes} page={ocrImage.page} image={ocrImage.image} onApply={saveEdit} onClose={() => setOcrImage(null)} />}
     {showMarkdown && pdfBytes && <MarkdownView pdf={pdfBytes} name={name} onClose={() => setShowMarkdown(false)} />}
     {pdf && <div className="page-navigation-bar" role="toolbar" aria-label="Page navigation and zoom"><div className="page-navigation-controls"><button aria-label="Previous page" title="Previous page" disabled={saving || busy || page === 1} onClick={() => changePage(page - 1)}><ChevronLeft size={18} aria-hidden="true" /></button><label>Page <select aria-label="Page" disabled={saving || busy} value={page} onChange={event => changePage(Number(event.target.value))}>{Array.from({ length: pdf.numPages }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</select> / {pdf.numPages}</label><button aria-label="Next page" title="Next page" disabled={saving || busy || page === pdf.numPages} onClick={() => changePage(page + 1)}><ChevronRight size={18} aria-hidden="true" /></button></div><label className="page-zoom-control">Zoom <select aria-label="Zoom" disabled={saving || busy} value={zoom} onChange={event => setZoom(Number(event.target.value))}>{[.5, .75, 1, 1.25, 1.5, 2].map(value => <option key={value} value={value}>{value * 100}%</option>)}</select></label></div>}
     <footer>PdfObjectKit extracts · {renderer === 'native' ? 'PdfObjectKit renders (experimental)' : 'PDF.js renders'}<span>Add, edit and delete · Files are not saved by the API</span></footer>
