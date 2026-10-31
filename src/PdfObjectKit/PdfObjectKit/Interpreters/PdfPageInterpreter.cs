@@ -32,6 +32,8 @@ internal sealed class PdfPageInterpreter
     private int count;
     private int formCount;
     private int? formOccurrenceId;
+    internal IReadOnlyList<(PdfReference Id, PdfValue Value)> PageStreams { get; private set; } = [];
+
     internal Dictionary<PdfReference, PdfValue> TextStreams { get; } = [];
     public PdfPageInterpreter(PdfGraph graph, NativePage page)
     {
@@ -40,7 +42,47 @@ internal sealed class PdfPageInterpreter
         var tm = PdfMatrix.Identity;
         var line = tm;
         var stack = new Stack<State>();
-        foreach (var(id, stream)in page.Streams)
+        // A page's /Contents array is one logical byte sequence. Keep physical
+        // stream identities for ordinary pages, but parse across boundaries when
+        // an operand, array or string is split between streams.
+        var streams = page.Streams;
+        PageStreams = streams;
+        if (streams.Count > 1)
+        {
+            try
+            {
+                var decoded = streams.Select(item => PdfStreamDecoder.Decode(item.Value)).ToList();
+                var requiresCombinedParsing = false;
+                foreach (var bytes in decoded)
+                {
+                    try
+                    {
+                        PdfContent.Parse(bytes);
+                    }
+                    catch (InvalidDataException)
+                    {
+                        requiresCombinedParsing = true;
+                        break;
+                    }
+                }
+                if (requiresCombinedParsing)
+                {
+                    var combined = decoded.SelectMany(bytes => bytes).ToArray();
+                    PdfContent.Parse(combined);
+                    // This in-memory stream has a checksum covering every source stream.
+                    // No PDF objects or page dictionaries are changed during extraction.
+                    streams = [(streams[0].Id, PdfPrimitives.Stream(combined))];
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                TextWarning = ex.Message;
+                ImageWarning = ex.Message;
+                return;
+            }
+        }
+        PageStreams = streams;
+        foreach (var(id, stream)in streams)
         {
             TextStreams[id] = stream;
             try

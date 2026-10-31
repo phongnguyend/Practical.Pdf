@@ -70,6 +70,7 @@ if (args.Length == 1)
 Console.WriteLine($"Passed {checks} integration checks.");
 ObjectGraphTests.Run(pdf);
 NativeParserTests.Run();
+StreamBoundaryTests.Run();
 NativeFeatureTests.Run(args.Length == 1 ? args[0] : null);
 ImageInsertionTests.Run();
 TextEditorTests.Run(args.Length == 1 ? args[0] : null);

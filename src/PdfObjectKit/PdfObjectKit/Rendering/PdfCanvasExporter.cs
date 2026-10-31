@@ -222,7 +222,7 @@ public static class PdfCanvasExporter
             }
         }
         var offset = 0;
-        foreach (var stream in page.Streams)
+        foreach (var stream in interpreted.PageStreams)
         {
             Walk(stream.Value, stream.Id, page.Resources, null, offset, 0);
             offset += PdfContent.Parse(PdfStreamDecoder.Decode(stream.Value)).Count;
