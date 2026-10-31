@@ -17,7 +17,9 @@ internal static class ImageOcrTests
         var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
         foreach (var replace in new[] { false, true })
         {
-            var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage()));
+            var document = PdfReader.Read(PdfFixture.Create(null, new FixturePage("AB")));
+            var originalPage = new PdfGraph(document).Pages()[0];
+            var originalText = string.Join("\n", originalPage.Streams.Select(stream => Encoding.Latin1.GetString(PdfStreamDecoder.Decode(stream.Value))));
             PdfImageEditor.InsertImage(document, 1, png, 10, 10, 100, 50);
             PdfValue Add(PdfValue value)
             {
@@ -33,13 +35,20 @@ internal static class ImageOcrTests
             form.Entries["BBox"] = Array(Num(0), Num(0), Num(1), Num(1));
             form.Entries["Resources"] = page.Resources;
             form.Entries["Matrix"] = Array(Num(1), Num(.1), Num(.2), Num(1), Num(0), Num(0));
-            page.Dictionary.Entries!["Resources"] = Dict(("XObject", Dict(("Fm", Add(form)))));
-            page.Dictionary.Entries["Contents"] = Add(Stream(Encoding.ASCII.GetBytes("q 0 100 -200 20 300 40 cm /Fm Do Q q 50 0 0 50 20 20 cm /Fm Do Q")));
+            page.Dictionary.Entries!["Resources"] = Dict(("XObject", Dict(("Fm", Add(form)))), ("Font", graph.Get(page.Resources, "Font")!));
+            page.Dictionary.Entries["Contents"] = Add(Stream(Encoding.ASCII.GetBytes(originalText + "\nq 0 100 -200 20 300 40 cm /Fm Do Q q 50 0 0 50 20 20 cm /Fm Do Q")));
             page.Dictionary.Entries["Rotate"] = Num(90);
             var corners = PdfImageExtractor.Extract(document)[0].Images[0].Corners;
             PdfImageOcrEditor.Apply(document, 1, 1, [new("AB", .1, .2, .5, .1, .28)], font, replace);
             var roundTrip = PdfReader.Read(PdfWriter.Write(document));
             var images = PdfImageExtractor.Extract(roundTrip)[0].Images;
+            var selections = PdfParagraphExtractor.ExtractSelectionLines(roundTrip, 1);
+            if (selections.Count(selection => selection.Text == "AB") != 2
+                || !selections.Any(selection => Math.Abs(selection.Corners[1].Y - selection.Corners[0].Y) > 1))
+            {
+                throw new Exception("OCR must leave original horizontal text and transformed OCR text selectable.");
+            }
+
             if (images.Count != (replace ? 1 : 2))
             {
                 throw new Exception("OCR changes only the selected image occurrence.");

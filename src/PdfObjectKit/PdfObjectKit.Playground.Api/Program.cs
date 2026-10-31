@@ -645,10 +645,10 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
             try
             {
                 var lineNumber = 0;
-                foreach (var line in PdfParagraphExtractor.Extract(document, page.PageNumber).SelectMany(p => p.Lines))
+                foreach (var line in PdfParagraphExtractor.ExtractSelectionLines(document, page.PageNumber))
                 {
                     items.Add(new($"p{page.PageNumber}-text{++lineNumber}", page.PageNumber, "text", line.Text,
-                        Rectangle(line.Left, line.Baseline - line.Height * .2, line.Right, line.Baseline + line.Height), line));
+                        line.Corners.ToList(), line));
                 }
             }
             catch (Exception ex) when (ex is InvalidDataException or NotSupportedException)

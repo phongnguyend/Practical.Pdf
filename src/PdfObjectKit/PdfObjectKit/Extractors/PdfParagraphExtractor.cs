@@ -33,7 +33,44 @@ public static class PdfParagraphExtractor
         return Extract(page, new PdfPageInterpreter(graph, page), h.TextColumnGapFactor, h);
     }
 
-    internal static List<PdfParagraph> Extract(NativePage page, PdfPageInterpreter parsed, double columnGapFactor = 2, PdfHeuristicOptions? heuristics = null, IReadOnlyList<PdfTableHint>? tableHints = null)
+    /// <summary>Builds UI selections without requiring all page text to be horizontal.</summary>
+    public static List<PdfTextSelection> ExtractSelectionLines(PdfObjectDocument document, int pageNumber)
+    {
+        PdfDocumentValidator.Validate(document);
+        var graph = new PdfGraph(document);
+        var pages = graph.Pages();
+        if (pageNumber < 1 || pageNumber > pages.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageNumber));
+        }
+        var page = pages[pageNumber - 1];
+        var parsed = new PdfPageInterpreter(graph, page);
+        var selections = Extract(page, parsed, horizontalOnly: true).SelectMany(paragraph => paragraph.Lines)
+            .Select(line => new PdfTextSelection(line.Text,
+                [new(line.Left, line.Baseline - line.Height * .2), new(line.Right, line.Baseline - line.Height * .2), new(line.Right, line.Baseline + line.Height), new(line.Left, line.Baseline + line.Height)], line.Runs)).ToList();
+        var hashes = parsed.TextStreams.ToDictionary(item => item.Key,
+            item => Convert.ToHexString(SHA256.HashData(Convert.FromBase64String(item.Value.Base64!))));
+        foreach (var slot in parsed.Slots.Where(slot => !slot.IsHorizontal && !string.IsNullOrWhiteSpace(slot.Text)))
+        {
+            if (parsed.TextStreams.TryGetValue(slot.Stream, out var stream)
+                && stream.Entries?.GetValueOrDefault("PdfObjectKitWatermark")?.Type == "string")
+            {
+                continue;
+            }
+            var upX = slot.TextMatrix.C * slot.FontSize;
+            var upY = slot.TextMatrix.D * slot.FontSize;
+            if (Math.Abs(upX) + Math.Abs(upY) < 1e-9)
+            {
+                continue;
+            }
+            PdfImagePoint Offset(PdfImagePoint point, double factor) => new(point.X + upX * factor, point.Y + upY * factor);
+            var line = BuildLine([slot], hashes, new());
+            selections.Add(new(slot.Text, [Offset(slot.BaselineStart, -.2), Offset(slot.BaselineEnd, -.2), Offset(slot.BaselineEnd, 1), Offset(slot.BaselineStart, 1)], line.Runs));
+        }
+        return selections;
+    }
+
+    internal static List<PdfParagraph> Extract(NativePage page, PdfPageInterpreter parsed, double columnGapFactor = 2, PdfHeuristicOptions? heuristics = null, IReadOnlyList<PdfTableHint>? tableHints = null, bool horizontalOnly = false)
     {
         var h = heuristics ?? new();
         h.Validate();
@@ -47,9 +84,14 @@ public static class PdfParagraphExtractor
         // raw text extraction/rendering, but do not let their angle suppress page text.
         var slots = parsed.Slots.Where(slot => !parsed.TextStreams.TryGetValue(slot.Stream, out var stream)
             || stream.Entries?.GetValueOrDefault("PdfObjectKitWatermark")?.Type != "string").ToList();
-        if (slots.Any(s => !s.IsHorizontal || s.Height <= 0))
+        if (!horizontalOnly && slots.Any(s => !s.IsHorizontal || s.Height <= 0))
         {
             throw new NotSupportedException("Paragraph detection requires horizontal text in page coordinates.");
+        }
+
+        if (horizontalOnly)
+        {
+            slots = slots.Where(slot => slot.IsHorizontal && slot.Height > 0).ToList();
         }
 
         var hashes = parsed.TextStreams.Select(s => (Id: s.Key, Value: s.Value)).ToDictionary(s => s.Id,

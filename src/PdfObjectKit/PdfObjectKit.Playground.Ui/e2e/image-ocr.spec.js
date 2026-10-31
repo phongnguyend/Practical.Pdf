@@ -1,12 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 
-function imagePdf(jpeg) {
-  const drawing = 'q 400 0 0 120 20 20 cm /Im1 Do Q';
+function imagePdf(jpeg, skew = false) {
+  const drawing = `q ${skew ? '400 20 20 80' : '400 0 0 120'} 20 20 cm /Im1 Do Q BT /F1 10 Tf 1 0 0 1 20 148 Tm (Existing text) Tj ET`;
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 440 160] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 440 160] /Resources << /Font << /F1 6 0 R >> /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>',
     `<< /Type /XObject /Subtype /Image /Width 800 /Height 240 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n${jpeg.toString('latin1')}\nendstream`,
-    `<< /Length ${drawing.length} >>\nstream\n${drawing}\nendstream`];
+    `<< /Length ${drawing.length} >>\nstream\n${drawing}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
   let pdf = '%PDF-1.7\n';
   const offsets = [];
   for (const [index, object] of objects.entries()) {
@@ -14,7 +14,7 @@ function imagePdf(jpeg) {
     pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
   }
   const xref = pdf.length;
-  pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  pdf += `xref\n0 7\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return Buffer.from(pdf, 'latin1');
 }
 
@@ -102,7 +102,7 @@ for (const mode of ['searchable', 'replace']) {
       context.fillText('Hello OCR', 40, 100);
       return canvas.toDataURL('image/jpeg').split(',')[1];
     });
-    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'apply.pdf', mimeType: 'application/pdf', buffer: imagePdf(Buffer.from(jpeg, 'base64')) });
+    await page.getByLabel('Open PDF', { exact: true }).setInputFiles({ name: 'apply.pdf', mimeType: 'application/pdf', buffer: imagePdf(Buffer.from(jpeg, 'base64'), mode === 'replace') });
     await page.locator('.object').filter({ hasText: 'Image 1' }).click();
     const pixelsBefore = await page.locator('.page > div > canvas').evaluate(canvas => canvas.toDataURL());
     await page.getByRole('button', { name: 'Extract text (OCR)', exact: true }).click();
@@ -144,10 +144,16 @@ for (const mode of ['searchable', 'replace']) {
     // The original image starts at x=20; the OCR line starts at x=40/800,
     // then moves 10/800, so its PDF origin is 20 + 400 * 50/800 = 45.
     expect(text.transform[4]).toBeGreaterThan(43);
-    expect(text.transform[4]).toBeLessThan(49);
+    expect(text.transform[4]).toBeLessThan(mode === 'replace' ? 70 : 49);
     const inspection = await request.post('/api/documents/inspect', { data: bytes, headers: { 'Content-Type': 'application/pdf' } });
     expect(inspection.ok()).toBe(true);
     const objects = (await inspection.json()).objects;
     expect(objects.filter(item => item.kind === 'image')).toHaveLength(mode === 'replace' ? 0 : 1);
+    for (const label of ['Existing text', 'Hello Vi\u1ec7t']) {
+      await page.locator('.object').filter({ hasText: label }).click();
+      await expect(page.locator('.selection-label')).toHaveText(label);
+    }
+    expect(objects.filter(item => item.kind === 'text')).toHaveLength(2);
+
   });
 }
