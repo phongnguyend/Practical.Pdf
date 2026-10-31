@@ -43,6 +43,12 @@ internal static class ImageOcrTests
             var roundTrip = PdfReader.Read(PdfWriter.Write(document));
             var images = PdfImageExtractor.Extract(roundTrip)[0].Images;
             var selections = PdfParagraphExtractor.ExtractSelectionLines(roundTrip, 1);
+            var originalSelection = selections.First(selection => Math.Abs(selection.Baseline - 100) < .001);
+            if (originalSelection.Left != 20 || originalSelection.Right <= originalSelection.Left || originalSelection.Height != 12)
+            {
+                throw new Exception("Selection metadata must preserve the existing horizontal line geometry contract.");
+            }
+
             if (selections.Count(selection => selection.Text == "AB") != 2
                 || !selections.Any(selection => Math.Abs(selection.Corners[1].Y - selection.Corners[0].Y) > 1))
             {

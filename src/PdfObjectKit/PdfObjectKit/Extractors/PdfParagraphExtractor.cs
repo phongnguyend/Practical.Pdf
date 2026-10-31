@@ -47,7 +47,13 @@ public static class PdfParagraphExtractor
         var parsed = new PdfPageInterpreter(graph, page);
         var selections = Extract(page, parsed, horizontalOnly: true).SelectMany(paragraph => paragraph.Lines)
             .Select(line => new PdfTextSelection(line.Text,
-                [new(line.Left, line.Baseline - line.Height * .2), new(line.Right, line.Baseline - line.Height * .2), new(line.Right, line.Baseline + line.Height), new(line.Left, line.Baseline + line.Height)], line.Runs)).ToList();
+                [new(line.Left, line.Baseline - line.Height * .2), new(line.Right, line.Baseline - line.Height * .2), new(line.Right, line.Baseline + line.Height), new(line.Left, line.Baseline + line.Height)], line.Runs)
+            {
+                Left = line.Left,
+                Right = line.Right,
+                Baseline = line.Baseline,
+                Height = line.Height
+            }).ToList();
         var hashes = parsed.TextStreams.ToDictionary(item => item.Key,
             item => Convert.ToHexString(SHA256.HashData(Convert.FromBase64String(item.Value.Base64!))));
         foreach (var slot in parsed.Slots.Where(slot => !slot.IsHorizontal && !string.IsNullOrWhiteSpace(slot.Text)))
@@ -65,7 +71,13 @@ public static class PdfParagraphExtractor
             }
             PdfImagePoint Offset(PdfImagePoint point, double factor) => new(point.X + upX * factor, point.Y + upY * factor);
             var line = BuildLine([slot], hashes, new());
-            selections.Add(new(slot.Text, [Offset(slot.BaselineStart, -.2), Offset(slot.BaselineEnd, -.2), Offset(slot.BaselineEnd, 1), Offset(slot.BaselineStart, 1)], line.Runs));
+            selections.Add(new(slot.Text, [Offset(slot.BaselineStart, -.2), Offset(slot.BaselineEnd, -.2), Offset(slot.BaselineEnd, 1), Offset(slot.BaselineStart, 1)], line.Runs)
+            {
+                Left = Math.Min(slot.BaselineStart.X, slot.BaselineEnd.X),
+                Right = Math.Max(slot.BaselineStart.X, slot.BaselineEnd.X),
+                Baseline = slot.BaselineStart.Y,
+                Height = Math.Sqrt(upX * upX + upY * upY)
+            });
         }
         return selections;
     }
